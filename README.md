@@ -10,8 +10,9 @@ Die App wird privat von [Alexander (@revunix)](https://github.com/revunix) entwi
 
 - Formate und Folgen durchstöbern, neue Inhalte entdecken und begonnene Folgen weiterschauen.
 - Folgendetails mit Beschreibung, Kapiteln und weiteren Informationen ansehen, soweit verfügbar.
-- Folgen für später auf der Merkliste speichern oder als gesehen markieren.
-- Titel, Beschreibungen, Kapitel und Gesprochenes durchsuchen und Ergebnisse unter anderem nach Format oder Person filtern.
+- Folgen für später auf der Merkliste speichern sowie als gesehen oder ungesehen markieren. Folgen lassen sich auch direkt aus **Weiterschauen** entfernen.
+- Titel, Beschreibungen, Kapitel und Gesprochenes durchsuchen und Ergebnisse nach Format oder Person filtern. Treffer zeigen passende Textstellen und Zeitmarken; ein Klick öffnet die Folge an der gewählten Stelle.
+- Folgenbilder zeigen beim Darüberfahren eine kurze Vorschau an fünf Stellen der Folge. Das funktioniert in den Listen und Suchergebnissen, nicht auf der Player-Seite.
 
 ### Wiedergabe und Live
 
@@ -43,7 +44,7 @@ Die App wird privat von [Alexander (@revunix)](https://github.com/revunix) entwi
 
 Für die Nutzung benötigst du **macOS 15 oder neuer**, eine Internetverbindung und ein Orangeflix-Konto. Die bereitgestellten Release-Builds sind für Macs mit **Apple Silicon** vorgesehen.
 
-1. Falls ein Release verfügbar ist, lade `Orangeflix-for-Mac.zip` von den [GitHub Releases](https://github.com/revunix/Orangeflix-macOS/releases) herunter.
+1. Lade die aktuelle Version **1.2.1** (`Orangeflix-for-Mac.zip`) von den [GitHub Releases](https://github.com/revunix/Orangeflix-macOS/releases/latest) herunter.
 2. Entpacke das Archiv und verschiebe `Orangeflix.app` in den Ordner **Programme**.
 3. Starte die App und melde dich mit der E-Mail-Adresse und dem Passwort deines Orangeflix-Kontos an. Wenn für dein Konto die Zwei-Faktor-Anmeldung aktiviert ist, gib zusätzlich den Code aus deiner Authenticator-App ein.
 
@@ -79,7 +80,9 @@ codesign --verify --deep --strict --verbose=2 /Applications/Orangeflix.app
 
 ## Bedienung
 
-Über die Navigation im Hauptfenster erreichst du Mediathek, Live, Merkliste, Downloads und Suche. Bei einer Folge findest du die verfügbaren Aktionen auf der Detailseite. In den Einstellungen kannst du unter anderem den Download-Ordner und die Darstellung ändern.
+Über die Navigation im Hauptfenster erreichst du Mediathek, Live, **Weiterschauen**, Merkliste, Downloads und Suche. Ein Klick auf ein Suchergebnis öffnet die Folgenseite; ein Klick auf eine Zeitmarke startet die Wiedergabe an dieser Stelle. Beim Darüberfahren über Folgenbilder erscheint die Vorschau mit fünf Abschnitten.
+
+Weitere Aktionen findest du per Rechtsklick auf eine Folge oder im Menü **Aktionen**. Dort kannst du sie als gesehen oder ungesehen markieren. In **Weiterschauen** kannst du eine Folge außerdem direkt aus der Liste entfernen; dabei wird ihr Wiedergabestand zurückgesetzt. In den Einstellungen kannst du unter anderem den Download-Ordner und die Darstellung ändern.
 
 | Kurzbefehl | Aktion |
 |:---|:---|
@@ -147,12 +150,12 @@ App-Archiv und die Versionshinweise enthalten. Der private EdDSA-Schlüssel darf
 nicht in dieses Repository gelangen.
 
 **Update bleibt nach dem Download hängen:** Version 1.1.1 fehlt die für die
-App-Sandbox benötigte Sparkle-Installationskonfiguration. Sobald ein neueres
-Release mit der Korrektur verfügbar ist, installiere es einmal manuell aus den
-[GitHub Releases](https://github.com/revunix/Orangeflix-macOS/releases), indem
-du die alte App durch die neue ersetzt. Die lokalen Daten liegen getrennt vom
-App-Bundle; sichere sie vorsichtshalber vor dem Austausch. Eventuell musst du
-dich erneut anmelden. Spätere Updates sollten dann über die App funktionieren.
+App-Sandbox benötigte Sparkle-Installationskonfiguration. Wenn du noch 1.1.1
+verwendest, installiere Version 1.2.1 einmal manuell aus den
+[GitHub Releases](https://github.com/revunix/Orangeflix-macOS/releases/latest),
+indem du die alte App durch die neue ersetzt. Die lokalen Daten liegen getrennt
+vom App-Bundle; sichere sie vorsichtshalber vor dem Austausch. Eventuell musst
+du dich erneut anmelden. Danach sollten Updates über die App funktionieren.
 
 ### Release veröffentlichen
 
