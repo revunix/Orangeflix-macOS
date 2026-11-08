@@ -149,6 +149,12 @@ Download, Signaturprüfung und Installation. **Allgemein → Nach Updates suchen
 oder **Einstellungen → Über → Softwareupdate** öffnet die Update-Prüfung; Sparkle
 zeigt die zum Release gehörenden Versionshinweise an.
 
+Unter **Einstellungen → Über → Softwareupdate** kannst du automatische
+Update-Prüfungen ein- oder ausschalten und das Intervall auf täglich,
+wöchentlich oder monatlich setzen. Die manuelle Suche ist außerdem im Menü
+**Orangeflix** neben dem Apple-Menü und im Menüleistensymbol verfügbar, wenn
+Orangeflix im Hintergrund weiterläuft.
+
 Updates werden aus GitHub Releases bezogen. Dafür muss das Repository öffentlich
 sein und ein Release die von Sparkle signierte `appcast.xml`, ein signiertes
 App-Archiv und die Versionshinweise enthalten. Der private EdDSA-Schlüssel darf

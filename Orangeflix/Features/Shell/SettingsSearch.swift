@@ -237,6 +237,10 @@ enum SettingsSearch {
         // Über
         .init(id: "about.updates", pane: .about, title: "Nach Updates suchen …",
               section: "Softwareupdate", keywords: "aktualisierung neue version changelog änderungen updater sparkle"),
+        .init(id: "about.automaticUpdates", pane: .about, title: "Automatisch nach Updates suchen",
+              section: "Softwareupdate", keywords: "automatisch prüfung einschalten ausschalten aktivieren deaktivieren"),
+        .init(id: "about.updateInterval", pane: .about, title: "Suchintervall", section: "Softwareupdate",
+              keywords: "täglich wöchentlich monatlich häufigkeit wann turnus"),
         .init(id: "about.independence", pane: .about, title: "Keine Verbindung zur Plattform",
               section: "Unabhängigkeit", keywords: "unabhängig inoffiziell disclaimer keine verbindung orangeflix.de plattform rechtliches"),
         .init(id: "about.license", pane: .about, title: "Lizenz", section: "Lizenz",

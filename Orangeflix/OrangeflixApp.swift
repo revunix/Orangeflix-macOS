@@ -43,7 +43,7 @@ struct OrangeflixApp: App {
         SettingsWindowScene(container: container, updaterController: updaterController)
 
         // The symbol in the menu bar while the app runs in the background.
-        BackgroundMenuScene(container: container)
+        BackgroundMenuScene(container: container, updaterController: updaterController)
     }
 
     @ViewBuilder
@@ -144,13 +144,16 @@ struct SettingsWindowScene: Scene {
 /// The symbol in the menu bar; it shows while the app runs in the background.
 struct BackgroundMenuScene: Scene {
     let container: AppContainer?
+    let updaterController: SPUStandardUpdaterController
 
     var body: some Scene {
         MenuBarExtra(isInserted: Binding(
             get: { container?.app.settings.runsInBackground ?? false },
             set: { value in try? container?.app.updateSettings { $0.runsInBackground = value } })
         ) {
-            if let container { BackgroundMenu(container: container) }
+            if let container {
+                BackgroundMenu(container: container, updaterController: updaterController)
+            }
         } label: {
             // The monochrome iris; a dot joins it while a livestream runs.
             Image(nsImage: container?.watcher.liveTitle == nil ? IrisMenuBarIcon.plain : IrisMenuBarIcon.live)

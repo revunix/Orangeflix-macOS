@@ -1,6 +1,7 @@
 import AppKit
 import Observation
 import ServiceManagement
+import Sparkle
 import SwiftUI
 
 /// Lets the app keep running without a window, so notifications about new
@@ -161,6 +162,7 @@ import SwiftUI
 /// background.
 struct BackgroundMenu: View {
     let container: AppContainer
+    let updaterController: SPUStandardUpdaterController
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
@@ -182,6 +184,8 @@ struct BackgroundMenu: View {
                 await watcher.checkLive()
             }
         }
+        Divider()
+        Button("Nach Updates suchen …") { updaterController.checkForUpdates(nil) }
         Divider()
         Toggle("Neue Folgen melden", isOn: Binding(
             get: { container.app.settings.notificationsOn },

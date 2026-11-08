@@ -25,6 +25,7 @@ struct ShellCommands: Commands {
     var body: some Commands {
         CommandGroup(replacing: .appInfo) {
             Button("Über Orangeflix") { openAbout() }
+            Button("Nach Updates suchen …") { updaterController.checkForUpdates(nil) }
         }
         CommandMenu("Gehe zu") {
             ForEach(Array(SidebarItem.allCases.enumerated()), id: \.element) { index, item in

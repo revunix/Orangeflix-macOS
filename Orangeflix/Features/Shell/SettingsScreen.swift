@@ -18,6 +18,16 @@ struct SettingsScreen: View {
     @Environment(SessionModel.self) private var sessions
     @Environment(\.colorScheme) private var colorScheme
 
+    /// Sparkle persists both values in the app's user defaults.
+    @State private var automaticUpdateChecks: Bool
+    @State private var updateCheckInterval: TimeInterval
+
+    init(updaterController: SPUStandardUpdaterController) {
+        self.updaterController = updaterController
+        _automaticUpdateChecks = State(initialValue: updaterController.updater.automaticallyChecksForUpdates)
+        _updateCheckInterval = State(initialValue: updaterController.updater.updateCheckInterval)
+    }
+
     /// The areas of the sidebar.
     enum Pane: String, CaseIterable, Identifiable, Hashable {
         case account, profile, sharing, notifications, appearance, downloads, streaming, live, formats, storage, transfer, about
@@ -67,7 +77,7 @@ struct SettingsScreen: View {
             case .appearance: "themes design erscheinungsbild hell dunkel automatisch farben"
             case .live: "livestream chat umfrage abstimmung voting schrift schriftgröße profilbild avatar uhrzeit"
             case .transfer: "import export sicherung backup wiederherstellen config bibliothek library datenbank"
-            case .about: "version lizenz mit lizenz text rechtliches impressum disclaimer unabhängig inoffiziell projekt danke"
+            case .about: "version lizenz mit lizenz text rechtliches impressum disclaimer unabhängig inoffiziell projekt danke update aktualisierung updater automatisch prüfintervall"
             default: ""
             }
         }
@@ -1652,10 +1662,20 @@ struct SettingsScreen: View {
                     }
                 }
                 .searchAnchor("about.updates")
+
+                Toggle("Automatisch nach Updates suchen", isOn: automaticUpdateChecksBinding)
+                    .searchAnchor("about.automaticUpdates")
+                Picker("Suchintervall", selection: updateCheckIntervalBinding) {
+                    Text("Täglich").tag(TimeInterval(86_400))
+                    Text("Wöchentlich").tag(TimeInterval(604_800))
+                    Text("Monatlich").tag(TimeInterval(2_592_000))
+                }
+                .disabled(!automaticUpdateChecks)
+                .searchAnchor("about.updateInterval")
             } header: {
                 Text("Softwareupdate")
             } footer: {
-                Text("Vor der Installation prüft der Updater die Signatur des Downloads. Die Versionshinweise erscheinen im Update-Fenster.")
+                Text("Automatische Suchen erfolgen im gewählten Intervall, solange Orangeflix läuft. Vor der Installation prüft der Updater die Signatur des Downloads; die Versionshinweise erscheinen im Update-Fenster.")
             }
 
             Section {
@@ -1730,6 +1750,24 @@ struct SettingsScreen: View {
                 Text("Inhalte und Zugang")
             }
         }
+    }
+
+    private var automaticUpdateChecksBinding: Binding<Bool> {
+        Binding(
+            get: { automaticUpdateChecks },
+            set: { value in
+                automaticUpdateChecks = value
+                updaterController.updater.automaticallyChecksForUpdates = value
+            })
+    }
+
+    private var updateCheckIntervalBinding: Binding<TimeInterval> {
+        Binding(
+            get: { updateCheckInterval },
+            set: { value in
+                updateCheckInterval = value
+                updaterController.updater.updateCheckInterval = value
+            })
     }
 
     private var libraryDetail: String {

@@ -388,6 +388,12 @@
     "Automatisch: Der Chat steht dort, wo du ihn auf der Live-Seite im Größen-Menü wählst. Das Live-Fenster hat feste Größen, die genau zu Video und Chat passen." : {
 
     },
+    "Automatisch nach Updates suchen" : {
+
+    },
+    "Automatische Suchen erfolgen im gewählten Intervall, solange Orangeflix läuft. Vor der Installation prüft der Updater die Signatur des Downloads; die Versionshinweise erscheinen im Update-Fenster." : {
+
+    },
     "Banner %lld" : {
 
     },
@@ -1057,6 +1063,9 @@
     "Mitteilungen je Format" : {
 
     },
+    "Monatlich" : {
+
+    },
     "Nach „%@“ suchen" : {
 
     },
@@ -1291,6 +1300,9 @@
     "Softwareupdate" : {
 
     },
+    "Suchintervall" : {
+
+    },
     "Speichern" : {
 
     },
@@ -1301,6 +1313,9 @@
 
     },
     "Start" : {
+
+    },
+    "Täglich" : {
 
     },
     "Status" : {
@@ -1467,6 +1482,9 @@
 
     },
     "Wird angemeldet …" : {
+
+    },
+    "Wöchentlich" : {
 
     },
     "Wohin die Downloads geschrieben werden." : {
