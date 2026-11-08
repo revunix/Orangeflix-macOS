@@ -134,6 +134,12 @@ extension OrangeflixAPI {
 
     /// Stores the position the user reached; the API turns it into the
     /// percentage the website shows. Negative values are sent as 0.
+    /// Sets the progress as a share (0–100); needs no running time.
+    func updateProgress(_ identifier: String, percentage: Int) async throws {
+        let body = try APIJSON.encode(["percentage": min(max(percentage, 0), 100)])
+        _ = try await requestData("POST", "playback/" + APIHTTP.pathEscape(identifier) + "/progress", body: body)
+    }
+
     func updateProgress(_ identifier: String, seconds: Int) async throws {
         let body = try APIJSON.encode(["time": max(seconds, 0)])
         _ = try await requestData("POST", "playback/" + APIHTTP.pathEscape(identifier) + "/progress", body: body)

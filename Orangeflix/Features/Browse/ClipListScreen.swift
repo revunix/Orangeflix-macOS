@@ -51,6 +51,16 @@ struct ClipListScreen: View {
     @State private var selection: Set<String> = []
     @State private var showsInspector = false
     @State private var qualityEpisode: Episode?
+    @State private var filter = ContinueWatchingFilter.all
+    /// The episodes waiting for the "really mark them all?" answer.
+    @State private var pendingMark: PendingMark?
+    @State private var marking = false
+
+    private struct PendingMark: Identifiable {
+        let episodes: [Episode]
+        let watched: Bool
+        var id: String { "\(watched)-\(episodes.map(\.identifier).joined(separator: ","))" }
+    }
 
     var body: some View {
         NavigationStack {
@@ -60,6 +70,17 @@ struct ClipListScreen: View {
                         Button("Ansehen") { watch() }
                         Button("Herunterladen") { download() }
                         Button("Angaben") { showsInspector.toggle() }
+                        Divider()
+                        Button("Alle als gesehen markieren") { mark(state.episodes, watched: true) }
+                            .disabled(marking || state.episodes.allSatisfy { model.isWatched($0) })
+                        Button("Alle als ungesehen markieren") { mark(state.episodes, watched: false) }
+                            .disabled(marking || state.episodes.allSatisfy { model.current($0).progressPercent == 0 })
+                        if selection.count > 1 {
+                            Button("Auswahl als gesehen markieren") { mark(selectedEpisodes, watched: true) }
+                                .disabled(marking)
+                            Button("Auswahl als ungesehen markieren") { mark(selectedEpisodes, watched: false) }
+                                .disabled(marking)
+                        }
                     }
                 }
                 content
@@ -71,6 +92,22 @@ struct ClipListScreen: View {
                 if let episode = qualityEpisode {
                     BrowseQualitySheet(episode: episode)
                 }
+            }
+            .confirmationDialog(
+                pendingMark.map { "\($0.episodes.count) Folgen als \($0.watched ? "gesehen" : "ungesehen") markieren?" } ?? "",
+                isPresented: Binding(get: { pendingMark != nil }, set: { if !$0 { pendingMark = nil } }),
+                titleVisibility: .visible,
+                presenting: pendingMark
+            ) { pending in
+                Button(pending.watched ? "Als gesehen markieren" : "Als ungesehen markieren",
+                       role: pending.watched ? nil : .destructive) {
+                    run(pending.episodes, watched: pending.watched)
+                }
+                Button("Abbrechen", role: .cancel) {}
+            } message: { pending in
+                Text(pending.watched
+                     ? "Der Fortschritt wird auf „gesehen“ gesetzt."
+                     : "Der Fortschritt dieser Folgen wird zurückgesetzt; sie verschwinden aus Weiterschauen.")
             }
         }
         .task(id: app.accountGeneration) {
@@ -90,6 +127,22 @@ struct ClipListScreen: View {
     // MARK: Content
 
     @ViewBuilder private var content: some View {
+        if kind == .recents {
+            ContinueWatchingView(
+                episodes: state.episodes,
+                isLoading: state.isLoading,
+                errorText: state.error,
+                selection: $selection,
+                filter: $filter,
+                marking: marking,
+                onMark: { mark($0, watched: $1) },
+                onChooseQuality: { qualityEpisode = $0 })
+        } else {
+            clipList
+        }
+    }
+
+    private var clipList: some View {
         BrowseClipListView(
             episodes: state.episodes,
             isLoading: state.isLoading,
@@ -223,6 +276,29 @@ struct ClipListScreen: View {
         let episodes = selection.isEmpty ? (focusedEpisode.map { [$0] } ?? []) : selectedEpisodes
         guard !episodes.isEmpty else { return }
         model.play(episodes)
+    }
+
+    /// One episode is marked at once; several only after a question.
+    private func mark(_ episodes: [Episode], watched: Bool) {
+        guard !episodes.isEmpty, !marking else { return }
+        if episodes.count == 1 {
+            run(episodes, watched: watched)
+        } else {
+            pendingMark = PendingMark(episodes: episodes, watched: watched)
+        }
+    }
+
+    private func run(_ episodes: [Episode], watched: Bool) {
+        marking = true
+        Task {
+            if episodes.count == 1 {
+                await model.setWatched(episodes[0], watched: watched)
+            } else {
+                await model.setWatched(episodes, watched: watched)
+            }
+            selection = selection.filter { id in state.episodes.contains { $0.identifier == id } }
+            marking = false
+        }
     }
 
     private func download() {

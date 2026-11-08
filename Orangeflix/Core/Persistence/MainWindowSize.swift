@@ -4,6 +4,9 @@ import SwiftUI
 /// Remembers the size of the main window, so the app opens the way it was
 /// left. Only the size is kept; the place belongs to the window server.
 enum MainWindowSize {
+    /// The id of the main window scene; its windows carry it in their
+    /// identifier.
+    static let sceneID = "main"
     private static let widthKey = "mainWindowWidth"
     private static let heightKey = "mainWindowHeight"
 

@@ -14,6 +14,7 @@ struct MainWindowView: View {
     @Environment(AnnouncementsModel.self) private var announcements
     @Environment(CalendarModel.self) private var calendar
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.openWindow) private var openWindow
 
     /// Set once the stored credentials are read; until then the window
     /// stays empty, so neither the login nor the app flashes up.
@@ -70,6 +71,9 @@ struct MainWindowView: View {
                     .animation(.easeInOut(duration: 0.22), value: titlebarScrolled)
                     .allowsHitTesting(false)
             }
+            // Marking many episodes holds the window until the server has
+            // processed all of them.
+            .overlay { WatchedBatchOverlay() }
             .tint(Palette.accent)
             .toolbar {
                 ToolbarItem(placement: .navigation) {
@@ -143,6 +147,8 @@ struct MainWindowView: View {
             .onPreferenceChange(FixedPageSizeKey.self) { fixedPageSize = $0 }
 
             .task {
+                // Notifications reopen the window through this after it closed.
+                app.openMainWindow = { [openWindow] in openWindow(id: MainWindowSize.sceneID) }
                 await app.start()
                 started = true
             }
@@ -150,7 +156,9 @@ struct MainWindowView: View {
                 // Without a login nothing is loaded and nothing runs in the
                 // background.
                 guard started, app.hasCredentials else {
-                    watcher.stop()
+                    // Only a sign-out stops the checks; the window opening
+                    // before the start is read must not end the background ones.
+                    if started { watcher.stop() }
                     return
                 }
                 await account.load()

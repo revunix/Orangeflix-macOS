@@ -31,6 +31,8 @@ import Observation
     let profile: ProfileModel
     /// The sessions of the account.
     let sessions: SessionModel
+    /// The menu bar mode and the start at login.
+    let background: BackgroundMode
 
     init(services: AppServices) {
         let app = AppModel(services: services)
@@ -47,8 +49,22 @@ import Observation
         self.notifications = NotificationSettingsModel(app: app)
         self.profile = ProfileModel(app: app)
         self.sessions = SessionModel(app: app)
+        let background = BackgroundMode(app: app)
+        self.background = background
         app.downloads = downloads
         app.playback = playback
         playback.browseModel = browse
+        // A click on a new-episode notification opens the episodes of its format.
+        watcher.onOpen = { [weak app, weak browse, weak background] pid, _ in
+            guard let app, let browse else { return }
+            app.selection = .formats
+            browse.formatsPath = [.episodes(pid: pid)]
+            background?.showMainWindow()
+        }
+        // A click on a livestream notification opens the Live page.
+        watcher.onOpenLive = { [weak app, weak background] in
+            app?.selection = .live
+            background?.showMainWindow()
+        }
     }
 }

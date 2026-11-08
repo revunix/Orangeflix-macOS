@@ -291,3 +291,52 @@ extension Color {
         return Color(NSColor(srgbRed: red, green: green, blue: blue, alpha: 1))
     }
 }
+
+/// The iris in one ink for the menu bar. It is a template image, so macOS
+/// colors it like every other symbol there (light, dark, highlighted).
+enum IrisMenuBarIcon {
+    /// The size macOS gives a symbol in the menu bar.
+    private static let side: CGFloat = 18
+
+    /// The plain iris, and the iris with a dot while a livestream runs.
+    @MainActor static let plain = render(live: false)
+    @MainActor static let live = render(live: true)
+
+    @MainActor private static func render(live: Bool) -> NSImage {
+        let content = ZStack {
+            IrisBlades(closed: 0)
+                .fill(.black)
+                .clipShape(IrisDisc())
+            // A thin gap keeps the leaves apart from the blades in one ink.
+            IrisLeaves(closed: 0)
+                .stroke(.black, lineWidth: 1.4)
+                .blendMode(.destinationOut)
+            IrisLeaves(closed: 0)
+                .fill(.black)
+            if live {
+                // A dot at the lower right with a clear ring around it.
+                ZStack {
+                    Circle()
+                        .fill(.black)
+                        .frame(width: 9, height: 9)
+                        .blendMode(.destinationOut)
+                    Circle()
+                        .fill(.black)
+                        .frame(width: 5.5, height: 5.5)
+                }
+                .frame(width: 9, height: 9)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+            }
+        }
+        .compositingGroup()
+        .frame(width: side, height: side)
+
+        let renderer = ImageRenderer(content: content)
+        renderer.scale = 2
+        let image = renderer.nsImage ?? NSImage(systemSymbolName: "play.tv", accessibilityDescription: nil) ?? NSImage()
+        image.size = NSSize(width: side, height: side)
+        image.isTemplate = true
+        image.accessibilityDescription = live ? "Orangeflix, jetzt live" : "Orangeflix"
+        return image
+    }
+}

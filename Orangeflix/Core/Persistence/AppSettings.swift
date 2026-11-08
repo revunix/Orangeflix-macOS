@@ -151,6 +151,16 @@ struct AppSettings: Codable, Sendable, Hashable {
     /// The newest episode time per magazine that was already announced, by
     /// pid. A later time is a new episode.
     var announcedEpisodes: [String: Double] = [:]
+    /// Whether a starting livestream sends a notification.
+    var liveNotificationsOn = false
+    /// The show of the last livestream announced, so it pops up only once.
+    var announcedLiveShow = ""
+    /// Whether the app keeps running in the menu bar after its window
+    /// closes, so the notifications keep coming.
+    var runsInBackground = false
+    /// The clips removed from Weiterschauen and when (the API cannot remove
+    /// them); a later watch brings a clip back.
+    var dismissedRecents: [String: Double] = [:]
     /// Whether the chat shows when the Live page opens.
     var liveChatOpen = false
     /// Where the chat stands while it shows.
@@ -226,7 +236,7 @@ struct AppSettings: Codable, Sendable, Hashable {
     // MARK: Codable
 
     private enum CodingKeys: String, CodingKey {
-        case quality, streamQuality, layout, submodule, parallel, delay, limitKiB, thumb, meta, theme, lightThemeID, darkThemeID, lightExtendedPalette, darkExtendedPalette, importedThemes, subtitlesOn, hiddenMagazines, notifiedMagazines, notificationsOn, announcedEpisodes, liveChatOpen, liveChatStart, liveChatPosition = "liveChatPlacement", livePolls, liveChatTextSize, liveChatAvatars, liveChatTimes, interfaceStyle, tintWithTheme, glassPanels, appIcon
+        case quality, streamQuality, layout, submodule, parallel, delay, limitKiB, thumb, meta, theme, lightThemeID, darkThemeID, lightExtendedPalette, darkExtendedPalette, importedThemes, subtitlesOn, hiddenMagazines, notifiedMagazines, notificationsOn, announcedEpisodes, liveNotificationsOn, announcedLiveShow, runsInBackground, dismissedRecents, liveChatOpen, liveChatStart, liveChatPosition = "liveChatPlacement", livePolls, liveChatTextSize, liveChatAvatars, liveChatTimes, interfaceStyle, tintWithTheme, glassPanels, appIcon
     }
 
     /// Decodes leniently: a missing or invalid field keeps its default, so a
@@ -279,6 +289,10 @@ struct AppSettings: Codable, Sendable, Hashable {
         if let value = try? container.decode([Int].self, forKey: .notifiedMagazines) { notifiedMagazines = value }
         if let value = try? container.decode(Bool.self, forKey: .notificationsOn) { notificationsOn = value }
         if let value = try? container.decode([String: Double].self, forKey: .announcedEpisodes) { announcedEpisodes = value }
+        if let value = try? container.decode(Bool.self, forKey: .liveNotificationsOn) { liveNotificationsOn = value }
+        if let value = try? container.decode(String.self, forKey: .announcedLiveShow) { announcedLiveShow = value }
+        if let value = try? container.decode(Bool.self, forKey: .runsInBackground) { runsInBackground = value }
+        if let value = try? container.decode([String: Double].self, forKey: .dismissedRecents) { dismissedRecents = value }
         // An older version stored one value: hidden, side or below. Only
         // whether the chat opens carries over; the position starts automatic.
         if let value = try? container.decode(String.self, forKey: .liveChatStart) {
@@ -318,6 +332,10 @@ struct AppSettings: Codable, Sendable, Hashable {
         try container.encode(notifiedMagazines, forKey: .notifiedMagazines)
         try container.encode(notificationsOn, forKey: .notificationsOn)
         try container.encode(announcedEpisodes, forKey: .announcedEpisodes)
+        try container.encode(liveNotificationsOn, forKey: .liveNotificationsOn)
+        try container.encode(announcedLiveShow, forKey: .announcedLiveShow)
+        try container.encode(runsInBackground, forKey: .runsInBackground)
+        try container.encode(dismissedRecents, forKey: .dismissedRecents)
         try container.encode(liveChatOpen, forKey: .liveChatOpen)
         try container.encode(liveChatPosition, forKey: .liveChatPosition)
         try container.encode(livePolls, forKey: .livePolls)

@@ -65,6 +65,12 @@
         }
       }
     },
+    "%@ als gesehen markieren" : {
+
+    },
+    "%@ als ungesehen markieren" : {
+
+    },
     "%@, %@" : {
       "localizations" : {
         "de" : {
@@ -81,7 +87,41 @@
     "%lld %%" : {
 
     },
+    "%lld ausgewählt" : {
+
+    },
+    "%lld fehlgeschlagen" : {
+
+    },
+    "%lld Folgen" : {
+
+    },
+    "%lld Folgen abspielen" : {
+
+    },
+    "%lld Folgen als %@ markieren?" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld Folgen als %2$@ markieren?"
+          }
+        }
+      }
+    },
+    "%lld Folgen als gesehen markieren" : {
+
+    },
+    "%lld Folgen als ungesehen markieren" : {
+
+    },
+    "%lld Folgen herunterladen" : {
+
+    },
     "%lld markierte als gesehen markieren" : {
+
+    },
+    "%lld markierte als ungesehen markieren" : {
 
     },
     "%lld markierte ansehen" : {
@@ -92,6 +132,16 @@
     },
     "%lld übrig" : {
 
+    },
+    "%lld von %lld" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld von %2$lld"
+          }
+        }
+      }
     },
     "%lld weitere Stellen" : {
 
@@ -113,6 +163,12 @@
 
     },
     "0:00" : {
+
+    },
+    "1 ausgewählt" : {
+
+    },
+    "1 Folge" : {
 
     },
     "6-stelliger Code" : {
@@ -181,13 +237,32 @@
     "Alexander" : {
 
     },
+    "Alle %@ anzeigen: %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Alle %1$@ anzeigen: %2$@"
+          }
+        }
+      }
+    },
     "Alle %lld Folgen herunterladen" : {
 
     },
     "Alle abbrechen" : {
 
     },
+    "Alle als gesehen markieren" : {
+
+    },
+    "Alle als ungesehen markieren" : {
+
+    },
     "Alle anzeigen" : {
+
+    },
+    "Alle anzeigen: %@" : {
 
     },
     "Alle ausblenden" : {
@@ -298,7 +373,16 @@
     "Aus der Bibliothek entfernen" : {
 
     },
+    "Aus Weiterschauen entfernen" : {
+
+    },
     "Aus: Nur die Akzentfarbe des Themes wird übernommen, Flächen und Texte bleiben beim Standard." : {
+
+    },
+    "Auswahl als gesehen markieren" : {
+
+    },
+    "Auswahl als ungesehen markieren" : {
 
     },
     "Automatisch: Der Chat steht dort, wo du ihn auf der Live-Seite im Größen-Menü wählst. Das Live-Fenster hat feste Größen, die genau zu Video und Chat passen." : {
@@ -392,6 +476,12 @@
 
     },
     "Der Chatname lässt sich nur alle 24 Stunden ändern und muss frei sein." : {
+
+    },
+    "Der Fortschritt dieser Folgen wird zurückgesetzt; sie verschwinden aus Weiterschauen." : {
+
+    },
+    "Der Fortschritt wird auf „gesehen“ gesetzt." : {
 
     },
     "Der Gast konnte nicht geladen werden." : {
@@ -622,6 +712,9 @@
     "Folge öffnen" : {
 
     },
+    "Folgen als gesehen oder ungesehen markieren" : {
+
+    },
     "Folgen öffnen" : {
 
     },
@@ -817,6 +910,9 @@
     "Keine melden" : {
 
     },
+    "Keine offene Folge." : {
+
+    },
     "Keine Termine in der nächsten Zeit." : {
 
     },
@@ -928,6 +1024,9 @@
     "macOS hat die Mitteilungen für Orangeflix noch nicht erlaubt." : {
 
     },
+    "Markieren" : {
+
+    },
     "Mediathek" : {
 
     },
@@ -962,6 +1061,9 @@
 
     },
     "Nach allen Personen suchen" : {
+
+    },
+    "Nach der aktuellen Folge aufhören" : {
 
     },
     "Nach Updates suchen …" : {
@@ -1022,6 +1124,9 @@
 
     },
     "Nicht verbunden" : {
+
+    },
+    "Noch keine Folge zu Ende gesehen." : {
 
     },
     "Noch nichts passiert." : {
@@ -1371,6 +1476,9 @@
 
     },
     "Zielordner" : {
+
+    },
+    "ZULETZT ANGEFANGEN" : {
 
     },
     "Zum Live-Rand springen" : {

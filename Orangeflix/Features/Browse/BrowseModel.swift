@@ -15,6 +15,10 @@ enum BrowseRoute: Hashable {
     case episode(Episode, autoplay: Bool)
     /// The page of an episode, starting at a search result's time.
     case episodeAt(Episode, seconds: Int)
+    /// The whole premium and early-access shelf of the Mediathek.
+    case premium
+    /// Every series with a new episode.
+    case newFormats
 }
 
 /// The known and downloaded episode counts of a format (TUI `knownCounts`).
@@ -571,10 +575,13 @@ enum BrowseError: LocalizedError {
         current(episode).progressPercent >= BrowseLogic.watchedPercent
     }
 
-    /// Removes a clip from the loaded Weiterschauen shelf after its progress
-    /// has been restored or reset successfully.
+    /// Removes a clip from Weiterschauen. The API keeps it in its history
+    /// (there is no delete), so the app remembers the removal and hides the
+    /// clip on every later load until it is watched again.
     func removeFromRecents(_ identifier: String) {
         recents.episodes.removeAll { $0.identifier == identifier }
+        let now = Date().timeIntervalSince1970
+        try? app.updateSettings { $0.dismissedRecents[identifier] = now }
     }
 
     /// "Ansehen" or "Weiterschauen" (progress 1–89 %).
@@ -600,9 +607,16 @@ enum BrowseError: LocalizedError {
         defer { recents.isLoading = false }
         do {
             let clips = try await api.recents(limit: 50, refresh: force)
+            // Removed clips stay hidden until they are watched again.
+            let dismissed = app.settings.dismissedRecents
+            let shown = clips.filter {
+                !RecentsDismissal.isHidden(lastAccessed: $0.progress.lastAccessed, dismissedAt: dismissed[$0.id])
+            }
+            let kept = RecentsDismissal.pruned(dismissed, visibleIn: clips.map { ($0.id, $0.progress.lastAccessed) })
+            if kept != dismissed { try? app.updateSettings { $0.dismissedRecents = kept } }
             // Premium and early-access episodes stay out of Weiterschauen
             // when this account cannot watch them. They remain on the Premium shelf.
-            recents.episodes = clips.map(\.episode).filter { episode in
+            recents.episodes = shown.map(\.episode).filter { episode in
                 if episode.isPremium || episode.isEarlyAccess { return episode.canAccess }
                 return true
             }
@@ -793,20 +807,110 @@ enum BrowseError: LocalizedError {
 
     /// Marks the episode as watched or as not watched (Go `app.SetWatched`).
     func setWatched(_ episode: Episode, watched: Bool) async {
+        do {
+            guard try await storeWatched(episode, watched: watched) else { return }
+            app.show(watched ? "Als gesehen markiert." : "Als ungesehen markiert.")
+        } catch is CancellationError {
+        } catch {
+            app.show("Der Stand konnte nicht gespeichert werden: \(error.localizedDescription)", error: true)
+        }
+    }
+
+    /// A running "mark many episodes" job; the window shows it as a popup
+    /// and holds the app until it is done.
+    struct WatchedBatch: Equatable {
+        let watched: Bool
+        let total: Int
+        var done = 0
+        var failed = 0
+        /// The title of the episode being saved now.
+        var current = ""
+        var finished = false
+        var cancelled = false
+        var lastError: String?
+
+        var handled: Int { done + failed }
+    }
+
+    private(set) var watchedBatch: WatchedBatch?
+    @ObservationIgnored private var batchCancelRequested = false
+
+    /// The pause between two saves, so the server can process each one.
+    private static let batchPace: Duration = .milliseconds(900)
+    /// The longer pause before a failed save is tried once more.
+    private static let batchRetryPause: Duration = .seconds(3)
+
+    /// Stops a running batch after the episode being saved now.
+    func cancelWatchedBatch() {
+        guard watchedBatch?.finished == false else { return }
+        batchCancelRequested = true
+    }
+
+    /// Closes the popup of a finished batch.
+    func dismissWatchedBatch() {
+        guard watchedBatch?.finished == true else { return }
+        watchedBatch = nil
+    }
+
+    /// Marks many episodes slowly, one after another with a pause, and
+    /// retries a failed one once after a longer pause. A popup shows the
+    /// progress until every episode is handled. Episodes already in that
+    /// state are skipped.
+    func setWatched(_ episodes: [Episode], watched: Bool) async {
+        guard watchedBatch == nil || watchedBatch?.finished == true else { return }
+        let pending = episodes.filter { watched ? !isWatched($0) : current($0).progressPercent > 0 }
+        guard !pending.isEmpty else {
+            app.show(watched ? "Alle Folgen sind schon gesehen." : "Alle Folgen sind schon ungesehen.")
+            return
+        }
+        batchCancelRequested = false
+        watchedBatch = WatchedBatch(watched: watched, total: pending.count)
+        for (index, episode) in pending.enumerated() {
+            if batchCancelRequested || Task.isCancelled {
+                watchedBatch?.cancelled = true
+                break
+            }
+            watchedBatch?.current = BrowseLogic.title(of: episode)
+            if index > 0 { try? await Task.sleep(for: Self.batchPace) }
+            do {
+                _ = try await storeWatched(episode, watched: watched)
+                watchedBatch?.done += 1
+            } catch {
+                // The server may just be busy: wait longer and try once more.
+                try? await Task.sleep(for: Self.batchRetryPause)
+                do {
+                    _ = try await storeWatched(episode, watched: watched)
+                    watchedBatch?.done += 1
+                } catch {
+                    watchedBatch?.failed += 1
+                    watchedBatch?.lastError = error.localizedDescription
+                }
+            }
+        }
+        watchedBatch?.current = ""
+        watchedBatch?.finished = true
+        // A clean run closes by itself after a moment; problems stay until
+        // the user has read them.
+        if let batch = watchedBatch, batch.failed == 0, !batch.cancelled {
+            try? await Task.sleep(for: .seconds(1.4))
+            if watchedBatch == batch { watchedBatch = nil }
+        }
+    }
+
+    /// Saves the state of one episode; the shown progress changes at once
+    /// and returns to the old value when the account refuses it.
+    private func storeWatched(_ episode: Episode, watched: Bool) async throws -> Bool {
         let identifier = episode.identifier
-        guard !identifier.isEmpty else { return }
+        guard !identifier.isEmpty else { return false }
         let previous = current(episode).progressPercent
         app.episodes.setProgress(identifier, percent: watched ? 100 : 0)
         do {
-            let seconds = watched ? try await watchedSeconds(for: episode) : 0
-            try await api.updateProgress(identifier, seconds: seconds)
+            try await api.updateProgress(identifier, percentage: watched ? 100 : 0)
             removeFromRecents(identifier)
-            app.show(watched ? "Als gesehen markiert." : "Als ungesehen markiert.")
-        } catch is CancellationError {
-            app.episodes.setProgress(identifier, percent: previous)
+            return true
         } catch {
             app.episodes.setProgress(identifier, percent: previous)
-            app.show("Der Stand konnte nicht gespeichert werden: \(error.localizedDescription)", error: true)
+            throw error
         }
     }
 
@@ -815,25 +919,11 @@ enum BrowseError: LocalizedError {
     func toggleWatched(_ episodes: [Episode]) async {
         guard !episodes.isEmpty else { return }
         let watched = episodes.contains { !isWatched($0) }
-        for episode in episodes {
-            await setWatched(episode, watched: watched)
+        if episodes.count == 1 {
+            await setWatched(episodes[0], watched: watched)
+        } else {
+            await setWatched(episodes, watched: watched)
         }
-        if episodes.count > 1 {
-            app.show("\(episodes.count) Folgen als \(watched ? "gesehen" : "ungesehen") markiert.")
-        }
-    }
-
-    /// The length of the episode in seconds: the length of the list, else
-    /// the running time, else the length the playback reports.
-    private func watchedSeconds(for episode: Episode) async throws -> Int {
-        var seconds = episode.durationSeconds
-        if seconds <= 0 { seconds = BrowseLogic.clockToSeconds(episode.duration) }
-        if seconds <= 0 {
-            let playback = try await api.playback(episode.identifier)
-            seconds = playback.durationSeconds
-        }
-        guard seconds > 0 else { throw BrowseError.unknownLength(episode.identifier) }
-        return seconds
     }
 
     // MARK: Related lists

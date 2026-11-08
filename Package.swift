@@ -19,6 +19,7 @@ let package = Package(
             name: "OrangeflixLogic",
             path: "Orangeflix",
             sources: [
+                "App/Foundation/NewEpisodeLogic.swift",
                 "Core/API/APIError.swift",
                 "Core/API/APIHTTP.swift",
                 "Core/API/APIJSON.swift",
@@ -29,6 +30,7 @@ let package = Package(
                 "Core/Download/MediaNaming.swift",
                 "Core/Live/LiveHTML.swift",
                 "Core/Live/LiveHTMLEntities.swift",
+                "Features/Browse/RecentsDismissal.swift",
                 "Features/Browse/SearchPointerLogic.swift",
                 "Features/Playback/PlaybackLogic.swift",
             ]

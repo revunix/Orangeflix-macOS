@@ -98,6 +98,10 @@ enum SidebarItem: String, Hashable, CaseIterable, Identifiable, Sendable {
     private(set) var hasCredentials = false
     /// True until `start()` has read the stored credentials.
     private(set) var isStarting = true
+    /// The one run of `start()`; the window and the background both wait for it.
+    @ObservationIgnored private var startTask: Task<Void, Never>?
+    /// Opens the main window when none is open (set by the window itself).
+    @ObservationIgnored var openMainWindow: (() -> Void)?
     /// The short-lived credential that may list and end the sessions of the
     /// account. The server hands it out when it refuses a login because the
     /// account has too many sessions; it is nil otherwise.
@@ -144,7 +148,15 @@ enum SidebarItem: String, Hashable, CaseIterable, Identifiable, Sendable {
 
     /// Reads the stored credentials and session and hands them to the
     /// clients (Go `resolveCredentials` + `loadSession`). Call once at launch.
+    /// Reads the stored login once; later calls wait for that first run.
     func start() async {
+        if let startTask { return await startTask.value }
+        let task = Task { await performStart() }
+        startTask = task
+        await task.value
+    }
+
+    private func performStart() async {
         AppIconController.shared.apply(style: settings.appIcon, theme: settings.theme)
         startSessionSaver()
         let stored = await services.credentials.load()

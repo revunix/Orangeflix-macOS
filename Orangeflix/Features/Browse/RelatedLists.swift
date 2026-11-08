@@ -372,3 +372,73 @@ struct GuestPortrait: View {
             .glassPlate(in: Circle(), interactive: true)
     }
 }
+
+/// The whole Premium shelf of the Mediathek as a page.
+struct PremiumListScreen: View {
+    @Environment(BrowseModel.self) private var model
+
+    @State private var selection: Set<String> = []
+    @State private var qualityEpisode: Episode?
+
+    var body: some View {
+        VStack(spacing: 0) {
+            PageChrome(
+                title: "Premium",
+                subtitle: "\(model.premiumEpisodes.count) Folgen",
+                onBack: { if !model.navigationPath.isEmpty { model.navigationPath.removeLast() } }) {
+                MoreMenu {
+                    Button("Neu laden") { Task { await model.loadPremium(force: true) } }
+                }
+            }
+            BrowseClipListView(
+                episodes: model.premiumEpisodes,
+                isLoading: false,
+                loadingLabel: "Lade Premium-Folgen …",
+                emptyText: "Keine Premium-Folgen.",
+                emptyDetail: "Neue Premium- und Vorab-Folgen erscheinen hier.",
+                errorText: nil,
+                selection: $selection,
+                emptySymbol: "crown",
+                onChooseQuality: { qualityEpisode = $0 })
+        }
+        .navigationTitle("")
+        .sheet(isPresented: Binding(get: { qualityEpisode != nil }, set: { if !$0 { qualityEpisode = nil } })) {
+            if let qualityEpisode { BrowseQualitySheet(episode: qualityEpisode) }
+        }
+    }
+}
+
+/// Every series of the Mediathek that has a new episode.
+struct NewFormatsScreen: View {
+    @Environment(BrowseModel.self) private var model
+    private let columns = [GridItem(.adaptive(minimum: 240, maximum: 300), spacing: Space.l, alignment: .top)]
+
+    var body: some View {
+        let fresh = model.visibleFormats.filter(\.newEpisode)
+        VStack(spacing: 0) {
+            PageChrome(
+                title: "Neu",
+                subtitle: fresh.count == 1 ? "1 Format mit neuer Folge" : "\(fresh.count) Formate mit neuer Folge",
+                onBack: { if !model.navigationPath.isEmpty { model.navigationPath.removeLast() } }) { EmptyView() }
+            if fresh.isEmpty {
+                EmptyState(symbol: "sparkles", title: "Nichts Neues.", message: "Formate mit neuen Folgen erscheinen hier.")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ScrollView {
+                    LazyVGrid(columns: columns, alignment: .leading, spacing: Space.l) {
+                        ForEach(fresh, id: \.pid) { format in
+                            Button { model.navigationPath.append(.episodes(pid: format.pid)) } label: {
+                                FormatTile(format: format, count: model.episodeCountText(format))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, Space.page)
+                    .padding(.vertical, Space.l)
+                }
+                .background(Palette.background)
+            }
+        }
+        .navigationTitle("")
+    }
+}

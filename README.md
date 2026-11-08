@@ -8,11 +8,14 @@ Die App wird privat von [Alexander (@revunix)](https://github.com/revunix) entwi
 
 ### Mediathek und Suche
 
-- Formate und Folgen durchstöbern, neue Inhalte entdecken und begonnene Folgen weiterschauen.
+- Formate und Folgen durchstöbern, neue Inhalte entdecken und begonnene Folgen in der überarbeiteten Seite **Weiterschauen** fortsetzen.
+- In **Weiterschauen** zwischen allen, offenen und gesehenen Folgen filtern, mehrere Folgen auswählen und die angezeigte Gruppe gesammelt als gesehen oder ungesehen markieren.
+- Folgen aus **Weiterschauen** entfernen. Die ausgeblendeten Folgen werden auf diesem Mac gespeichert und erscheinen erst wieder, wenn du sie erneut ansiehst.
+- Die Regale **Neu**, **Premium**, **Weiterschauen** und **Merkliste** über **Alle anzeigen** vollständig öffnen.
 - Folgendetails mit Beschreibung, Kapiteln und weiteren Informationen ansehen, soweit verfügbar.
-- Folgen für später auf der Merkliste speichern sowie als gesehen oder ungesehen markieren. Folgen lassen sich auch direkt aus **Weiterschauen** entfernen.
+- Folgen für später auf der Merkliste speichern sowie als gesehen oder ungesehen markieren.
 - Titel, Beschreibungen, Kapitel und Gesprochenes durchsuchen und Ergebnisse nach Format oder Person filtern. Treffer zeigen passende Textstellen und Zeitmarken; ein Klick öffnet die Folge an der gewählten Stelle.
-- Folgenbilder zeigen beim Darüberfahren eine kurze Vorschau an fünf Stellen der Folge. Das funktioniert in den Listen und Suchergebnissen, nicht auf der Player-Seite.
+- Folgenbilder zeigen nach kurzem Verweilen eine Vorschau an fünf Stellen der Folge. Das funktioniert in Listen und Suchergebnissen, nicht auf der Player-Seite. Die Vorschau stellt den vorherigen Wiedergabestand anschließend wieder her.
 
 ### Wiedergabe und Live
 
@@ -24,8 +27,10 @@ Die App wird privat von [Alexander (@revunix)](https://github.com/revunix) entwi
 
 - Folgen herunterladen, die Download-Warteschlange verwalten und fertige Dateien im Finder anzeigen.
 - Speicherort, Qualität und weitere Optionen für Downloads und Streaming einstellen.
-- Darstellung mit hellem oder dunklem Farbschema, Themes und Oberflächenstil anpassen.
+- Darstellung mit hellem oder dunklem Farbschema, Themes, Oberflächenstil und drei App-Symbolvarianten anpassen.
 - Konto, Profil, Mitteilungen, Live-Ansicht und Formate in den Einstellungen verwalten.
+- Pro Format neue-Folgen-Mitteilungen aktivieren und über den Start eines Livestreams informiert werden. Ein Klick auf eine Mitteilung öffnet das passende Format oder die Live-Seite.
+- Orangeflix auf Wunsch im Hintergrund weiterlaufen und bei der Anmeldung starten lassen. Bei geschlossenem Fenster verschwindet die App aus dem Dock; das monochrome Orangeflix-Symbol bleibt in der Menüleiste. Mit `⌘Q` beendest du die App vollständig.
 - Einstellungen sichern und wiederherstellen sowie Bibliothek und Einstellungen mit kompatiblen Dateien importieren oder exportieren.
 
 ## Screenshots
@@ -44,7 +49,7 @@ Die App wird privat von [Alexander (@revunix)](https://github.com/revunix) entwi
 
 Für die Nutzung benötigst du **macOS 15 oder neuer**, eine Internetverbindung und ein Orangeflix-Konto. Die bereitgestellten Release-Builds sind für Macs mit **Apple Silicon** vorgesehen.
 
-1. Lade die aktuelle Version **1.2.1** (`Orangeflix-for-Mac.zip`) von den [GitHub Releases](https://github.com/revunix/Orangeflix-macOS/releases/latest) herunter.
+1. Lade die aktuelle Version **1.2.2** (`Orangeflix-for-Mac.zip`) von den [GitHub Releases](https://github.com/revunix/Orangeflix-macOS/releases/latest) herunter.
 2. Entpacke das Archiv und verschiebe `Orangeflix.app` in den Ordner **Programme**.
 3. Starte die App und melde dich mit der E-Mail-Adresse und dem Passwort deines Orangeflix-Kontos an. Wenn für dein Konto die Zwei-Faktor-Anmeldung aktiviert ist, gib zusätzlich den Code aus deiner Authenticator-App ein.
 
@@ -80,9 +85,9 @@ codesign --verify --deep --strict --verbose=2 /Applications/Orangeflix.app
 
 ## Bedienung
 
-Über die Navigation im Hauptfenster erreichst du Mediathek, Live, **Weiterschauen**, Merkliste, Downloads und Suche. Ein Klick auf ein Suchergebnis öffnet die Folgenseite; ein Klick auf eine Zeitmarke startet die Wiedergabe an dieser Stelle. Beim Darüberfahren über Folgenbilder erscheint die Vorschau mit fünf Abschnitten.
+Über die Navigation im Hauptfenster erreichst du Mediathek, Live, **Weiterschauen**, Merkliste, Downloads und Suche. Ein Klick auf ein Suchergebnis öffnet die Folgenseite; ein Klick auf eine Zeitmarke startet die Wiedergabe an dieser Stelle. Bleib kurz mit dem Zeiger auf einem Folgenbild, um die Vorschau mit fünf Abschnitten zu laden.
 
-Weitere Aktionen findest du per Rechtsklick auf eine Folge oder im Menü **Aktionen**. Dort kannst du sie als gesehen oder ungesehen markieren. In **Weiterschauen** kannst du eine Folge außerdem direkt aus der Liste entfernen; dabei wird ihr Wiedergabestand zurückgesetzt. In den Einstellungen kannst du unter anderem den Download-Ordner und die Darstellung ändern.
+Weitere Aktionen findest du per Rechtsklick auf eine Folge oder im Menü **Aktionen**. Dort kannst du sie als gesehen oder ungesehen markieren. In **Weiterschauen** kannst du einzelne Folgen oder die gefilterte Gruppe gesammelt markieren. Mehrere Folgen werden nacheinander gespeichert; die App zeigt den Fortschritt an. Eine Folge aus **Weiterschauen** zu entfernen blendet sie auf diesem Mac aus. In den Einstellungen kannst du unter anderem Benachrichtigungsformate, Hintergrundbetrieb, Download-Ordner und Darstellung ändern.
 
 | Kurzbefehl | Aktion |
 |:---|:---|
@@ -151,7 +156,7 @@ nicht in dieses Repository gelangen.
 
 **Update bleibt nach dem Download hängen:** Version 1.1.1 fehlt die für die
 App-Sandbox benötigte Sparkle-Installationskonfiguration. Wenn du noch 1.1.1
-verwendest, installiere Version 1.2.1 einmal manuell aus den
+verwendest, installiere Version 1.2.2 einmal manuell aus den
 [GitHub Releases](https://github.com/revunix/Orangeflix-macOS/releases/latest),
 indem du die alte App durch die neue ersetzt. Die lokalen Daten liegen getrennt
 vom App-Bundle; sichere sie vorsichtshalber vor dem Austausch. Eventuell musst

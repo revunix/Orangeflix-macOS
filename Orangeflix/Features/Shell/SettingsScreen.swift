@@ -13,6 +13,7 @@ struct SettingsScreen: View {
     @Environment(NewEpisodeWatcher.self) private var watcher
     @Environment(SharingModel.self) private var sharing
     @Environment(NotificationSettingsModel.self) private var notifications
+    @Environment(BackgroundMode.self) private var background
     @Environment(ProfileModel.self) private var profile
     @Environment(SessionModel.self) private var sessions
     @Environment(\.colorScheme) private var colorScheme
@@ -78,6 +79,9 @@ struct SettingsScreen: View {
     @State private var historyIndex = 0
     /// The text of the search in the sidebar.
     @State private var search = ""
+    /// The search and the filter of the format list.
+    @State private var formatQuery = ""
+    @State private var formatFilter = SettingsFormatFilter.all
     /// The control the search jumped to; it lights up for a moment.
     @State private var highlight: String?
     /// Counts the jumps of the search, so a second jump to the same control
@@ -381,9 +385,9 @@ struct SettingsScreen: View {
         let formats = browse.formats.flatMap { format in
             [
                 SettingsSearchEntry(id: "formats.visible.\(format.pid)", pane: .formats, title: format.title,
-                                    section: "Mediathek", keywords: "format anzeigen"),
+                                    section: "Formate", keywords: "format anzeigen mediathek ausblenden"),
                 SettingsSearchEntry(id: "formats.notify.\(format.pid)", pane: .formats, title: format.title,
-                                    section: "Mitteilungen je Format", keywords: "format melden benachrichtigung"),
+                                    section: "Formate", keywords: "format melden benachrichtigung mitteilung"),
             ]
         }
         let all = SettingsSearch.entries + themes + formats
@@ -1279,6 +1283,14 @@ struct SettingsScreen: View {
     private var livePage: some View {
         Group {
             Section {
+                Toggle("Melden, wenn ein Livestream startet", isOn: liveNotificationsBinding)
+                    .searchAnchor("live.notify")
+            } header: {
+                Text("Mitteilungen")
+            } footer: {
+                Text("Damit die Mitteilung auch bei geschlossenem Fenster kommt, schalte unter Formate › Im Hintergrund „Im Hintergrund weiterlaufen“ ein.")
+            }
+            Section {
                 Toggle("Beim Öffnen zeigen", isOn: liveChatOpenBinding)
                     .searchAnchor("live.chatStart")
                 Picker("Position", selection: liveChatPositionBinding) {
@@ -1319,24 +1331,28 @@ struct SettingsScreen: View {
     }
 
     /// The catalog: what the Mediathek lists and what may send a message.
+    /// One list with a search and a filter; every row switches both.
     private var formatsPage: some View {
         Group {
             Section {
                 Toggle("Neue Folgen melden", isOn: notificationsBinding)
-                    .disabled(!watcher.isAllowed && app.settings.notificationsOn)
                     .searchAnchor("formats.notifications")
-                Button("Testmitteilung senden") {
-                    Task {
-                        await watcher.sendTestNotification()
-                        await watcher.check()
+                Toggle("Livestreams melden", isOn: liveNotificationsBinding)
+                    .searchAnchor("formats.live")
+                HStack {
+                    Button("Testmitteilung senden") {
+                        Task {
+                            await watcher.sendTestNotification()
+                            await watcher.check()
+                        }
                     }
-                }
-                .searchAnchor("formats.test")
-                if !watcher.isAllowed {
-                    Button("Mitteilungen in den Systemeinstellungen erlauben") {
-                        watcher.openSystemSettings()
+                    .searchAnchor("formats.test")
+                    if !watcher.isAllowed {
+                        Button("In den Systemeinstellungen erlauben") {
+                            watcher.openSystemSettings()
+                        }
+                        .searchAnchor("formats.allow")
                     }
-                    .searchAnchor("formats.allow")
                 }
             } header: {
                 Text("Mitteilungen")
@@ -1344,55 +1360,168 @@ struct SettingsScreen: View {
                 if let error = watcher.lastError {
                     Text(error)
                 } else if watcher.isAllowed {
-                    Text("Die App prüft den Katalog, solange sie läuft.")
+                    Text("Die App prüft alle 15 Minuten die neuesten Folgen und alle 2 Minuten, ob ein Livestream läuft. Ein Klick auf eine Mitteilung öffnet das Format oder die Live-Seite.")
                 } else {
                     Text("macOS hat die Mitteilungen für Orangeflix noch nicht erlaubt.")
                 }
             }
 
-            Section {
-                ForEach(browse.formats, id: \.pid) { format in
-                    Toggle(format.title, isOn: visibleBinding(format.pid))
-                        .searchAnchor("formats.visible.\(format.pid)")
-                }
-                Button("Alle anzeigen") { apply { $0.hiddenMagazines = [] } }
-                    .disabled(app.settings.hiddenMagazines.isEmpty)
-                    .searchAnchor("formats.showAll")
-                Button("Alle ausblenden") { apply { $0.hiddenMagazines = browse.formats.map(\.pid) } }
-                    .searchAnchor("formats.hideAll")
-            } header: {
-                Text("Mediathek")
-            } footer: {
-                Text("Abgeschaltete Formate verschwinden aus der Mediathek. Die Bibliothek bleibt.")
-            }
+            backgroundSection
 
             Section {
-                ForEach(browse.formats, id: \.pid) { format in
-                    Toggle(format.title, isOn: notifyBinding(format.pid))
-                        .disabled(!app.settings.notificationsOn)
-                        .searchAnchor("formats.notify.\(format.pid)")
+                SettingsFormatSearch(query: $formatQuery, filter: $formatFilter, counts: formatFilterCounts)
+                let shown = filteredFormats
+                if browse.formats.isEmpty {
+                    Text("Der Katalog wird geladen …")
+                        .foregroundStyle(.secondary)
+                } else if shown.isEmpty {
+                    Text(formatQuery.isEmpty ? "Kein Format in dieser Auswahl." : "Kein Format passt zu „\(formatQuery)“.")
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding(.vertical, Space.s)
+                } else {
+                    ForEach(shown, id: \.pid) { format in
+                        SettingsFormatRow(
+                            format: format,
+                            visible: visibleBinding(format.pid),
+                            notify: notifyBinding(format.pid),
+                            notificationsOn: app.settings.notificationsOn)
+                    }
                 }
-                Button("Alle melden") {
+            } header: {
+                HStack(alignment: .firstTextBaseline) {
+                    Text("Formate")
+                    Spacer()
+                    Text(formatSummary)
+                        .font(.caption)
+                        .lineLimit(1)
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                        .textCase(nil)
+                }
+            } footer: {
+                formatBulkActions
+            }
+        }
+        .onChange(of: highlight) {
+            // A jump from the sidebar search must find its row.
+            if highlight?.hasPrefix("formats.") == true {
+                formatQuery = ""
+                formatFilter = .all
+            }
+        }
+    }
+
+    /// Keeps the checks running after the window closes, and after a login.
+    private var backgroundSection: some View {
+        Section {
+            Toggle("Im Hintergrund weiterlaufen", isOn: runsInBackgroundBinding)
+                .searchAnchor("formats.background")
+            Toggle("Bei der Anmeldung starten", isOn: Binding(
+                get: { background.launchesAtLogin || background.needsApproval },
+                set: { background.setLaunchAtLogin($0) }))
+                .searchAnchor("formats.login")
+            if background.needsApproval {
+                Button("In den Anmeldeobjekten erlauben") { background.openLoginItemSettings() }
+            }
+        } header: {
+            Text("Im Hintergrund")
+        } footer: {
+            if let error = background.loginError {
+                Text(error)
+            } else if background.needsApproval {
+                Text("macOS wartet auf deine Erlaubnis unter Systemeinstellungen › Allgemein › Anmeldeobjekte.")
+            } else {
+                Text("Schließt du das Fenster, verschwindet Orangeflix aus dem Dock und bleibt als Symbol in der Menüleiste, damit Mitteilungen weiter ankommen. Beim Start nach der Anmeldung öffnet sich kein Fenster. Mit ⌘Q beendet, meldet die App nichts mehr.")
+            }
+        }
+        .onAppear { background.refreshLoginItem() }
+    }
+
+    /// "38 von 40 in der Mediathek · 5 gemeldet"
+    private var formatSummary: String {
+        let all = browse.formats
+        guard !all.isEmpty else { return "" }
+        let hidden = Set(app.settings.hiddenMagazines)
+        let visible = all.filter { !hidden.contains($0.pid) }.count
+        let notified = all.filter { app.settings.notifiedMagazines.contains($0.pid) }.count
+        return "\(visible)/\(all.count) sichtbar · \(notified) gemeldet"
+    }
+
+    private func matches(_ format: Format, _ filter: SettingsFormatFilter) -> Bool {
+        switch filter {
+        case .all: true
+        case .visible: !app.settings.hiddenMagazines.contains(format.pid)
+        case .hidden: app.settings.hiddenMagazines.contains(format.pid)
+        case .notified: app.settings.notifiedMagazines.contains(format.pid)
+        }
+    }
+
+    /// The formats matching the search text, before the filter.
+    private var searchedFormats: [Format] {
+        let query = formatQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        let sorted = browse.formats.sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+        guard !query.isEmpty else { return sorted }
+        return sorted.filter {
+            $0.title.localizedStandardContains(query) || $0.slug.localizedStandardContains(query)
+                || $0.handle.localizedStandardContains(query)
+        }
+    }
+
+    private var filteredFormats: [Format] {
+        searchedFormats.filter { matches($0, formatFilter) }
+    }
+
+    private var formatFilterCounts: [SettingsFormatFilter: Int] {
+        let searched = searchedFormats
+        var counts: [SettingsFormatFilter: Int] = [:]
+        for filter in SettingsFormatFilter.allCases {
+            counts[filter] = searched.filter { matches($0, filter) }.count
+        }
+        return counts
+    }
+
+    /// Acts on the rows that show now: everything, or only the hits.
+    private var formatBulkActions: some View {
+        let shown = filteredFormats.map(\.pid)
+        let narrowed = !formatQuery.isEmpty || formatFilter != .all
+        let scope = narrowed ? "Treffer" : "Alle"
+        let hidden = Set(app.settings.hiddenMagazines)
+        let notified = Set(app.settings.notifiedMagazines)
+        return VStack(alignment: .leading, spacing: Space.s) {
+            FlowLayout(spacing: Space.s) {
+                Button("\(scope) anzeigen") {
+                    apply { $0.hiddenMagazines.removeAll { shown.contains($0) } }
+                }
+                .disabled(shown.allSatisfy { !hidden.contains($0) })
+                .searchAnchor("formats.showAll")
+                Button("\(scope) ausblenden") {
                     apply { settings in
-                        settings.notifiedMagazines = browse.formats.map(\.pid)
+                        for pid in shown where !settings.hiddenMagazines.contains(pid) { settings.hiddenMagazines.append(pid) }
+                        settings.notifiedMagazines.removeAll { shown.contains($0) }
+                    }
+                }
+                .disabled(shown.allSatisfy { hidden.contains($0) })
+                .searchAnchor("formats.hideAll")
+                Button("\(scope) melden") {
+                    apply { settings in
+                        for pid in shown where !settings.notifiedMagazines.contains(pid) && !settings.hiddenMagazines.contains(pid) {
+                            settings.notifiedMagazines.append(pid)
+                        }
                         settings.notificationsOn = true
                     }
                     Task { await watcher.refreshPermission() }
                 }
+                .disabled(shown.allSatisfy { notified.contains($0) || hidden.contains($0) })
                 .searchAnchor("formats.notifyAll")
-                Button("Keine melden") {
-                    apply { settings in
-                        settings.notifiedMagazines = []
-                        settings.notificationsOn = false
-                    }
+                Button(narrowed ? "Treffer nicht melden" : "Keine melden") {
+                    apply { $0.notifiedMagazines.removeAll { shown.contains($0) } }
                 }
-                .disabled(app.settings.notifiedMagazines.isEmpty)
+                .disabled(shown.allSatisfy { !notified.contains($0) })
                 .searchAnchor("formats.notifyNone")
-            } header: {
-                Text("Mitteilungen je Format")
-            } footer: {
-                Text("Gilt für die Formate, die in der Mediathek eingeschaltet sind.")
             }
+            .controlSize(.small)
+            Text("„Mediathek“ zeigt ein Format in der Mediathek; die Bibliothek bleibt. „Melden“ schickt eine Mitteilung, sobald eine neue Folge erscheint. Ausgeblendete Formate werden nicht gemeldet.")
         }
     }
 
@@ -1967,6 +2096,24 @@ struct SettingsScreen: View {
         Binding(
             get: { app.settings.glassPanels },
             set: { value in apply { $0.glassPanels = value } })
+    }
+
+    private var liveNotificationsBinding: Binding<Bool> {
+        Binding(
+            get: { app.settings.liveNotificationsOn },
+            set: { value in
+                apply { $0.liveNotificationsOn = value }
+                if value { Task { await watcher.refreshPermission(); await watcher.checkLive() } }
+            })
+    }
+
+    private var runsInBackgroundBinding: Binding<Bool> {
+        Binding(
+            get: { app.settings.runsInBackground },
+            set: { value in
+                apply { $0.runsInBackground = value }
+                background.updateDock()
+            })
     }
 
     private var notificationsBinding: Binding<Bool> {

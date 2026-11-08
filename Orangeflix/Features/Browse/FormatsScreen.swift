@@ -220,7 +220,8 @@ struct FormatsScreen: View {
 
     @ViewBuilder private var shelves: some View {
         if !model.recents.episodes.isEmpty {
-            Shelf(title: "Weiterschauen", trailing: "\(model.recents.episodes.count)") {
+            Shelf(title: "Weiterschauen", trailing: "\(model.recents.episodes.count)",
+                  onShowAll: { app.selection = .recents }) {
                 ForEach(model.recents.episodes, id: \.identifier) { episode in
                     episodeCard(episode, opensPage: true)
                         .contextMenu { recentMenu(episode) }
@@ -228,7 +229,8 @@ struct FormatsScreen: View {
             }
         }
         if !model.premiumEpisodes.isEmpty {
-            Shelf(title: "Premium", trailing: "\(model.premiumEpisodes.count)") {
+            Shelf(title: "Premium", trailing: "\(model.premiumEpisodes.count)",
+                  onShowAll: { model.formatsPath.append(.premium) }) {
                 ForEach(model.premiumEpisodes, id: \.identifier) { episode in
                     episodeCard(episode, opensPage: true)
                 }
@@ -236,7 +238,8 @@ struct FormatsScreen: View {
         }
         let fresh = model.visibleFormats.filter(\.newEpisode)
         if !fresh.isEmpty {
-            Shelf(title: "Neu", trailing: "\(fresh.count)") {
+            Shelf(title: "Neu", trailing: "\(fresh.count)",
+                  onShowAll: { model.formatsPath.append(.newFormats) }) {
                 ForEach(fresh, id: \.pid) { format in
                     Button { open(format) } label: {
                         FormatTile(format: format, count: model.episodeCountText(format))
@@ -247,7 +250,8 @@ struct FormatsScreen: View {
             }
         }
         if !model.bookmarks.episodes.isEmpty {
-            Shelf(title: "Merkliste", trailing: "\(model.bookmarks.episodes.count)") {
+            Shelf(title: "Merkliste", trailing: "\(model.bookmarks.episodes.count)",
+                  onShowAll: { app.selection = .bookmarks }) {
                 ForEach(model.bookmarks.episodes, id: \.identifier) { episode in
                     episodeCard(episode)
                 }
@@ -418,6 +422,10 @@ struct BrowseDestination: View {
             EpisodeDetailScreen(episode: episode, autoplay: autoplay)
         case .episodeAt(let episode, let seconds):
             EpisodeDetailScreen(episode: episode, autoplay: true, startAt: seconds)
+        case .premium:
+            PremiumListScreen()
+        case .newFormats:
+            NewFormatsScreen()
         }
     }
 }

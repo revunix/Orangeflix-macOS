@@ -428,7 +428,8 @@ import os
         var errorDescription: String? { "Für diese Folge fehlt der Zugang." }
     }
 
-    func previewFile(for episode: Episode) async throws -> (URL, [String: String], Bool, Int) {
+    /// Also returns the progress before the preview, to put it back after.
+    func previewFile(for episode: Episode) async throws -> (URL, [String: String], Int) {
         try await app.ensureSession()
         let details = try await app.services.api.episodeDetails(episode.identifier, refresh: true)
         try Task.checkCancellation()
@@ -440,22 +441,20 @@ import os
         guard !file.isAudio, let url = URL(string: try app.legacy.toHTTPS(file.url)) else {
             throw PlaybackError.invalidAddress(episode.identifier)
         }
-        let wasWatched = max(resolved.progress.percentage, episode.progressPercent) >= BrowseLogic.watchedPercent
-        let duration = max(resolved.progress.lastPosition,
-                           max(resolved.durationSeconds,
-                               max(episode.durationSeconds, BrowseLogic.clockToSeconds(episode.duration))))
-        return (url, resolved.headers, wasWatched, duration)
+        let percent = max(resolved.progress.percentage, episode.progressPercent)
+        return (url, resolved.headers, percent)
     }
 
     /// A preview can register as a playback on the website even though this
     /// player never reports positions. Restore the account state it had before
     /// the preview, clearing incidental progress for unwatched episodes.
-    func restorePreviewProgress(_ identifier: String, wasWatched: Bool, duration: Int) async {
-        let percent = wasWatched ? 100 : 0
+    /// The exact share comes back, so a half-watched episode keeps its place.
+    func restorePreviewProgress(_ identifier: String, percent: Int) async {
         do {
-            try await app.services.api.updateProgress(identifier, seconds: wasWatched ? duration : 0)
+            try await app.services.api.updateProgress(identifier, percentage: percent)
             app.episodes.setProgress(identifier, percent: percent)
-            browseModel?.removeFromRecents(identifier)
+            // Only the preview put an unstarted episode into Weiterschauen.
+            if percent == 0 { browseModel?.removeFromRecents(identifier) }
         } catch {
             app.record("Der Wiedergabestand nach der Vorschau konnte nicht wiederhergestellt werden: \(error.localizedDescription)", error: true)
         }

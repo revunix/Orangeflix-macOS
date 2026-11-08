@@ -3,6 +3,7 @@ import Sparkle
 
 @main
 struct OrangeflixApp: App {
+    @NSApplicationDelegateAdaptor private var delegate: AppDelegate
     /// The models of the app; nil when the library database cannot be opened.
     private let container: AppContainer?
     private let updaterController: SPUStandardUpdaterController
@@ -16,6 +17,7 @@ struct OrangeflixApp: App {
         do {
             let services = try AppServices.live()
             container = AppContainer(services: services)
+            AppDelegate.container = container
         } catch {
             container = nil
             NSLog("Die Bibliothek konnte nicht geöffnet werden: \(error.localizedDescription)")
@@ -23,7 +25,7 @@ struct OrangeflixApp: App {
     }
 
     var body: some Scene {
-        WindowGroup {
+        WindowGroup(id: MainWindowSize.sceneID) {
             mainWindow
         }
         .defaultSize(width: MainWindowSize.fallback.width, height: MainWindowSize.fallback.height)
@@ -39,6 +41,9 @@ struct OrangeflixApp: App {
 
         PlayerWindowScene(playback: container?.playback, app: container?.app)
         SettingsWindowScene(container: container, updaterController: updaterController)
+
+        // The symbol in the menu bar while the app runs in the background.
+        BackgroundMenuScene(container: container)
     }
 
     @ViewBuilder
@@ -123,6 +128,7 @@ struct SettingsWindowScene: Scene {
                     .environment(container.notifications)
                     .environment(container.profile)
                     .environment(container.sessions)
+                    .environment(container.background)
             } else {
                 ContentUnavailableView("Keine Einstellungen", systemImage: "gearshape")
                     .frame(width: 480, height: 320)
@@ -132,5 +138,22 @@ struct SettingsWindowScene: Scene {
         // standard size of a Settings window and `WindowContentSize` brings
         // it to the size of the view right after, and the jump is visible.
         .defaultSize(width: SettingsScreen.windowSize.width, height: SettingsScreen.windowSize.height)
+    }
+}
+
+/// The symbol in the menu bar; it shows while the app runs in the background.
+struct BackgroundMenuScene: Scene {
+    let container: AppContainer?
+
+    var body: some Scene {
+        MenuBarExtra(isInserted: Binding(
+            get: { container?.app.settings.runsInBackground ?? false },
+            set: { value in try? container?.app.updateSettings { $0.runsInBackground = value } })
+        ) {
+            if let container { BackgroundMenu(container: container) }
+        } label: {
+            // The monochrome iris; a dot joins it while a livestream runs.
+            Image(nsImage: container?.watcher.liveTitle == nil ? IrisMenuBarIcon.plain : IrisMenuBarIcon.live)
+        }
     }
 }

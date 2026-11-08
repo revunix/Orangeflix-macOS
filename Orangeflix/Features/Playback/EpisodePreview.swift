@@ -31,7 +31,7 @@ import SwiftUI
     @ObservationIgnored private var waitingForSeek = false
     @ObservationIgnored private var needsDuration = false
     @ObservationIgnored private var fileLoaded = false
-    @ObservationIgnored private var pendingProgressRestore: (identifier: String, wasWatched: Bool, duration: Int)?
+    @ObservationIgnored private var pendingProgressRestore: (identifier: String, percent: Int)?
     @ObservationIgnored private var progressRestoreTask: Task<Void, Never>?
     private(set) var origin: UUID?
 
@@ -92,8 +92,7 @@ import SwiftUI
         if let progressRestore, let playback {
             progressRestoreTask = Task { [weak playback] in
                 await playback?.restorePreviewProgress(progressRestore.identifier,
-                                                       wasWatched: progressRestore.wasWatched,
-                                                       duration: progressRestore.duration)
+                                                       percent: progressRestore.percent)
             }
         }
         return progressRestoreTask
@@ -126,10 +125,10 @@ import SwiftUI
                 try Task.checkCancellation()
                 if mode == .hover { try await Task.sleep(for: Self.hoverDelay) }
                 try Task.checkCancellation()
-                let (url, headers, wasWatched, duration) = try await playback.previewFile(for: episode)
+                let (url, headers, percent) = try await playback.previewFile(for: episode)
                 try Task.checkCancellation()
                 guard let self, self.generation == token else { return }
-                self.pendingProgressRestore = (episode.identifier, wasWatched, duration)
+                self.pendingProgressRestore = (episode.identifier, percent)
                 self.deniedUntil.removeValue(forKey: episode.identifier)
                 engine.onPosition = { [weak self] value in self?.positionChanged(value) }
                 engine.onFileLoaded = { [weak self] in

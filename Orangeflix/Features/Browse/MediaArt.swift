@@ -338,9 +338,43 @@ struct EpisodeRowCard: View {
 /// A horizontal shelf with a title, like the rows of Infuse. When the row
 /// overflows the width, round arrow buttons sit on the picture so the row
 /// can be paged without dragging.
+/// "Alle 20 >" at the head of a shelf; it lights up under the pointer.
+private struct ShelfShowAllButton: View {
+    let count: String
+    let title: String
+    let action: () -> Void
+
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 3) {
+                Text(hovering ? "Alle \(count)" : count)
+                Image(systemName: "chevron.right")
+                    .font(AppFont.micro)
+            }
+            .font(AppFont.caption)
+            .foregroundStyle(hovering ? Palette.accentText : Palette.textTertiary)
+            .padding(.horizontal, Space.s)
+            .padding(.vertical, 3)
+            .background {
+                if hovering { Capsule().fill(Palette.accentSoft) }
+            }
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .animation(.easeOut(duration: 0.12), value: hovering)
+        .help("Alle anzeigen: \(title)")
+        .accessibilityLabel("Alle \(count) anzeigen: \(title)")
+    }
+}
+
 struct Shelf<Content: View>: View {
     let title: String
     var trailing: String?
+    /// Opens the whole list; the count and its arrow become a button.
+    var onShowAll: (() -> Void)?
     @ViewBuilder var content: Content
 
     @State private var geometry: ScrollGeometry?
@@ -354,13 +388,17 @@ struct Shelf<Content: View>: View {
                     .foregroundStyle(Palette.textPrimary)
                 Spacer(minLength: Space.m)
                 if let trailing {
-                    HStack(spacing: 2) {
-                        Text(trailing)
-                        Image(systemName: "chevron.right")
-                            .font(AppFont.micro)
+                    if let onShowAll {
+                        ShelfShowAllButton(count: trailing, title: title, action: onShowAll)
+                    } else {
+                        HStack(spacing: 2) {
+                            Text(trailing)
+                            Image(systemName: "chevron.right")
+                                .font(AppFont.micro)
+                        }
+                        .font(AppFont.caption)
+                        .foregroundStyle(Palette.textTertiary)
                     }
-                    .font(AppFont.caption)
-                    .foregroundStyle(Palette.textTertiary)
                 }
             }
             .padding(.horizontal, Space.page)
