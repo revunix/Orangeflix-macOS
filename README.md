@@ -9,6 +9,18 @@ Eine inoffizielle macOS-App, mit der du die Mediathek eines Orangeflix.de-Kontos
 - Folgen herunterladen und die Download-Warteschlange verwalten
 - Einstellungen, Formate und Bibliothek lokal verwalten
 
+## Screenshots
+
+| Mediathek | Folgendetails |
+|:---:|:---:|
+| ![Mediathek](docs/screenshots/mediathek.png) | ![Folgendetails](docs/screenshots/folge.png) |
+| **Live mit Chat unten** | **Live mit Chat an der Seite** |
+| ![Live mit Chat unten](docs/screenshots/live-chat-unten.png) | ![Live mit Chat an der Seite](docs/screenshots/live-chat-seite.png) |
+| **Merkliste** | **Suche** |
+| ![Merkliste](docs/screenshots/merkliste.png) | ![Suche](docs/screenshots/suche.png) |
+| **Kontoeinstellungen** | **Darstellung** |
+| ![Kontoeinstellungen](docs/screenshots/einstellungen-konto.png) | ![Darstellungseinstellungen](docs/screenshots/einstellungen-darstellung.png) |
+
 ## Voraussetzungen
 
 - macOS 15 oder neuer
