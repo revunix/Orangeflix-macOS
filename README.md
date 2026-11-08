@@ -146,6 +146,14 @@ sein und ein Release die von Sparkle signierte `appcast.xml`, ein signiertes
 App-Archiv und die Versionshinweise enthalten. Der private EdDSA-Schlüssel darf
 nicht in dieses Repository gelangen.
 
+**Update bleibt nach dem Download hängen:** Version 1.1.1 fehlt die für die
+App-Sandbox benötigte Sparkle-Installationskonfiguration. Sobald ein neueres
+Release mit der Korrektur verfügbar ist, installiere es einmal manuell aus den
+[GitHub Releases](https://github.com/revunix/Orangeflix-macOS/releases), indem
+du die alte App durch die neue ersetzt. Die lokalen Daten liegen getrennt vom
+App-Bundle; sichere sie vorsichtshalber vor dem Austausch. Eventuell musst du
+dich erneut anmelden. Spätere Updates sollten dann über die App funktionieren.
+
 ### Release veröffentlichen
 
 Unter **Actions → Publish macOS release → Run workflow** eine Version im Format
@@ -156,7 +164,8 @@ veröffentlicht Release und Versionshinweise zusammen.
 Dafür muss im Repository unter **Settings → Secrets and variables → Actions**
 das Secret `SPARKLE_EDDSA_PRIVATE_KEY` (base64-kodierter privater Sparkle-
 Schlüssel) hinterlegt sein. Der Workflow benötigt einen geeigneten macOS-Runner
-mit dem Label `xcode-27`, aber keinen Apple-Account.
+mit dem Label `xcode-27`, aber keinen Apple-Account. Vor dem Verpacken prüft
+`scripts/verify-updater.py` die Sparkle-Konfiguration im App-Bundle.
 
 Sparkle prüft heruntergeladene Updates mit der EdDSA-Signatur. Weitere Hinweise
 zu Signaturen und Verteilung gibt es in der [Sparkle-Dokumentation](https://sparkle-project.org/documentation/).

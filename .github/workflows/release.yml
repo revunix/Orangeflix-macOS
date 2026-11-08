@@ -79,6 +79,7 @@ jobs:
           printf '%s\n' "$RELEASE_NOTES" > "$NOTES"
 
           codesign --verify --deep --strict "$APP_PATH"
+          python3 scripts/verify-updater.py "$APP_PATH"
           ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$ARCHIVE"
 
           SPARKLE_TOOL="$RUNNER_TEMP/OrangeflixDerived/SourcePackages/artifacts/sparkle/Sparkle/bin/generate_appcast"

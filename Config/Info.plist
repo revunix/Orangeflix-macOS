@@ -34,6 +34,8 @@
 	<string>NSApplication</string>
 	<key>SUEnableAutomaticChecks</key>
 	<true/>
+	<key>SUEnableInstallerLauncherService</key>
+	<true/>
 	<key>SUFeedURL</key>
 	<string>https://github.com/revunix/Orangeflix-macOS/releases/latest/download/appcast.xml</string>
 	<key>SUPublicEDKey</key>
