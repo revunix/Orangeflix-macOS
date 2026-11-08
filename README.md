@@ -53,17 +53,18 @@ lokal im macOS-Schlüsselbund und darf nicht in dieses Repository gelangen.
 ### Release veröffentlichen
 
 Unter **Actions → Publish macOS release → Run workflow** eine Version im Format
-`X.Y.Z` und den Changelog eingeben. Der Workflow erstellt ein signiertes und
-notarisiertes Release-Archiv, erzeugt daraus `appcast.xml` und veröffentlicht
-Release und Versionshinweise zusammen.
+`X.Y.Z` und den Changelog eingeben. Der Workflow baut die App mit Ad-hoc-
+Signierung, signiert das Update-Archiv mit Sparkle, erzeugt `appcast.xml` und
+veröffentlicht Release und Versionshinweise zusammen.
 
-Dafür müssen im Repository unter **Settings → Secrets and variables → Actions**
-diese Secrets hinterlegt sein: `SPARKLE_EDDSA_PRIVATE_KEY` (base64-kodierter
-privater Sparkle-Schlüssel), `APPLE_CERTIFICATE_P12` (base64-kodiertes Developer
-ID-Zertifikat), `APPLE_CERTIFICATE_PASSWORD`, `APPLE_TEAM_ID`, `APPLE_NOTARY_KEY_ID`,
-`APPLE_NOTARY_ISSUER_ID` und `APPLE_NOTARY_KEY_P8` (Inhalt des App-Store-Connect-
-Notarisierungsschlüssels). Private Schlüssel gehören ausschließlich in GitHub
-Secrets, nie in den Quelltext.
+Dafür muss im Repository unter **Settings → Secrets and variables → Actions**
+das Secret `SPARKLE_EDDSA_PRIVATE_KEY` (base64-kodierter privater Sparkle-
+Schlüssel) hinterlegt sein. Der Workflow benötigt keinen Apple-Account.
+
+Da Apple die App nicht notariert, kann Gatekeeper beim ersten Öffnen eine Warnung
+anzeigen. Nutzer müssen die App dann gegebenenfalls über **Rechtsklick → Öffnen**
+freigeben. Sparkle prüft heruntergeladene Updates weiterhin mit der EdDSA-
+Signatur. [Hinweise von Sparkle zu Signaturen und Verteilung](https://sparkle-project.org/documentation/)
 
 ## Lizenz
 
