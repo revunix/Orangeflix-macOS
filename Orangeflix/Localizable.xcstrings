@@ -1,0 +1,1371 @@
+{
+  "sourceLanguage" : "de",
+  "strings" : {
+    "" : {
+
+    },
+    "—" : {
+
+    },
+    "— Aktiv" : {
+
+    },
+    "„%@“ aus dem Verlauf entfernen" : {
+
+    },
+    "„it should work“ · Deutschland" : {
+
+    },
+    "„Zu Ende gesehen“ zählt Folgen ab 90 Prozent. Bibliothek und neue Folgen stammen aus der Bibliothek der App." : {
+
+    },
+    "@revunix" : {
+
+    },
+    "% gesehen" : {
+
+    },
+    "%@  %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@  %2$@"
+          }
+        }
+      }
+    },
+    "%@ · %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · %2$@"
+          }
+        }
+      }
+    },
+    "%@ / %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ / %2$@"
+          }
+        }
+      }
+    },
+    "%@ %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ %2$@"
+          }
+        }
+      }
+    },
+    "%@, %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, %2$@"
+          }
+        }
+      }
+    },
+    "%lld" : {
+
+    },
+    "%lld %%" : {
+
+    },
+    "%lld markierte als gesehen markieren" : {
+
+    },
+    "%lld markierte ansehen" : {
+
+    },
+    "%lld markierte herunterladen" : {
+
+    },
+    "%lld übrig" : {
+
+    },
+    "%lld weitere Stellen" : {
+
+    },
+    "%lld/%lld" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld/%2$lld"
+          }
+        }
+      }
+    },
+    "+%lld" : {
+
+    },
+    "~/" : {
+
+    },
+    "0:00" : {
+
+    },
+    "6-stelliger Code" : {
+
+    },
+    "Aa" : {
+
+    },
+    "Ab %@ ansehen" : {
+
+    },
+    "Abbrechen" : {
+
+    },
+    "Abgeschaltete Formate verschwinden aus der Mediathek. Die Bibliothek bleibt." : {
+
+    },
+    "Ablage" : {
+
+    },
+    "Abmelden" : {
+
+    },
+    "Abmelden …" : {
+
+    },
+    "Abmelden beendet die Sitzung und entfernt E-Mail und Passwort von diesem Mac." : {
+
+    },
+    "Abo" : {
+
+    },
+    "Abspielen (Leertaste)" : {
+
+    },
+    "Abstimmung" : {
+
+    },
+    "Abstimmung · abgestimmt" : {
+
+    },
+    "Abstimmung aufklappen" : {
+
+    },
+    "Abstimmung einklappen" : {
+
+    },
+    "Abstimmungen" : {
+
+    },
+    "Abstimmungen erscheinen oben rechts über dem Bild. Eingeklappt bleibt nur eine kleine Pille, die sich mit einem Klick öffnet." : {
+
+    },
+    "Adresse ändern …" : {
+
+    },
+    "Adresse eintragen …" : {
+
+    },
+    "Ähnliche Folgen" : {
+
+    },
+    "Aktionen" : {
+
+    },
+    "Alexander" : {
+
+    },
+    "Alle %lld Folgen herunterladen" : {
+
+    },
+    "Alle abbrechen" : {
+
+    },
+    "Alle anzeigen" : {
+
+    },
+    "Alle ausblenden" : {
+
+    },
+    "Alle Folgen herunterladen?" : {
+
+    },
+    "Alle Folgen mit %@" : {
+
+    },
+    "Alle Formate" : {
+
+    },
+    "Alle melden" : {
+
+    },
+    "Alle Personen" : {
+
+    },
+    "Alles kopieren" : {
+
+    },
+    "Allgemein" : {
+
+    },
+    "Als gesehen markieren" : {
+
+    },
+    "ALS NÄCHSTES" : {
+
+    },
+    "Als ungesehen markieren" : {
+
+    },
+    "Am Live-Rand" : {
+
+    },
+    "An das Studio senden (↩)" : {
+
+    },
+    "Anderes Konto verwenden" : {
+
+    },
+    "Angaben" : {
+
+    },
+    "Angelegt am %@" : {
+
+    },
+    "Anhalten (Leertaste)" : {
+
+    },
+    "Ankündigungen" : {
+
+    },
+    "Anmelden" : {
+
+    },
+    "Anmeldung" : {
+
+    },
+    "Ansehen" : {
+
+    },
+    "Antwort abbrechen" : {
+
+    },
+    "Antwort an %@" : {
+
+    },
+    "Antwort auf eine ältere Nachricht" : {
+
+    },
+    "Antworten" : {
+
+    },
+    "Anzeigen" : {
+
+    },
+    "Anzeigename" : {
+
+    },
+    "App" : {
+
+    },
+    "App-Symbol" : {
+
+    },
+    "Auf ~/Downloads/Orangeflix zurücksetzen" : {
+
+    },
+    "Auf der Merkliste" : {
+
+    },
+    "Auf die Merkliste setzen" : {
+
+    },
+    "Aufgeklappt" : {
+
+    },
+    "AUFLÖSUNG" : {
+
+    },
+    "Aus dem Verlauf entfernen" : {
+
+    },
+    "Aus der Bibliothek entfernen" : {
+
+    },
+    "Aus: Nur die Akzentfarbe des Themes wird übernommen, Flächen und Texte bleiben beim Standard." : {
+
+    },
+    "Automatisch: Der Chat steht dort, wo du ihn auf der Live-Seite im Größen-Menü wählst. Das Live-Fenster hat feste Größen, die genau zu Video und Chat passen." : {
+
+    },
+    "Banner %lld" : {
+
+    },
+    "Beenden" : {
+
+    },
+    "Begleitdateien" : {
+
+    },
+    "Beim Öffnen zeigen" : {
+
+    },
+    "Beliebteste Stellen" : {
+
+    },
+    "Benutzer" : {
+
+    },
+    "Beschreibung" : {
+
+    },
+    "Bibliothek" : {
+
+    },
+    "Bibliothek ersetzen" : {
+
+    },
+    "Bibliothek prüfen" : {
+
+    },
+    "Chat" : {
+
+    },
+    "Chat ausblenden" : {
+
+    },
+    "Chatname" : {
+
+    },
+    "Code" : {
+
+    },
+    "Code eines Links" : {
+
+    },
+    "Code kopieren" : {
+
+    },
+    "Code prüfen" : {
+
+    },
+    "Credits" : {
+
+    },
+    "Das Format ist nicht mehr im Katalog." : {
+
+    },
+    "Das Kapitel entfernen" : {
+
+    },
+    "Das Konto hat zu viele offene Sitzungen. Beende eine, um dich wieder anzumelden." : {
+
+    },
+    "Das Symbol im Dock wechselt sofort; „Standard“ folgt dabei dem hellen und dem dunklen Erscheinungsbild. Im Finder behält die App das Symbol ihres Pakets." : {
+
+    },
+    "Das Werkzeug liest die Datei unter ~/.config/orangeflix-dl/config. Beim Import bleiben ungültige Werte außen vor." : {
+
+    },
+    "Datei löschen …" : {
+
+    },
+    "Datei löschen?" : {
+
+    },
+    "Dateien" : {
+
+    },
+    "Dein Vorschlag wartet auf die Entscheidung." : {
+
+    },
+    "Dein Vorschlag wurde abgelehnt." : {
+
+    },
+    "Dein Vorschlag wurde angenommen." : {
+
+    },
+    "Der Chatname lässt sich nur alle 24 Stunden ändern und muss frei sein." : {
+
+    },
+    "Der Gast konnte nicht geladen werden." : {
+
+    },
+    "Der Kalender konnte nicht geladen werden." : {
+
+    },
+    "Der Katalog ist leer." : {
+
+    },
+    "Der Katalog wird geladen …" : {
+
+    },
+    "Der Link ist auf %lld Aufrufe begrenzt." : {
+
+    },
+    "Der Marker bleibt eine halbe Stunde stehen; danach zählt die App neu." : {
+
+    },
+    "Der Name beschreibt nur, wofür die App gedacht ist. Marken und Namen gehören ihren jeweiligen Inhabern." : {
+
+    },
+    "Der Ordner der App ist nicht zugreifbar. Bitte die App neu starten." : {
+
+    },
+    "Der Quelltext steht unter der MIT-Lizenz. Er darf benutzt, verändert und weitergegeben werden, solange der Lizenztext und der Urheberrechtshinweis erhalten bleiben. Für die Nutzung gilt keine Gewährleistung." : {
+
+    },
+    "Der Server nennt keine Ereignisse." : {
+
+    },
+    "Der Server nimmt deine Kapitel an, wenn sie passen. Ein Vorschlag ersetzt einen früheren." : {
+
+    },
+    "Der Server schickt nur die Ereignisse, die hier eingeschaltet sind." : {
+
+    },
+    "Die Angaben zur Folge zeigen" : {
+
+    },
+    "Die Ankündigungen konnten nicht geladen werden." : {
+
+    },
+    "Die Anmeldung erfolgt im Hauptfenster." : {
+
+    },
+    "Die App greift auf die Schnittstellen von Orangeflix.de zu und braucht dafür ein Konto dort. Für Inhalte, Zugänge und Bedingungen ist der Anbieter verantwortlich, nicht dieses Programm." : {
+
+    },
+    "Die App prüft den Katalog, solange sie läuft." : {
+
+    },
+    "Die ausgeschalteten Kategorien bleiben im Haupt-Feed aus." : {
+
+    },
+    "Die Bibliothek der App wird ersetzt. Bitte die App danach neu starten." : {
+
+    },
+    "Die Bibliothek konnte nicht geöffnet werden" : {
+
+    },
+    "Die Bibliothek merkt sich Formate, bekannte und geladene Folgen; das Werkzeug benutzt dieselbe Datei. Ein Import ersetzt sie, die bisherige bleibt als Sicherung. Danach die App neu starten." : {
+
+    },
+    "Die bisherige Bibliothek wird als Sicherung aufbewahrt und lässt sich hier wiederherstellen." : {
+
+    },
+    "Die Datei von „%@“ wird gelöscht." : {
+
+    },
+    "Die Folgen konnten nicht geladen werden." : {
+
+    },
+    "Die Gästeliste konnte nicht geladen werden." : {
+
+    },
+    "Die gewählte Qualität gilt für die folgenden Downloads." : {
+
+    },
+    "Die gewählten Folgen abspielen" : {
+
+    },
+    "Die gewählten Folgen herunterladen" : {
+
+    },
+    "Die Kanäle gelten für alle Ereignisse. Ein Abmelden vom E-Mail-Versand lässt sich nur hier zurücknehmen." : {
+
+    },
+    "Die Kategorien stehen bereit, sobald die App den Feed gelesen hat." : {
+
+    },
+    "Die Lieferadresse des Kontos für den Versand." : {
+
+    },
+    "Die Links werden geladen …" : {
+
+    },
+    "Die Liste konnte nicht geladen werden." : {
+
+    },
+    "Die Liste konnte nicht gelesen werden." : {
+
+    },
+    "Die Qualität der Datei, die auf die Platte geht. Die Ablage legt einen Ordner je Folge an." : {
+
+    },
+    "Die Sitzungen konnten nicht gelesen werden." : {
+
+    },
+    "Die Sitzungen werden geladen …" : {
+
+    },
+    "Die Suche ist fehlgeschlagen." : {
+
+    },
+    "Die Version der Texte bestimmt der Server; die App bestätigt die aktuelle." : {
+
+    },
+    "Die Werte selbst bleiben auf dem Server; die App erfährt nur, ob welche hinterlegt sind." : {
+
+    },
+    "diese" : {
+
+    },
+    "Diese Qualität für die folgenden Downloads nehmen" : {
+
+    },
+    "diese Sitzung" : {
+
+    },
+    "Du kannst eigene Kapitel für diese Folge vorschlagen. Über die Aufnahme entscheidet der Server." : {
+
+    },
+    "E-Mail" : {
+
+    },
+    "E-Mail und Passwort bleiben nur auf diesem Mac." : {
+
+    },
+    "E-Mail-Versand wieder einschalten" : {
+
+    },
+    "Ein inoffizielles Zusatzprogramm für macOS, um die Mediathek eines Orangeflix.de-Kontos am Schreibtisch zu nutzen." : {
+
+    },
+    "Eingeklappt" : {
+
+    },
+    "Einstellungen" : {
+
+    },
+    "Eintrag ändern …" : {
+
+    },
+    "Eintrag schreiben …" : {
+
+    },
+    "Einzeln erhältlich für %@" : {
+
+    },
+    "Emoji einfügen" : {
+
+    },
+    "Ende" : {
+
+    },
+    "Entwickelt von" : {
+
+    },
+    "Entwickler" : {
+
+    },
+    "Ereignisse" : {
+
+    },
+    "Erneut bestätigen" : {
+
+    },
+    "Erneut laden" : {
+
+    },
+    "Erneut versuchen" : {
+
+    },
+    "Erweiterte Theme-Palette verwenden" : {
+
+    },
+    "Es gibt noch keine Sharing-Links." : {
+
+    },
+    "Es ist kein Gerät angemeldet." : {
+
+    },
+    "Es ist keine Folge ausgewählt. Es werden alle %lld gefilterten Folgen geladen." : {
+
+    },
+    "Exportieren …" : {
+
+    },
+    "Farbschema" : {
+
+    },
+    "Feed" : {
+
+    },
+    "Feed jetzt als gesehen markieren" : {
+
+    },
+    "Feed zuletzt gesehen" : {
+
+    },
+    "Feed-Filter" : {
+
+    },
+    "Fenstergröße" : {
+
+    },
+    "Fertig" : {
+
+    },
+    "Filter leeren" : {
+
+    },
+    "Folge öffnen" : {
+
+    },
+    "Folgen öffnen" : {
+
+    },
+    "Folgen von %@" : {
+
+    },
+    "Format" : {
+
+    },
+    "Format, zum Beispiel „Mediathek“" : {
+
+    },
+    "Formate" : {
+
+    },
+    "Freigabe" : {
+
+    },
+    "Für diese Folge fehlt der Zugang." : {
+
+    },
+    "Für diese Folge kannst du keine Kapitel vorschlagen." : {
+
+    },
+    "Für diese Folge sind keine Dateien bekannt." : {
+
+    },
+    "Für einen zweiten Mac oder als Sicherung. Anmeldung und Speicherort bleiben auf diesem Mac." : {
+
+    },
+    "Gast öffnen" : {
+
+    },
+    "Geburtsdatum" : {
+
+    },
+    "Geburtsdatum ändern …" : {
+
+    },
+    "Geburtsdatum eintragen …" : {
+
+    },
+    "Gehe zu" : {
+
+    },
+    "Geladen" : {
+
+    },
+    "Gemerkt" : {
+
+    },
+    "Gerade live" : {
+
+    },
+    "Geräte" : {
+
+    },
+    "gesehen" : {
+
+    },
+    "Gesehen" : {
+
+    },
+    "Gesichert am %@" : {
+
+    },
+    "Ghostty- oder iTerm-Themedatei" : {
+
+    },
+    "Gib den Code aus deiner Authenticator-App ein." : {
+
+    },
+    "Gilt für alle Fenster der App. „Automatisch“ folgt der Einstellung des Macs." : {
+
+    },
+    "Gilt für die Formate, die in der Mediathek eingeschaltet sind." : {
+
+    },
+    "Gilt für Folgen und Rückblicke. Live läuft als Stream." : {
+
+    },
+    "GitHub-Profilbild von Alexander" : {
+
+    },
+    "Glas für Flächen" : {
+
+    },
+    "Gleichzeitig" : {
+
+    },
+    "Gleichzeitige Downloads 1–8, Pause 0–3600 Sekunden, Tempolimit in KiB pro Sekunde (0 heißt ohne Limit)." : {
+
+    },
+    "Groß" : {
+
+    },
+    "GRÖSSE" : {
+
+    },
+    "Größe" : {
+
+    },
+    "Größe des Fensters und Platz des Chats" : {
+
+    },
+    "heruntergeladen" : {
+
+    },
+    "Herunterladen" : {
+
+    },
+    "Im Finder zeigen" : {
+
+    },
+    "Im Forum besprechen" : {
+
+    },
+    "Im Größen-Menü wählen" : {
+
+    },
+    "Im Player-Fenster abspielen" : {
+
+    },
+    "Im Player-Fenster ansehen" : {
+
+    },
+    "Importieren …" : {
+
+    },
+    "In allen Formaten suchen" : {
+
+    },
+    "In der eingestellten Qualität laden" : {
+
+    },
+    "In diesem Format gibt es nichts dazu." : {
+
+    },
+    "Inhalte und Zugang" : {
+
+    },
+    "Integriert" : {
+
+    },
+    "Jahr angeben" : {
+
+    },
+    "Jeder Link erlaubt eine begrenzte Zahl von Aufrufen. Ein Link, der schon benutzt wurde, lässt sich nicht mehr beenden." : {
+
+    },
+    "Jetzt bestätigen" : {
+
+    },
+    "Kalender" : {
+
+    },
+    "Kanäle" : {
+
+    },
+    "Kapitel" : {
+
+    },
+    "Kapitel · %@" : {
+
+    },
+    "Kapitel bearbeiten" : {
+
+    },
+    "Kapitel hinzufügen" : {
+
+    },
+    "Kapitel vorschlagen" : {
+
+    },
+    "Kein Format gefunden." : {
+
+    },
+    "Keine Ankündigungen." : {
+
+    },
+    "Keine Einstellungen" : {
+
+    },
+    "Keine Folge gefunden." : {
+
+    },
+    "Keine Folge gewählt." : {
+
+    },
+    "Keine melden" : {
+
+    },
+    "Keine Termine in der nächsten Zeit." : {
+
+    },
+    "Keine Treffer" : {
+
+    },
+    "Keine Treffer für „%@“" : {
+
+    },
+    "Keine Verbindung zur Plattform" : {
+
+    },
+    "Keine Wiedergabe" : {
+
+    },
+    "Kennung kopieren" : {
+
+    },
+    "Klassisch füllt Leisten und Panels mit einer ruhigen Fläche, Glas zeichnet sie durchscheinend. Ohne „Mit Theme einfärben“ bleiben die Flächen des Themes, nur der Akzent kommt vom Mac." : {
+
+    },
+    "Klein" : {
+
+    },
+    "Kommandozeilen-Werkzeug" : {
+
+    },
+    "Kontingent" : {
+
+    },
+    "Lade alle Gäste …" : {
+
+    },
+    "Lade Ankündigungen …" : {
+
+    },
+    "Lade den Kalender …" : {
+
+    },
+    "Lade den Katalog …" : {
+
+    },
+    "Lade die Folgen …" : {
+
+    },
+    "lade die Qualitäten …" : {
+
+    },
+    "Lade weitere Treffer …" : {
+
+    },
+    "Land" : {
+
+    },
+    "Läuft" : {
+
+    },
+    "Läuft ab" : {
+
+    },
+    "Läuft im Player-Fenster" : {
+
+    },
+    "Lautstärke" : {
+
+    },
+    "Lieferadresse" : {
+
+    },
+    "Link" : {
+
+    },
+    "Link im Browser öffnen" : {
+
+    },
+    "Link kopieren" : {
+
+    },
+    "Link zum Teilen" : {
+
+    },
+    "Link zum Teilen erstellen" : {
+
+    },
+    "Links" : {
+
+    },
+    "Liste leeren" : {
+
+    },
+    "Live" : {
+
+    },
+    "LIVE" : {
+
+    },
+    "Live öffnen" : {
+
+    },
+    "Live-Ansicht öffnen" : {
+
+    },
+    "Lizenz" : {
+
+    },
+    "Löschen" : {
+
+    },
+    "macOS hat die Mitteilungen für Orangeflix noch nicht erlaubt." : {
+
+    },
+    "Mediathek" : {
+
+    },
+    "Melde dich mit deinem Orangeflix-Konto an." : {
+
+    },
+    "Merken" : {
+
+    },
+    "Metadaten speichern" : {
+
+    },
+    "MIT" : {
+
+    },
+    "Mit „Qualität wählen“ werden die Qualitäten geladen." : {
+
+    },
+    "Mit Theme einfärben" : {
+
+    },
+    "Mitteilungen" : {
+
+    },
+    "Mitteilungen in den Systemeinstellungen erlauben" : {
+
+    },
+    "Mitteilungen je Format" : {
+
+    },
+    "Nach „%@“ suchen" : {
+
+    },
+    "Nach allen Personen suchen" : {
+
+    },
+    "Nachricht an das Studio …" : {
+
+    },
+    "Nachricht schreiben …" : {
+
+    },
+    "Nächste Folge öffnen" : {
+
+    },
+    "NÄCHSTE SENDUNG" : {
+
+    },
+    "Name" : {
+
+    },
+    "Name im Abspann" : {
+
+    },
+    "Neu laden" : {
+
+    },
+    "Neu prüfen" : {
+
+    },
+    "Neue Folgen herunterladen" : {
+
+    },
+    "Neue Folgen melden" : {
+
+    },
+    "Neuer Link" : {
+
+    },
+    "Neueste Folge ansehen" : {
+
+    },
+    "Neueste Folge herunterladen" : {
+
+    },
+    "Nicht angemeldet" : {
+
+    },
+    "Nicht anzeigen" : {
+
+    },
+    "Nicht auf der Merkliste" : {
+
+    },
+    "Nicht in deinem Abo enthalten" : {
+
+    },
+    "Nicht verbunden" : {
+
+    },
+    "Noch nichts passiert." : {
+
+    },
+    "Normal" : {
+
+    },
+    "Nur angemeldete Geräte bekommen die Mitteilungen des Servers." : {
+
+    },
+    "Nur das Team liest mit" : {
+
+    },
+    "Nur in einem Format suchen" : {
+
+    },
+    "Nur nach einer Person suchen" : {
+
+    },
+    "Nutzung" : {
+
+    },
+    "Oberflächenstil" : {
+
+    },
+    "Ohne" : {
+
+    },
+    "Optionale Angaben" : {
+
+    },
+    "orangeflix" : {
+
+    },
+    "Orangeflix" : {
+
+    },
+    "Orangeflix for Mac" : {
+
+    },
+    "Orangeflix for Mac · Version %@" : {
+
+    },
+    "Orangeflix for Mac ist ein unabhängiges, privat entwickeltes Projekt. Es steht in keiner Verbindung zu Orangeflix.de, zu deren Betreibern oder zu einem anderen Programm gleichen Namens. Es ist weder von dort beauftragt noch freigegeben, unterstützt oder mitgetragen." : {
+
+    },
+    "Orangeflix, zur Mediathek" : {
+
+    },
+    "Ordner" : {
+
+    },
+    "Ordner ändern …" : {
+
+    },
+    "Ort" : {
+
+    },
+    "Passwort" : {
+
+    },
+    "Pause" : {
+
+    },
+    "Person" : {
+
+    },
+    "Pfad kopieren" : {
+
+    },
+    "PLZ" : {
+
+    },
+    "Position" : {
+
+    },
+    "Premium" : {
+
+    },
+    "Profil" : {
+
+    },
+    "Profilbilder zeigen" : {
+
+    },
+    "Protokoll ausblenden" : {
+
+    },
+    "Protokoll einblenden" : {
+
+    },
+    "Prüfe …" : {
+
+    },
+    "Prüft einen Link, ohne angemeldet zu sein." : {
+
+    },
+    "Qualität" : {
+
+    },
+    "QUALITÄT" : {
+
+    },
+    "Qualität wählen" : {
+
+    },
+    "Qualität wählen …" : {
+
+    },
+    "Qualitäten" : {
+
+    },
+    "Qualitäten laden" : {
+
+    },
+    "Rechtliches" : {
+
+    },
+    "Rechts neben dem Bild" : {
+
+    },
+    "Reihenfolge" : {
+
+    },
+    "Reihenfolge der Treffer" : {
+
+    },
+    "Replay ansehen" : {
+
+    },
+    "Restzeit zeigen" : {
+
+    },
+    "Schließen" : {
+
+    },
+    "Schriftgröße" : {
+
+    },
+    "Sehr groß" : {
+
+    },
+    "Senden" : {
+
+    },
+    "Senden (↩)" : {
+
+    },
+    "sichtbar" : {
+
+    },
+    "Sitzungen" : {
+
+    },
+    "So wird das Konto in den Credits genannt." : {
+
+    },
+    "Sobald eine Sendung beginnt, erscheint sie hier." : {
+
+    },
+    "Speichern" : {
+
+    },
+    "Speicherort ändern …" : {
+
+    },
+    "Standard" : {
+
+    },
+    "Start" : {
+
+    },
+    "Status" : {
+
+    },
+    "Stil des Feeds" : {
+
+    },
+    "Straße und Nummer" : {
+
+    },
+    "Stufe" : {
+
+    },
+    "Suchbegriff" : {
+
+    },
+    "Suche leeren" : {
+
+    },
+    "Tag und Monat genügen; das Jahr darf fehlen." : {
+
+    },
+    "Tempo" : {
+
+    },
+    "Tempolimit" : {
+
+    },
+    "Testmitteilung senden" : {
+
+    },
+    "Text kopieren" : {
+
+    },
+    "Theme entfernen" : {
+
+    },
+    "Theme importieren" : {
+
+    },
+    "Themes werden anhand ihrer Hintergrundfarbe einem Erscheinungsbild zugeordnet." : {
+
+    },
+    "Titel" : {
+
+    },
+    "Titel kopieren" : {
+
+    },
+    "Titel, Kapitel, Beschreibung oder Gesprochenes" : {
+
+    },
+    "Ton" : {
+
+    },
+    "Tonspur" : {
+
+    },
+    "Über Orangeflix" : {
+
+    },
+    "Uhrzeit der Nachrichten zeigen" : {
+
+    },
+    "unbegrenzt" : {
+
+    },
+    "Unbenutzter Link" : {
+
+    },
+    "Unter dem Bild" : {
+
+    },
+    "Unter den geladenen Treffern ist keiner dieser Art." : {
+
+    },
+    "Verbunden" : {
+
+    },
+    "Verlauf löschen" : {
+
+    },
+    "Version %@" : {
+
+    },
+    "Verstrichene Zeit zeigen" : {
+
+    },
+    "Versuche einen anderen oder kürzeren Begriff." : {
+
+    },
+    "Volltextsuche in allen Folgen" : {
+
+    },
+    "Von der Merkliste nehmen" : {
+
+    },
+    "Vorab" : {
+
+    },
+    "Vorherige Bibliothek" : {
+
+    },
+    "Vorschaubild" : {
+
+    },
+    "Vorschaubild speichern" : {
+
+    },
+    "Vorschaubild und Angaben als JSON landen neben dem Video." : {
+
+    },
+    "Wähle eine Ankündigung." : {
+
+    },
+    "Weitere Aktionen" : {
+
+    },
+    "Weitere Bereiche" : {
+
+    },
+    "Weiterschauen" : {
+
+    },
+    "Welcher Gast?" : {
+
+    },
+    "Weniger Stellen" : {
+
+    },
+    "Wer den Link öffnet, kann die Folge ohne Konto ansehen. Der Link ist auf %lld Aufrufe begrenzt." : {
+
+    },
+    "werden geladen …" : {
+
+    },
+    "Wie oft welche Stelle gesehen wurde; ein Klick spielt ab dort" : {
+
+    },
+    "Wiedergabe" : {
+
+    },
+    "Wiedergabe öffnen" : {
+
+    },
+    "Wiederherstellen …" : {
+
+    },
+    "Wird angemeldet …" : {
+
+    },
+    "Wohin die Downloads geschrieben werden." : {
+
+    },
+    "Zeitleiste" : {
+
+    },
+    "Zielordner" : {
+
+    },
+    "Zum Live-Rand springen" : {
+
+    },
+    "Zur beantworteten Nachricht" : {
+
+    },
+    "Zur Bibliothek hinzufügen" : {
+
+    },
+    "Zur Mediathek" : {
+
+    },
+    "Zurück" : {
+
+    },
+    "Zurück zu heute" : {
+
+    },
+    "Zusatz" : {
+
+    },
+    "Zusatz (optional)" : {
+
+    }
+  },
+  "version" : "1.0"
+}
