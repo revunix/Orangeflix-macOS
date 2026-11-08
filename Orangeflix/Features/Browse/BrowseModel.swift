@@ -13,6 +13,8 @@ enum BrowseRoute: Hashable {
     case guests
     /// The page of one episode; `autoplay` starts it in the page at once.
     case episode(Episode, autoplay: Bool)
+    /// The page of an episode, starting at a search result's time.
+    case episodeAt(Episode, seconds: Int)
 }
 
 /// The known and downloaded episode counts of a format (TUI `knownCounts`).
@@ -67,6 +69,16 @@ enum BrowseError: LocalizedError {
     var libraryOnly = false
     var selectedFormatPID: Int?
     var formatsPath: [BrowseRoute] = []
+    var searchPath: [BrowseRoute] = []
+
+    /// Routes opened from a detail page stay in the navigation stack it came from.
+    var navigationPath: [BrowseRoute] {
+        get { app.selection == .search ? searchPath : formatsPath }
+        set {
+            if app.selection == .search { searchPath = newValue }
+            else { formatsPath = newValue }
+        }
+    }
 
     // MARK: Episodes
     private(set) var currentFormat: Format?
@@ -201,9 +213,12 @@ enum BrowseError: LocalizedError {
     func prepare(for generation: Int) {
         guard loadedGeneration != generation else { return }
         if loadedGeneration != nil {
+            searchToken += 1
+            searching = false
             recents = BrowseClipListState()
             bookmarks = BrowseClipListState()
             resetSearch()
+            searchPath = []
             searchError = nil
         }
         // A new account must not look fresh.
@@ -641,6 +656,8 @@ enum BrowseError: LocalizedError {
     /// clears the hits.
     func search() async {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let format = searchFormatPID
+        let person = searchPersonID
         searchToken += 1
         let token = searchToken
         guard query.count >= SearchLogic.minimumQueryLength else {
@@ -652,14 +669,19 @@ enum BrowseError: LocalizedError {
         searching = true
         defer { if token == searchToken { searching = false } }
         do {
-            let page = try await api.search(query, limit: SearchLogic.pageSize, offset: 0,
-                                            magazineId: searchFormatPID, personId: searchPersonID)
+            try await app.ensureSession()
+            try Task.checkCancellation()
             guard token == searchToken else { return }
+            let page = try await api.search(query, limit: SearchLogic.pageSize, offset: 0,
+                                            magazineId: format, personId: person)
+            guard token == searchToken, !Task.isCancelled,
+                  query == searchText.trimmingCharacters(in: .whitespacesAndNewlines),
+                  format == searchFormatPID, person == searchPersonID else { return }
             searchHits = Self.unique(page.hits, after: [])
             searchNextOffset = page.nextOffset
             searchQuery = query
-            searchedFormatPID = searchFormatPID
-            searchedPersonID = searchPersonID
+            searchedFormatPID = format
+            searchedPersonID = person
             searchError = nil
         } catch {
             guard token == searchToken, !Task.isCancelled, !(error is CancellationError) else { return }
@@ -671,12 +693,22 @@ enum BrowseError: LocalizedError {
     func searchMore() async {
         guard !searching, !searchingMore, let offset = searchNextOffset, !searchQuery.isEmpty else { return }
         let token = searchToken
+        let query = searchQuery
+        let format = searchedFormatPID
+        let person = searchedPersonID
+        guard query == searchText.trimmingCharacters(in: .whitespacesAndNewlines),
+              format == searchFormatPID, person == searchPersonID else { return }
         searchingMore = true
         defer { searchingMore = false }
         do {
-            let page = try await api.search(searchQuery, limit: SearchLogic.pageSize, offset: offset,
-                                            magazineId: searchFormatPID, personId: searchPersonID)
+            try await app.ensureSession()
+            try Task.checkCancellation()
             guard token == searchToken else { return }
+            let page = try await api.search(query, limit: SearchLogic.pageSize, offset: offset,
+                                            magazineId: format, personId: person)
+            guard token == searchToken, !Task.isCancelled,
+                  query == searchText.trimmingCharacters(in: .whitespacesAndNewlines),
+                  format == searchFormatPID, person == searchPersonID else { return }
             searchHits = Self.unique(page.hits, after: searchHits)
             searchNextOffset = page.nextOffset
         } catch {

@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 import Testing
 
@@ -294,6 +295,37 @@ struct PlaybackLogicTests {
         #expect(PlaybackLogic.progressPercent(position: 100, duration: 0) == 0)
     }
 
+    @Test("preview positions cover five parts and leave room to play")
+    func previewPositions() {
+        var random = SystemRandomNumberGenerator()
+        let positions = PlaybackLogic.previewPositions(duration: 100, using: &random)
+        #expect(positions.count == 5)
+        for (index, position) in positions.enumerated() {
+            #expect(position >= 96 * index / 5)
+            #expect(position < 96 * (index + 1) / 5)
+            #expect(position + 5 <= 100)
+        }
+    }
+
+    @Test("preview positions handle missing or short durations")
+    func shortPreviewPositions() {
+        var random = SystemRandomNumberGenerator()
+        #expect(PlaybackLogic.previewPositions(duration: 0, using: &random).isEmpty)
+        for duration in 1...10 {
+            let positions = PlaybackLogic.previewPositions(duration: duration, using: &random)
+            #expect(positions.count == 5)
+            #expect(positions.allSatisfy { $0 >= 0 && $0 < duration })
+        }
+    }
+
+    @Test("preview positions do not overflow for a large duration")
+    func largePreviewDuration() {
+        var random = SystemRandomNumberGenerator()
+        let positions = PlaybackLogic.previewPositions(duration: Int.max, using: &random)
+        #expect(positions.count == 5)
+        #expect(positions.allSatisfy { $0 >= 0 && $0 <= Int.max - 5 })
+    }
+
     /// HLS wins over DASH, because the bundled ffmpeg has no DASH demuxer.
     @Test("HLS wins over DASH")
     func streamPreference() {
@@ -360,5 +392,56 @@ struct PlaybackLogicTests {
     func availabilityStartTimeBroken() {
         #expect(PlaybackLogic.availabilityStartTime(in: Data("nicht xml".utf8)) == nil)
         #expect(PlaybackLogic.availabilityStartTime(in: Data()) == nil)
+    }
+}
+
+@Suite("Search pointer")
+struct SearchPointerLogicTests {
+    @Test("mouse coordinates account for the event view's offset")
+    func sourceOffset() {
+        let source = CGRect(x: 12, y: 24, width: 400, height: 300)
+        #expect(SearchPointerLogic.position(CGPoint(x: 30, y: 40), in: source) == CGPoint(x: 42, y: 64))
+    }
+
+    @Test("a timestamp is hit at its visible position in the list")
+    func timestampPosition() {
+        let id = UUID()
+        let viewport = CGRect(x: 0, y: 0, width: 500, height: 400)
+        let source = CGRect(x: 0, y: 0, width: 500, height: 400)
+        let timestamp = SearchPointerRegion(id: id, frame: CGRect(x: 210, y: 130, width: 65, height: 24))
+        let point = SearchPointerLogic.position(CGPoint(x: 240, y: 142), in: source)
+        #expect(SearchPointerLogic.target(at: point, viewport: viewport, regions: [timestamp]) == id)
+        let below = SearchPointerLogic.position(CGPoint(x: 240, y: 190), in: source)
+        #expect(SearchPointerLogic.target(at: below, viewport: viewport, regions: [timestamp]) == nil)
+    }
+
+    @Test("only the target under the pointer is selected")
+    func distinctTargets() {
+        let first = UUID(), second = UUID()
+        let viewport = CGRect(x: 0, y: 0, width: 400, height: 300)
+        let regions = [SearchPointerRegion(id: first, frame: CGRect(x: 10, y: 10, width: 100, height: 60)),
+                       SearchPointerRegion(id: second, frame: CGRect(x: 10, y: 90, width: 100, height: 60))]
+        #expect(SearchPointerLogic.target(at: CGPoint(x: 30, y: 30), viewport: viewport, regions: regions) == first)
+        #expect(SearchPointerLogic.target(at: CGPoint(x: 30, y: 100), viewport: viewport, regions: regions) == second)
+        #expect(SearchPointerLogic.target(at: CGPoint(x: 200, y: 30), viewport: viewport, regions: regions) == nil)
+        #expect(SearchPointerLogic.target(at: nil, viewport: viewport, regions: regions) == nil)
+    }
+
+    @Test("clipped or offscreen targets cannot activate")
+    func clippedTargets() {
+        let id = UUID()
+        let viewport = CGRect(x: 0, y: 50, width: 200, height: 50)
+        let regions = [SearchPointerRegion(id: id, frame: CGRect(x: 0, y: 20, width: 100, height: 50))]
+        #expect(SearchPointerLogic.target(at: CGPoint(x: 10, y: 30), viewport: viewport, regions: regions) == nil)
+        #expect(SearchPointerLogic.target(at: CGPoint(x: 10, y: 60), viewport: viewport, regions: regions) == id)
+    }
+
+    @Test("overlapping targets select only the smaller one")
+    func overlappingTargets() {
+        let large = UUID(), small = UUID()
+        let viewport = CGRect(x: 0, y: 0, width: 200, height: 200)
+        let regions = [SearchPointerRegion(id: large, frame: viewport),
+                       SearchPointerRegion(id: small, frame: CGRect(x: 10, y: 10, width: 20, height: 20))]
+        #expect(SearchPointerLogic.target(at: CGPoint(x: 15, y: 15), viewport: viewport, regions: regions) == small)
     }
 }

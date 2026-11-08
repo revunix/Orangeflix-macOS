@@ -42,6 +42,21 @@ enum PlaybackLogic {
         return percent
     }
 
+    /// Five random places spread across the episode, leaving room for a
+    /// five-second preview wherever the duration permits it.
+    static func previewPositions<R: RandomNumberGenerator>(duration: Int, using random: inout R) -> [Int] {
+        guard duration > 0 else { return [] }
+        let candidates = max(duration - 5 + 1, 1)
+        func boundary(_ index: Int) -> Int {
+            (candidates / 5) * index + (candidates % 5) * index / 5
+        }
+        return (0..<5).map { index in
+            let lower = boundary(index)
+            let upper = max(lower, boundary(index + 1) - 1)
+            return Int.random(in: lower...upper, using: &random)
+        }
+    }
+
     // MARK: Live streams
 
     /// The address of the stream mpv plays: HLS first, also for the replay.

@@ -538,6 +538,9 @@
     "Ein inoffizielles Zusatzprogramm für macOS, um die Mediathek eines Orangeflix.de-Kontos am Schreibtisch zu nutzen." : {
 
     },
+    "Eine Sekunde verweilen für eine Vorschau" : {
+
+    },
     "Eingeklappt" : {
 
     },
@@ -635,6 +638,9 @@
 
     },
     "Freigabe" : {
+
+    },
+    "Für diese Folge fehlt der Zugang" : {
 
     },
     "Für diese Folge fehlt der Zugang." : {
@@ -1299,6 +1305,16 @@
     },
     "Vorherige Bibliothek" : {
 
+    },
+    "Vorschau %lld ab %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Vorschau %1$lld ab %2$@"
+          }
+        }
+      }
     },
     "Vorschaubild" : {
 

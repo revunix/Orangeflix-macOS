@@ -57,7 +57,7 @@ struct EpisodesScreen: View {
         .confirmationDialog("Welcher Gast?", isPresented: $showsGuests, titleVisibility: .visible) {
             ForEach(focusedEpisode?.participants ?? [], id: \.id) { participant in
                 Button(participant.name) {
-                    model.formatsPath.append(.host(participant))
+                    model.navigationPath.append(.host(participant))
                 }
             }
             Button("Abbrechen", role: .cancel) {}
@@ -138,7 +138,7 @@ struct EpisodesScreen: View {
             percent: current.progressPercent,
             downloaded: model.isDownloaded(episode.identifier)
         ) {
-            model.formatsPath.append(.episode(episode, autoplay: true))
+            model.navigationPath.append(.episode(episode, autoplay: true))
         }
         .padding(.horizontal, Space.s)
         .padding(.vertical, Space.xs)
@@ -159,7 +159,7 @@ struct EpisodesScreen: View {
             return
         }
         selection = [id]
-        model.formatsPath.append(.episode(episode, autoplay: false))
+        model.navigationPath.append(.episode(episode, autoplay: false))
     }
 
     /// The banner of the series with its title, its text and the actions.
@@ -276,13 +276,13 @@ struct EpisodesScreen: View {
             Task { await model.downloadEpisodes([episode], of: format) }
         }
         Button(model.watchLabel(episode)) {
-            model.formatsPath.append(.episode(episode, autoplay: true))
+            model.navigationPath.append(.episode(episode, autoplay: true))
         }
         Button("Im Player-Fenster ansehen") {
             model.play([episode])
         }
         Button("Folge öffnen") {
-            model.formatsPath.append(.episode(episode, autoplay: false))
+            model.navigationPath.append(.episode(episode, autoplay: false))
         }
         if selection.count > 1 {
             Divider()
@@ -307,7 +307,7 @@ struct EpisodesScreen: View {
             qualityEpisode = episode
         }
         Button("Ähnliche Folgen") {
-            model.formatsPath.append(.similar(episode))
+            model.navigationPath.append(.similar(episode))
         }
         if !episode.participants.isEmpty {
             Button("Gast öffnen") {
@@ -345,7 +345,7 @@ struct EpisodesScreen: View {
             qualityEpisode = episode
         }
         Button("Ähnliche Folgen") {
-            model.formatsPath.append(.similar(episode))
+            model.navigationPath.append(.similar(episode))
         }
         if !episode.participants.isEmpty {
             Button("Gast öffnen") {
@@ -403,7 +403,7 @@ struct EpisodesScreen: View {
     private func openHost(_ episode: Episode) {
         let guests = episode.participants
         if guests.count == 1, let participant = guests.first {
-            model.formatsPath.append(.host(participant))
+            model.navigationPath.append(.host(participant))
         } else {
             showsGuests = true
         }

@@ -145,36 +145,66 @@ struct WatchBar: View {
 }
 
 /// The picture of an episode in 16:9 with the progress and, on hover, the
-/// play button.
+/// play button and a short preview of five places in the episode.
 struct EpisodeThumb: View {
     let episode: Episode
     let percent: Int
     var downloaded = false
     var onPlay: () -> Void
 
+    @Environment(PlaybackCenter.self) private var playback: PlaybackCenter?
     @State private var hovering = false
+    @State private var origin = UUID()
+
+    private var preview: EpisodePreviewModel? { playback?.preview }
+    private var active: Bool { preview.map { $0.identifier == episode.identifier && $0.origin == origin } ?? false }
+    private var playing: Bool { active && preview?.canRender == true && preview?.isLoading == false }
 
     var body: some View {
         Color.clear
             .aspectRatio(16.0 / 9.0, contentMode: .fit)
-            .overlay { RemoteArt(url: episode.thumb) }
             .overlay {
-                if hovering {
+                if let preview, let playback, active {
+                    EpisodePreviewSurface(episode: episode, preview: preview, playback: playback)
+                } else {
+                    RemoteArt(url: episode.thumb)
+                }
+            }
+            .overlay {
+                if hovering && !playing {
                     Color.black.opacity(0.35)
-                    Button(action: onPlay) {
+                }
+            }
+            .overlay(alignment: playing ? .bottomTrailing : .center) {
+                if hovering {
+                    Button {
+                        preview?.stop()
+                        onPlay()
+                    } label: {
                         Image(systemName: "play.fill")
-                            .font(.system(size: 20, weight: .semibold))
+                            .font(.system(size: playing ? 12 : 20, weight: .semibold))
                             .foregroundStyle(.white)
-                            .frame(width: 48, height: 48)
+                            .frame(width: playing ? 30 : 48, height: playing ? 30 : 48)
                             .background(Palette.accent, in: Circle())
                     }
                     .buttonStyle(.plain)
                     .help("Ansehen")
+                    // Above the segments while the preview runs.
+                    .padding(.bottom, playing ? 22 : 0)
+                    .padding(.trailing, playing ? Space.xs : 0)
                 }
             }
-            .overlay(alignment: .bottom) { WatchBar(percent: percent) }
+            .overlay(alignment: .bottom) {
+                if let preview, active, preview.mode == .hover, !preview.positions.isEmpty {
+                    EpisodePreviewSegments(preview: preview)
+                } else {
+                    WatchBar(percent: percent)
+                }
+            }
             .overlay(alignment: .topLeading) {
-                if episode.isPremium || episode.isEarlyAccess {
+                if let preview, playing {
+                    EpisodePreviewClock(position: preview.position)
+                } else if episode.isPremium || episode.isEarlyAccess {
                     Text(episode.isPremium ? "Premium" : "Vorab")
                         .font(AppFont.micro)
                         .foregroundStyle(.white)
@@ -185,7 +215,11 @@ struct EpisodeThumb: View {
                 }
             }
             .overlay(alignment: .topTrailing) {
-                if downloaded {
+                if active && preview?.isLoading == true {
+                    ProgressView().controlSize(.small).tint(.white).padding(Space.xs)
+                } else if active {
+                    EmptyView()
+                } else if downloaded {
                     Image(systemName: "arrow.down.circle.fill")
                         .font(AppFont.heading)
                         .foregroundStyle(.white, Palette.success)
@@ -200,8 +234,22 @@ struct EpisodeThumb: View {
                 }
             }
             .clipShape(RoundedRectangle(cornerRadius: Radius.m))
-            .onHover { hovering = $0 }
+            .contentShape(Rectangle())
+            .onHover { inside in
+                hovering = inside
+                guard let preview, let playback else { return }
+                if inside {
+                    if !preview.isDenied(episode.identifier) { preview.hover(episode, origin: origin, using: playback) }
+                } else {
+                    preview.leave(origin)
+                }
+            }
+            .onDisappear {
+                hovering = false
+                preview?.leave(origin)
+            }
             .animation(.easeOut(duration: 0.15), value: hovering)
+            .animation(.easeOut(duration: 0.15), value: playing)
     }
 }
 

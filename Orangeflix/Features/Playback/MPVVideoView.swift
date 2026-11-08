@@ -134,7 +134,7 @@ final class MPVVideoNSView: NSView {
     /// the picture that is still shown, if there is one.
     func detach() {
         let owned = videoLayer.retire()
-        if owned, MPVVideoLayer.wakeSuccessor() == false {
+        if owned, MPVVideoLayer.wakeSuccessor(for: player.handle) == false {
             player.renderContextDetached()
         }
     }
@@ -153,9 +153,9 @@ final class MPVVideoLayer: CAOpenGLLayer, @unchecked Sendable {
     private let mpv: OpaquePointer
     private var renderContext: OpaquePointer?
     private var glContext: CGLContextObj?
-    /// The layer that holds the render context. Touched on the main thread
-    /// only: the layer draws synchronously.
-    nonisolated(unsafe) private static weak var owner: MPVVideoLayer?
+    /// Each mpv core has its own render context; a preview must not take
+    /// the context away from the main player.
+    nonisolated(unsafe) private static var owners: [OpaquePointer: WeakLayer] = [:]
     /// Every layer that may show the picture, oldest first. When the screen
     /// changes its layout (the chat), SwiftUI builds the new
     /// picture while the old one is still fading out. The newest one wins:
@@ -222,7 +222,7 @@ final class MPVVideoLayer: CAOpenGLLayer, @unchecked Sendable {
 
     private func createRenderContext() {
         guard renderContext == nil else { return }
-        if let previous = Self.owner, previous !== self {
+        if let previous = Self.owners[mpv]?.layer, previous !== self {
             _ = previous.tearDown()
             if let glContext { CGLSetCurrentContext(glContext) }
         }
@@ -243,17 +243,22 @@ final class MPVVideoLayer: CAOpenGLLayer, @unchecked Sendable {
             return
         }
         renderContext = created
-        Self.owner = self
+        Self.owners[mpv] = WeakLayer(layer: self)
         mpv_render_context_set_update_callback(created, mpvRenderUpdate, Unmanaged.passUnretained(self).toOpaque())
-        let onReady = onReady
-        DispatchQueue.main.async { onReady?() }
+        let reference = LayerReference(layer: self)
+        DispatchQueue.main.async {
+            let layer = reference.layer
+            guard !layer.isRetired, layer.renderContext != nil,
+                  Self.owners[layer.mpv]?.layer === layer else { return }
+            layer.onReady?()
+        }
     }
 
     override func canDraw(inCGLContext context: CGLContextObj, pixelFormat: CGLPixelFormatObj,
                           forLayerTime time: CFTimeInterval, displayTime: UnsafePointer<CVTimeStamp>?) -> Bool {
         // A layer that lost the render context to another view takes it back
         // as soon as it is shown again.
-        if renderContext == nil, glContext != nil, !isRetired, Self.newest() === self {
+        if renderContext == nil, glContext != nil, !isRetired, Self.newest(for: mpv) === self {
             CGLSetCurrentContext(context)
             createRenderContext()
         }
@@ -285,16 +290,16 @@ final class MPVVideoLayer: CAOpenGLLayer, @unchecked Sendable {
     }
 
     /// The newest layer whose view is still shown.
-    private static func newest() -> MPVVideoLayer? {
+    private static func newest(for mpv: OpaquePointer) -> MPVVideoLayer? {
         layers.removeAll { $0.layer == nil }
-        return layers.compactMap(\.layer).filter { !$0.isRetired }.max { $0.serial < $1.serial }
+        return layers.compactMap(\.layer).filter { !$0.isRetired && $0.mpv == mpv }.max { $0.serial < $1.serial }
     }
 
     /// Asks the picture still shown to take the render context; false when
     /// there is none.
     @discardableResult
-    static func wakeSuccessor() -> Bool {
-        guard let next = newest() else { return false }
+    static func wakeSuccessor(for mpv: OpaquePointer) -> Bool {
+        guard let next = newest(for: mpv) else { return false }
         next.setNeedsDisplay()
         return true
     }
@@ -320,7 +325,7 @@ final class MPVVideoLayer: CAOpenGLLayer, @unchecked Sendable {
         mpv_render_context_set_update_callback(renderContext, nil, nil)
         mpv_render_context_free(renderContext)
         self.renderContext = nil
-        if Self.owner === self { Self.owner = nil }
+        if Self.owners[mpv]?.layer === self { Self.owners.removeValue(forKey: mpv) }
         CGLSetCurrentContext(nil)
         return true
     }

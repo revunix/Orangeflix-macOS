@@ -67,6 +67,8 @@ final class MPVPlayer {
     @ObservationIgnored var onEnd: ((EndReason) -> Void)?
     /// The position moved.
     @ObservationIgnored var onPosition: ((Double) -> Void)?
+    /// The requested file has opened and can report its position.
+    @ObservationIgnored var onFileLoaded: (() -> Void)?
 
     /// The mpv core. It lives as long as the app.
     @ObservationIgnored nonisolated(unsafe) let handle: OpaquePointer
@@ -92,7 +94,7 @@ final class MPVPlayer {
         var subtitles: [URL]
     }
 
-    init() {
+    init(preview: Bool = false) {
         guard let handle = mpv_create() else {
             fatalError("mpv_create failed")
         }
@@ -100,6 +102,7 @@ final class MPVPlayer {
         for (name, value) in Self.options {
             mpv_set_option_string(handle, name, value)
         }
+        if preview { mpv_set_option_string(handle, "demuxer-max-bytes", "16MiB") }
         let status = mpv_initialize(handle)
         if status < 0 {
             logger.error("mpv_initialize: \(String(cString: mpv_error_string(status)), privacy: .public)")
@@ -212,6 +215,8 @@ final class MPVPlayer {
 
     func toggleMute() { setString("mute", isMuted ? "no" : "yes") }
 
+    func setMuted(_ muted: Bool) { setString("mute", muted ? "yes" : "no") }
+
     func setSpeed(_ value: Double) { setString("speed", String(format: "%.2f", value)) }
 
     /// Shows a subtitle track; nil hides the subtitles.
@@ -282,19 +287,22 @@ final class MPVPlayer {
                 }
                 subtitlesToAdd = []
                 if !subtitlesOn { setString("sid", "no") }
+                let callback = onFileLoaded
+                callback?()
             case MPV_EVENT_END_FILE:
                 guard let data = event.data else { break }
                 let end = data.assumingMemoryBound(to: mpv_event_end_file.self).pointee
                 isLoading = false
                 fileActive = false
                 updateBuffering()
+                let callback = onEnd
                 switch end.reason {
                 case MPV_END_FILE_REASON_EOF:
-                    onEnd?(.finished)
+                    callback?(.finished)
                 case MPV_END_FILE_REASON_ERROR:
-                    onEnd?(.failed(String(cString: mpv_error_string(end.error))))
+                    callback?(.failed(String(cString: mpv_error_string(end.error))))
                 default:
-                    onEnd?(.stopped)
+                    callback?(.stopped)
                 }
             case MPV_EVENT_LOG_MESSAGE:
                 guard let data = event.data else { break }
@@ -314,7 +322,8 @@ final class MPVPlayer {
             if abs(value - position) >= 0.25 || value < position {
                 position = value
             }
-            onPosition?(value)
+            let callback = onPosition
+            callback?(value)
         case .duration:
             duration = change.double ?? 0
         case .pause:

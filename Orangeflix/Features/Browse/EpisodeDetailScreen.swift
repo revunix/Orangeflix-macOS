@@ -10,6 +10,8 @@ struct EpisodeDetailScreen: View {
     let episode: Episode
     /// Starts the episode in the page when the page opens.
     var autoplay = false
+    /// An explicit starting position, such as a chapter found in search.
+    var startAt: Int?
 
     @Environment(AppModel.self) private var app
     @Environment(BrowseModel.self) private var browse
@@ -47,9 +49,10 @@ struct EpisodeDetailScreen: View {
     /// wide enough.
     private static let stageWidth: CGFloat = 1400
 
-    init(episode: Episode, autoplay: Bool = false) {
+    init(episode: Episode, autoplay: Bool = false, startAt: Int? = nil) {
         self.episode = episode
         self.autoplay = autoplay
+        self.startAt = startAt
         _page = State(initialValue: EpisodeDetailModel(identifier: episode.identifier))
     }
 
@@ -77,9 +80,9 @@ struct EpisodeDetailScreen: View {
         .navigationTitle("")
         .task {
             await page.load(app: app)
-            if autoplay, !didAutoplay {
+            if autoplay, !didAutoplay, !Task.isCancelled {
                 didAutoplay = true
-                play(from: nil)
+                play(from: startAt)
             }
         }
         .onDisappear {
@@ -345,7 +348,7 @@ struct EpisodeDetailScreen: View {
             if let url = forumURL {
                 Link("Im Forum besprechen", destination: url)
             }
-            Button("Ähnliche Folgen") { browse.formatsPath.append(.similar(shown)) }
+            Button("Ähnliche Folgen") { browse.navigationPath.append(.similar(shown)) }
             if canWatch {
                 Divider()
                 Button("Link zum Teilen erstellen") {
@@ -491,7 +494,7 @@ struct EpisodeDetailScreen: View {
             HStack(alignment: .top, spacing: Space.l) {
                 ForEach(shown.participants, id: \.id) { guest in
                     Button {
-                        browse.formatsPath.append(.host(guest))
+                        browse.navigationPath.append(.host(guest))
                     } label: {
                         VStack(spacing: Space.s) {
                             GuestPortrait(image: guest.image, size: 84)
@@ -516,6 +519,7 @@ struct EpisodeDetailScreen: View {
             ForEach(words, id: \.self) { word in
                 Button {
                     browse.searchText = word
+                    browse.searchPath = []
                     app.selection = .search
                 } label: {
                     Label(word, systemImage: "magnifyingglass")
@@ -539,7 +543,7 @@ struct EpisodeDetailScreen: View {
         next.pid = shown.pid
         next.formatName = shown.formatName
         return Button("Nächste Folge öffnen", systemImage: "arrow.right.circle") {
-            browse.formatsPath.append(.episode(next, autoplay: false))
+            browse.navigationPath.append(.episode(next, autoplay: false))
         }
         .glassButtonStyle()
         .controlSize(.large)
@@ -551,11 +555,11 @@ struct EpisodeDetailScreen: View {
                 ForEach(hits, id: \.id) { hit in
                     let other = browse.current(hit.episode)
                     Button {
-                        browse.formatsPath.append(.episode(hit.episode, autoplay: false))
+                        browse.navigationPath.append(.episode(hit.episode, autoplay: false))
                     } label: {
                         EpisodeCard(episode: other, percent: other.progressPercent,
                                     downloaded: browse.isDownloaded(other.identifier)) {
-                            browse.formatsPath.append(.episode(hit.episode, autoplay: true))
+                            browse.navigationPath.append(.episode(hit.episode, autoplay: true))
                         }
                     }
                     .buttonStyle(.plain)

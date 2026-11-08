@@ -29,7 +29,7 @@ struct FormatsScreen: View {
             content
                 .background(Palette.background)
                 .navigationTitle("")
-                .navigationDestination(for: BrowseRoute.self) { destination($0) }
+                .navigationDestination(for: BrowseRoute.self) { BrowseDestination(route: $0) }
         }
         .sheet(isPresented: Binding(get: { qualityEpisode != nil }, set: { if !$0 { qualityEpisode = nil } })) {
             if let qualityEpisode { BrowseQualitySheet(episode: qualityEpisode) }
@@ -380,7 +380,14 @@ struct FormatsScreen: View {
         model.formatsPath.append(.episodes(pid: format.pid))
     }
 
-    @ViewBuilder private func destination(_ route: BrowseRoute) -> some View {
+}
+
+/// Destinations shared by the Mediathek and search navigation stacks.
+struct BrowseDestination: View {
+    let route: BrowseRoute
+    @Environment(BrowseModel.self) private var model
+
+    @ViewBuilder var body: some View {
         switch route {
         case .episodes(let pid):
             if let format = model.format(pid: pid) {
@@ -396,6 +403,8 @@ struct FormatsScreen: View {
             GuestDirectoryScreen()
         case .episode(let episode, let autoplay):
             EpisodeDetailScreen(episode: episode, autoplay: autoplay)
+        case .episodeAt(let episode, let seconds):
+            EpisodeDetailScreen(episode: episode, autoplay: true, startAt: seconds)
         }
     }
 }

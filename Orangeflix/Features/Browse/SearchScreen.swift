@@ -1,20 +1,27 @@
+import AppKit
+import CoreGraphics
+import Observation
 import SwiftUI
 
 /// The full text search (Go `ScreenSearch`). It searches while the user
 /// types, over titles, descriptions, chapters and the spoken text, and shows
-/// for every hit the places that matched; a click on a place starts the
-/// episode there.
+/// for every hit the places that matched; a click previews that place in
+/// the picture, while a click on the result opens the episode page.
 struct SearchScreen: View {
     @Environment(AppModel.self) private var app
     @Environment(BrowseModel.self) private var model
+    @Environment(PlaybackCenter.self) private var playback
 
     @State private var selection: Set<String> = []
+    private var preview: EpisodePreviewModel { playback.preview }
+    @State private var pointer = SearchPointerTracker()
     @State private var showsInspector = false
     @State private var qualityEpisode: Episode?
     @FocusState private var fieldFocused: Bool
 
     var body: some View {
-        NavigationStack {
+        @Bindable var model = model
+        return NavigationStack(path: $model.searchPath) {
             VStack(spacing: Space.s) {
                 PageChrome(title: "Suche", subtitle: subtitle) {
                     MoreMenu {
@@ -33,6 +40,7 @@ struct SearchScreen: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .navigationTitle("")
+            .navigationDestination(for: BrowseRoute.self) { BrowseDestination(route: $0) }
             .inspector(isPresented: $showsInspector) { inspector }
             .sheet(isPresented: Binding(get: { qualityEpisode != nil }, set: { if !$0 { qualityEpisode = nil } })) {
                 if let episode = qualityEpisode {
@@ -41,11 +49,14 @@ struct SearchScreen: View {
             }
         }
         .task(id: app.accountGeneration) {
+            preview.resetAccess()
             model.prepare(for: app.accountGeneration)
         }
         // The live search: every key starts over, the server is asked once
         // the typing pauses. A new format filter asks at once.
-        .task(id: LiveKey(text: model.searchText, format: model.searchFormatPID, person: model.searchPersonID)) {
+        .task(id: LiveKey(text: model.searchText, format: model.searchFormatPID,
+                          person: model.searchPersonID, account: app.accountGeneration)) {
+            model.prepare(for: app.accountGeneration)
             let query = model.searchText.trimmingCharacters(in: .whitespacesAndNewlines)
             if query == model.searchQuery, model.searchFormatPID == model.searchedFormatPID,
                model.searchPersonID == model.searchedPersonID,
@@ -57,13 +68,16 @@ struct SearchScreen: View {
             await model.search()
         }
         .onChange(of: model.searchQuery) { selection = [] }
+        .onChange(of: model.searchPath) { if !model.searchPath.isEmpty { preview.stop() } }
         .onAppear { fieldFocused = true }
+        .onDisappear { preview.stop() }
     }
 
     private struct LiveKey: Hashable {
         let text: String
         let format: Int?
         let person: String?
+        let account: Int
     }
 
     private var trimmedText: String { model.searchText.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -309,9 +323,9 @@ struct SearchScreen: View {
                 VStack(alignment: .leading, spacing: Space.m) {
                     SectionLabel(text: "Was die Suche findet")
                     tip("textformat", "Titel und Beschreibungen", "Folgen, deren Name oder Text den Begriff enthält.")
-                    tip("list.bullet.rectangle", "Kapitel", "Ein Klick auf das Kapitel startet die Folge genau dort.")
+                    tip("list.bullet.rectangle", "Kapitel", "Eine Sekunde über einem Kapitel zeigt eine kurze Vorschau genau dort.")
                     tip("waveform", "Gesprochenes",
-                        "Jede Stelle, an der der Begriff fällt, mit Zeitmarke zum direkten Einstieg.")
+                        "Jede Stelle, an der der Begriff fällt, mit Zeitmarke für die Vorschau.")
                 }
             }
             .frame(maxWidth: 560, alignment: .leading)
@@ -343,58 +357,65 @@ struct SearchScreen: View {
 
     private var list: some View {
         let hits = model.visibleSearchHits
-        return List(selection: $selection) {
-            if hits.isEmpty {
-                Text("Unter den geladenen Treffern ist keiner dieser Art.")
+        return ScrollView {
+            LazyVStack(spacing: Space.s) {
+                if hits.isEmpty {
+                    Text("Unter den geladenen Treffern ist keiner dieser Art.")
+                        .font(AppFont.bodySmall)
+                        .foregroundStyle(Palette.textSecondary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, Space.l)
+                }
+                ForEach(hits, id: \.id) { hit in
+                    let episode = hit.episode
+                    SearchHitRow(
+                        hit: hit,
+                        query: model.searchQuery,
+                        episode: model.current(episode),
+                        badge: model.badge(episode),
+                        downloaded: model.isDownloaded(episode.identifier),
+                        preview: preview,
+                        pointer: pointer,
+                        playback: playback)
+                    .padding(Space.m)
+                    .contentCard(selected: selection.contains(hit.id))
+                    .contentShape(Rectangle())
+                    .onTapGesture { open(hit) }
+                    .contextMenu { menu(for: episode) }
+                }
+                if model.searchNextOffset != nil {
+                    HStack(spacing: Space.s) {
+                        if model.searchingMore {
+                            ProgressView().controlSize(.small)
+                            Text("Lade weitere Treffer …")
+                        } else {
+                            PillButton(title: "Weitere Treffer laden", symbol: "arrow.down", style: .glass) {
+                                Task { await model.searchMore() }
+                            }
+                        }
+                    }
                     .font(AppFont.bodySmall)
                     .foregroundStyle(Palette.textSecondary)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, Space.l)
-                    .listRowSeparator(.hidden)
-                    .listRowBackground(Color.clear)
-            }
-            ForEach(hits, id: \.id) { hit in
-                let episode = hit.episode
-                SearchHitRow(
-                    hit: hit,
-                    query: model.searchQuery,
-                    episode: model.current(episode),
-                    badge: model.badge(episode),
-                    downloaded: model.isDownloaded(episode.identifier),
-                    onPlay: { play(episode) },
-                    onPlayAt: { seconds in play(episode, from: seconds) })
-                .padding(Space.m)
-                .contentCard(selected: selection.contains(hit.id))
-                .tag(hit.id)
-                .listRowSeparator(.hidden)
-                .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets(top: Space.xs, leading: Space.page, bottom: Space.xs, trailing: Space.page))
-                .contextMenu { menu(for: episode) }
-            }
-            if model.searchNextOffset != nil {
-                HStack(spacing: Space.s) {
-                    if model.searchingMore {
-                        ProgressView().controlSize(.small)
-                        Text("Lade weitere Treffer …")
-                    } else {
-                        PillButton(title: "Weitere Treffer laden", symbol: "arrow.down", style: .glass) {
-                            Task { await model.searchMore() }
-                        }
-                    }
+                    .padding(.vertical, Space.m)
+                    // Reaching the end of the list loads the next page.
+                    .onAppear { Task { await model.searchMore() } }
                 }
-                .font(AppFont.bodySmall)
-                .foregroundStyle(Palette.textSecondary)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, Space.m)
-                .listRowSeparator(.hidden)
-                .listRowBackground(Color.clear)
-                // Reaching the end of the list loads the next page.
-                .onAppear { Task { await model.searchMore() } }
             }
+            .padding(.horizontal, Space.page)
+            .padding(.vertical, Space.xs)
         }
-        .listStyle(.plain)
+        .background {
+            SearchMouseEvents(pointer: pointer)
+                .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(SearchPointerTracker.coordinateSpace)) } action: {
+                    pointer.setSourceFrame($0)
+                }
+        }
+        .coordinateSpace(name: SearchPointerTracker.coordinateSpace)
+        .onGeometryChange(for: CGSize.self) { $0.size } action: {
+            pointer.setViewport(CGRect(origin: .zero, size: $0))
+        }
         .tint(Palette.accent)
-        .scrollContentBackground(.hidden)
         .background(Palette.background)
         .onKeyPress(.return) {
             watch()
@@ -432,7 +453,7 @@ struct SearchScreen: View {
     }
 
     @ViewBuilder private func menu(for episode: Episode) -> some View {
-        Button(model.watchLabel(episode)) { play(episode) }
+        Button(model.watchLabel(episode)) { open(episode, autoplay: true) }
         Button("Herunterladen") {
             Task { await model.downloadEpisodes([episode], of: nil) }
         }
@@ -452,19 +473,29 @@ struct SearchScreen: View {
         model.visibleSearchHits.filter { selection.contains($0.id) }.map(\.episode)
     }
 
-    private func play(_ episode: Episode) {
-        model.rememberSearch()
-        model.play([episode])
+    /// A normal click opens the page; Command-click only changes selection.
+    private func open(_ hit: SearchResult) {
+        if NSEvent.modifierFlags.contains(.command) {
+            if selection.contains(hit.id) { selection.remove(hit.id) } else { selection.insert(hit.id) }
+            return
+        }
+        selection = []
+        open(hit.episode)
     }
 
-    private func play(_ episode: Episode, from seconds: Int) {
+    private func open(_ episode: Episode, autoplay: Bool = false) {
+        preview.stop()
         model.rememberSearch()
-        model.play(episode, from: seconds)
+        model.searchPath.append(.episode(episode, autoplay: autoplay))
     }
 
     private func watch() {
         let episodes = selection.isEmpty ? (focusedEpisode.map { [$0] } ?? []) : selectedEpisodes
         guard !episodes.isEmpty else { return }
+        if episodes.count == 1 {
+            open(episodes[0], autoplay: true)
+            return
+        }
         model.rememberSearch()
         model.play(episodes)
     }
@@ -473,6 +504,85 @@ struct SearchScreen: View {
         let episodes = selection.isEmpty ? (focusedEpisode.map { [$0] } ?? []) : selectedEpisodes
         guard !episodes.isEmpty else { return }
         Task { await model.downloadEpisodes(episodes, of: nil) }
+    }
+}
+
+/// The search picture becomes a small player without opening the episode.
+private struct SearchPreviewThumb: View {
+    let episode: Episode
+    let downloaded: Bool
+    let preview: EpisodePreviewModel
+    let pointer: SearchPointerTracker
+    let playback: PlaybackCenter
+
+    @State private var hovering = false
+    @State private var origin = UUID()
+
+    private var active: Bool { preview.identifier == episode.identifier }
+    private var denied: Bool { preview.isDenied(episode.identifier) }
+
+    var body: some View {
+        Color.clear
+            .aspectRatio(16.0 / 9.0, contentMode: .fit)
+            .overlay {
+                EpisodePreviewSurface(episode: episode, preview: preview, playback: playback)
+            }
+            .overlay {
+                if hovering && denied && !active {
+                    Image(systemName: "lock.fill")
+                        .foregroundStyle(.white)
+                        .frame(width: 36, height: 36)
+                        .background(.black.opacity(0.65), in: Circle())
+                        .accessibilityLabel("Für diese Folge fehlt der Zugang")
+                } else if hovering && preview.failureIdentifier == episode.identifier {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.white)
+                        .frame(width: 36, height: 36)
+                        .background(.black.opacity(0.65), in: Circle())
+                        .accessibilityLabel(preview.failureMessage ?? "Vorschau nicht verfügbar")
+                }
+            }
+            .overlay(alignment: .topLeading) {
+                if active && !preview.isLoading {
+                    EpisodePreviewClock(position: preview.position)
+                } else if !active && (episode.isPremium || episode.isEarlyAccess) {
+                    Text(episode.isPremium ? "Premium" : "Vorab")
+                        .font(AppFont.micro)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, Space.s)
+                        .padding(.vertical, Space.xxs)
+                        .background(Palette.accent, in: Capsule())
+                        .padding(Space.s)
+                }
+            }
+            .overlay(alignment: .topTrailing) {
+                if active && preview.isLoading {
+                    ProgressView().controlSize(.small).tint(.white).padding(Space.xs)
+                } else if !active && (downloaded || episode.progressPercent >= BrowseLogic.watchedPercent) {
+                    Image(systemName: downloaded ? "arrow.down.circle.fill" : "checkmark.circle.fill")
+                        .font(AppFont.heading)
+                        .foregroundStyle(.white, downloaded ? Palette.success : Palette.leaf)
+                        .padding(Space.s)
+                }
+            }
+            .overlay(alignment: .bottom) {
+                if active && preview.mode == .hover && !preview.positions.isEmpty {
+                    EpisodePreviewSegments(preview: preview)
+                } else if !active {
+                    WatchBar(percent: episode.progressPercent)
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: Radius.m))
+            .contentShape(Rectangle())
+            .modifier(SearchHoverRegion(pointer: pointer, id: origin) { inside in
+                hovering = inside
+                if inside { preview.hover(episode, origin: origin, using: playback) }
+                else { preview.leave(origin) }
+            })
+            .onDisappear {
+                hovering = false
+                preview.leave(origin)
+            }
     }
 }
 
@@ -486,8 +596,9 @@ private struct SearchHitRow: View {
     let episode: Episode
     let badge: BrowseEpisodeBadge
     let downloaded: Bool
-    let onPlay: () -> Void
-    let onPlayAt: (Int) -> Void
+    let preview: EpisodePreviewModel
+    let pointer: SearchPointerTracker
+    let playback: PlaybackCenter
 
     /// The passages that show before "weitere Stellen".
     private static let collapsedPassages = 3
@@ -495,7 +606,7 @@ private struct SearchHitRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: Space.l) {
-            EpisodeThumb(episode: episode, percent: episode.progressPercent, downloaded: downloaded, onPlay: onPlay)
+            SearchPreviewThumb(episode: episode, downloaded: downloaded, preview: preview, pointer: pointer, playback: playback)
                 .frame(width: 176)
             VStack(alignment: .leading, spacing: Space.xs) {
                 HStack(spacing: Space.s) {
@@ -524,8 +635,6 @@ private struct SearchHitRow: View {
             Spacer(minLength: 0)
         }
         .padding(.vertical, Space.xs)
-        .contentShape(Rectangle())
-        .onTapGesture(count: 2, perform: onPlay)
     }
 
     private var meta: String {
@@ -562,14 +671,12 @@ private struct SearchHitRow: View {
         let passages = expanded ? hit.passages : Array(hit.passages.prefix(Self.collapsedPassages))
         return VStack(alignment: .leading, spacing: 2) {
             if let chapter = hit.chapter {
-                MomentButton(moment: chapter, symbol: "list.bullet.rectangle", quoted: false) {
-                    onPlayAt(chapter.startSeconds)
-                }
+                MomentButton(moment: chapter, symbol: "list.bullet.rectangle", quoted: false,
+                             episode: episode, preview: preview, pointer: pointer, playback: playback)
             }
             ForEach(Array(passages.enumerated()), id: \.offset) { _, passage in
-                MomentButton(moment: passage, symbol: "waveform", quoted: true) {
-                    onPlayAt(passage.startSeconds)
-                }
+                MomentButton(moment: passage, symbol: "waveform", quoted: true,
+                             episode: episode, preview: preview, pointer: pointer, playback: playback)
             }
             if hit.passages.count > Self.collapsedPassages {
                 Button(expanded ? "Weniger Stellen" : "\(hit.passages.count - Self.collapsedPassages) weitere Stellen") {
@@ -584,44 +691,73 @@ private struct SearchHitRow: View {
     }
 }
 
-/// A place inside an episode: the time and the text around the term. A
-/// click starts the episode there.
+/// A place inside an episode; hovering for a second previews it.
 private struct MomentButton: View {
     let moment: SearchMoment
     let symbol: String
     let quoted: Bool
-    let action: () -> Void
+    let episode: Episode
+    let preview: EpisodePreviewModel
+    let pointer: SearchPointerTracker
+    let playback: PlaybackCenter
 
     @State private var hovering = false
+    @State private var ready = false
+    @State private var origin = UUID()
 
     var body: some View {
-        Button(action: action) {
-            HStack(alignment: .firstTextBaseline, spacing: Space.s) {
-                Image(systemName: hovering ? "play.fill" : symbol)
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(Palette.accent)
-                    .frame(width: 14)
-                Text(moment.startFormatted.isEmpty ? AppFormat.position(Double(moment.startSeconds)) : moment.startFormatted)
-                    .font(AppFont.digitsMedium)
-                    .foregroundStyle(Palette.accentText)
-                    .frame(minWidth: 52, alignment: .leading)
-                Text(label)
-                    .font(AppFont.bodySmall)
-                    .foregroundStyle(Palette.textPrimary)
-                    .lineLimit(2)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+        HStack(alignment: .firstTextBaseline, spacing: Space.s) {
+            Button {
+                guard hovering, ready, !preview.isDenied(episode.identifier) else { return }
+                preview.play(episode, from: moment.startSeconds, origin: origin, muted: false, using: playback)
+            } label: {
+                HStack(alignment: .firstTextBaseline, spacing: Space.s) {
+                    Image(systemName: hovering ? "play.fill" : symbol)
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(Palette.accent)
+                        .frame(width: 14)
+                    Text(moment.startFormatted.isEmpty ? AppFormat.position(Double(moment.startSeconds)) : moment.startFormatted)
+                        .font(AppFont.digitsMedium)
+                        .foregroundStyle(Palette.accentText)
+                        .frame(minWidth: 52, alignment: .leading)
+                }
+                .padding(.vertical, 3)
+                .contentShape(Rectangle())
+                .modifier(SearchHoverRegion(pointer: pointer, id: origin) { inside in
+                    hovering = inside
+                    if !inside {
+                        ready = false
+                        preview.leave(origin)
+                    }
+                })
             }
-            .padding(.horizontal, Space.s)
-            .padding(.vertical, 4)
-            .background {
-                RoundedRectangle(cornerRadius: Radius.s, style: .continuous)
-                    .fill(hovering ? Palette.accentSoft : .clear)
+            .buttonStyle(.plain)
+            .task(id: hovering) {
+                guard hovering else { return }
+                do { try await Task.sleep(for: .seconds(1)) } catch { return }
+                guard !Task.isCancelled, hovering else { return }
+                ready = true
+                preview.play(episode, from: moment.startSeconds, origin: origin, muted: false, using: playback)
             }
-            .contentShape(Rectangle())
+            .accessibilityHint(preview.isDenied(episode.identifier) ? "Für diese Folge fehlt der Zugang" :
+                               "Eine Sekunde verweilen für eine Vorschau")
+            Text(label)
+                .font(AppFont.bodySmall)
+                .foregroundStyle(Palette.textPrimary)
+                .lineLimit(2)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .buttonStyle(.plain)
-        .onHover { hovering = $0 }
-        .help("Ab \(moment.startFormatted) ansehen")
+        .padding(.horizontal, Space.s)
+        .padding(.vertical, 4)
+        .background {
+            RoundedRectangle(cornerRadius: Radius.s, style: .continuous)
+                .fill(hovering ? Palette.accentSoft : .clear)
+        }
+        .onDisappear {
+            hovering = false
+            ready = false
+            preview.leave(origin)
+        }
     }
 
     private var label: AttributedString {
@@ -633,6 +769,188 @@ private struct MomentButton: View {
             text = section + text
         }
         return text
+    }
+}
+
+/// Resolves the pointer against the actual visible thumbnail and timestamp
+/// rectangles. One target, at most, receives hover at any moment.
+@MainActor private final class SearchPointerTracker {
+    static let coordinateSpace = "search-preview-pointer"
+
+    private struct Target {
+        let frame: CGRect
+        let onChange: (Bool) -> Void
+    }
+
+    private var targets: [UUID: Target] = [:]
+    private var viewport = CGRect.zero
+    private var sourceFrame: CGRect?
+    private var localPoint: CGPoint?
+    private var active: UUID?
+    private var resolutionPending = false
+
+    func setViewport(_ value: CGRect) {
+        viewport = value
+        scheduleResolution()
+    }
+
+    func setSourceFrame(_ value: CGRect) {
+        sourceFrame = value
+        scheduleResolution()
+    }
+
+    func setTarget(_ id: UUID, frame: CGRect, onChange: @escaping (Bool) -> Void) {
+        targets[id] = Target(frame: frame, onChange: onChange)
+        scheduleResolution()
+    }
+
+    func removeTarget(_ id: UUID) {
+        targets.removeValue(forKey: id)
+        if active == id { active = nil }
+        scheduleResolution()
+    }
+
+    func move(to value: CGPoint?) {
+        localPoint = value
+        scheduleResolution()
+    }
+
+    /// Geometry updates can arrive during SwiftUI layout. Resolve them on
+    /// the next turn, once every affected row has its current rectangle.
+    private func scheduleResolution() {
+        guard !resolutionPending else { return }
+        resolutionPending = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.resolutionPending = false
+            self.resolve()
+        }
+    }
+
+    private func resolve() {
+        let regions = targets.map { SearchPointerRegion(id: $0.key, frame: $0.value.frame) }
+        let point = localPoint.flatMap { local in
+            sourceFrame.flatMap { $0.isEmpty ? nil : SearchPointerLogic.position(local, in: $0) }
+        }
+        let next = SearchPointerLogic.target(at: point, viewport: viewport, regions: regions)
+        guard next != active else { return }
+        let previous = active
+        active = next
+        if let previous { targets[previous]?.onChange(false) }
+        if let next { targets[next]?.onChange(true) }
+    }
+}
+
+/// Registers only the view's own measured rectangle, not its whole row.
+private struct SearchHoverRegion: ViewModifier {
+    let pointer: SearchPointerTracker
+    let id: UUID
+    let onChange: (Bool) -> Void
+    @State private var frame = CGRect.zero
+
+    func body(content: Content) -> some View {
+        content
+            .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(SearchPointerTracker.coordinateSpace)) } action: { value in
+                frame = value
+                pointer.setTarget(id, frame: value, onChange: onChange)
+            }
+            .onAppear { pointer.setTarget(id, frame: frame, onChange: onChange) }
+            .onDisappear { pointer.removeTarget(id) }
+    }
+}
+
+/// Reads mouse positions from this window without consuming clicks or scrolls.
+private struct SearchMouseEvents: NSViewRepresentable {
+    let pointer: SearchPointerTracker
+
+    func makeNSView(context: Context) -> EventView {
+        let view = EventView()
+        view.pointer = pointer
+        return view
+    }
+
+    func updateNSView(_ view: EventView, context: Context) {
+        view.pointer = pointer
+        view.window?.acceptsMouseMovedEvents = true
+    }
+
+    static func dismantleNSView(_ view: EventView, coordinator: ()) {
+        view.detach()
+    }
+
+    final class EventView: NSView {
+        var pointer: SearchPointerTracker?
+        private var monitor: Any?
+        private var area: NSTrackingArea?
+        private weak var observedWindow: NSWindow?
+
+        override var isFlipped: Bool { true }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            detach()
+            guard let window else { return }
+            observedWindow = window
+            window.acceptsMouseMovedEvents = true
+            NotificationCenter.default.addObserver(self, selector: #selector(keyChanged(_:)),
+                                                   name: NSWindow.didBecomeKeyNotification, object: window)
+            NotificationCenter.default.addObserver(self, selector: #selector(keyChanged(_:)),
+                                                   name: NSWindow.didResignKeyNotification, object: window)
+            monitor = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged, .scrollWheel]) { [weak self] event in
+                MainActor.assumeIsolated { self?.read(event) }
+                return event
+            }
+            checkPointer()
+        }
+
+        override func updateTrackingAreas() {
+            super.updateTrackingAreas()
+            if let area { removeTrackingArea(area) }
+            let area = NSTrackingArea(rect: .zero,
+                                      options: [.mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect],
+                                      owner: self, userInfo: nil)
+            addTrackingArea(area)
+            self.area = area
+        }
+
+        override func mouseEntered(with event: NSEvent) { checkPointer() }
+        override func mouseExited(with event: NSEvent) { checkPointer() }
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+        @objc private func keyChanged(_ notification: Notification) { checkPointer() }
+
+        func detach() {
+            if let monitor { NSEvent.removeMonitor(monitor) }
+            monitor = nil
+            if let observedWindow {
+                NotificationCenter.default.removeObserver(self, name: NSWindow.didBecomeKeyNotification, object: observedWindow)
+                NotificationCenter.default.removeObserver(self, name: NSWindow.didResignKeyNotification, object: observedWindow)
+            }
+            observedWindow = nil
+            pointer?.move(to: nil)
+        }
+
+        private func read(_ event: NSEvent) {
+            guard let window, window.isKeyWindow, event.window === window else {
+                pointer?.move(to: nil)
+                return
+            }
+            updatePoint(window.mouseLocationOutsideOfEventStream)
+        }
+
+        private func checkPointer() {
+            guard let window, window.isKeyWindow else {
+                pointer?.move(to: nil)
+                return
+            }
+            updatePoint(window.mouseLocationOutsideOfEventStream)
+        }
+
+        private func updatePoint(_ windowPoint: NSPoint) {
+            let point = convert(windowPoint, from: nil)
+            let local = CGPoint(x: point.x - bounds.minX, y: point.y - bounds.minY)
+            pointer?.move(to: bounds.contains(point) ? local : nil)
+        }
     }
 }
 

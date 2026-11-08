@@ -14,7 +14,7 @@ struct SimilarScreen: View {
                 title: "Ähnliche Folgen",
                 subtitle: "\(model.similarEpisodes.count) ähnliche Folgen",
                 detail: BrowseLogic.title(of: episode),
-                onBack: { if !model.formatsPath.isEmpty { model.formatsPath.removeLast() } }) { EmptyView() }
+                onBack: { if !model.navigationPath.isEmpty { model.navigationPath.removeLast() } }) { EmptyView() }
             BrowseClipListView(
                 episodes: model.similarEpisodes,
                 isLoading: model.similarLoading,
@@ -39,7 +39,7 @@ struct GuestDirectoryScreen: View {
         ScrollView {
             VStack(alignment: .leading, spacing: Space.xl) {
                 PageChrome(title: "Alle Gäste", subtitle: "\(guests.count) Gäste", onBack: {
-                    if !model.formatsPath.isEmpty { model.formatsPath.removeLast() }
+                    if !model.navigationPath.isEmpty { model.navigationPath.removeLast() }
                 }) { EmptyView() }
                 if model.guestDirectoryLoading && guests.isEmpty {
                     ProgressView("Lade alle Gäste …")
@@ -61,7 +61,7 @@ struct GuestDirectoryScreen: View {
                 } else {
                     LazyVGrid(columns: columns, alignment: .leading, spacing: Space.l) {
                         ForEach(guests, id: \.id) { guest in
-                            Button { model.formatsPath.append(.host(guest)) } label: {
+                            Button { model.navigationPath.append(.host(guest)) } label: {
                                 VStack(spacing: Space.s) {
                                     DirectoryGuestPortrait(image: guest.image, size: 88)
                                     Text(guest.name.isEmpty ? "Unbekannter Gast" : guest.name)
@@ -267,21 +267,21 @@ struct HostScreen: View {
             percent: current.progressPercent,
             downloaded: model.isDownloaded(episode.identifier)
         ) {
-            model.formatsPath.append(.episode(episode, autoplay: true))
+            model.navigationPath.append(.episode(episode, autoplay: true))
         }
         .contentShape(Rectangle())
         .onTapGesture {
-            model.formatsPath.append(.episode(episode, autoplay: false))
+            model.navigationPath.append(.episode(episode, autoplay: false))
         }
         .contextMenu { menu(for: episode) }
     }
 
     @ViewBuilder private func menu(for episode: Episode) -> some View {
         Button(model.watchLabel(episode)) {
-            model.formatsPath.append(.episode(episode, autoplay: true))
+            model.navigationPath.append(.episode(episode, autoplay: true))
         }
         Button("Folge öffnen") {
-            model.formatsPath.append(.episode(episode, autoplay: false))
+            model.navigationPath.append(.episode(episode, autoplay: false))
         }
         Button("Herunterladen") {
             Task { await model.downloadEpisodes([episode], of: nil) }
@@ -302,7 +302,7 @@ struct HostScreen: View {
         let title = magazine.title.isEmpty ? "Format" : magazine.title
         if model.format(pid: magazine.pid) != nil {
             Button {
-                model.formatsPath.append(.episodes(pid: magazine.pid))
+                model.navigationPath.append(.episodes(pid: magazine.pid))
             } label: {
                 glassChip(title, symbol: "rectangle.stack")
             }
@@ -324,7 +324,7 @@ struct HostScreen: View {
     }
 
     private func back() {
-        model.formatsPath = [.guests]
+        model.navigationPath = [.guests]
     }
 
     private static func socialTitle(_ key: String) -> String {

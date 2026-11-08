@@ -29,6 +29,7 @@ let package = Package(
                 "Core/Download/MediaNaming.swift",
                 "Core/Live/LiveHTML.swift",
                 "Core/Live/LiveHTMLEntities.swift",
+                "Features/Browse/SearchPointerLogic.swift",
                 "Features/Playback/PlaybackLogic.swift",
             ]
         ),

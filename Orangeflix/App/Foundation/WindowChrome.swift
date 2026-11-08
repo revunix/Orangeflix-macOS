@@ -8,17 +8,35 @@ struct TitlebarTransparency: NSViewRepresentable {
     /// names itself needs no second heading in the bar.
     var hidesTitle = false
 
-    func makeNSView(context: Context) -> NSView { NSView() }
+    func makeNSView(context: Context) -> ChromeView {
+        let view = ChromeView()
+        view.hidesTitle = hidesTitle
+        return view
+    }
 
-    func updateNSView(_ view: NSView, context: Context) {
-        DispatchQueue.main.async {
-            guard let window = view.window else { return }
-            window.titlebarAppearsTransparent = true
-            window.titlebarSeparatorStyle = .none
-            window.styleMask.insert(.fullSizeContentView)
-            if hidesTitle {
-                window.titleVisibility = .hidden
-                window.title = ""
+    func updateNSView(_ view: ChromeView, context: Context) {
+        view.hidesTitle = hidesTitle
+        view.applyWhenAttached()
+    }
+
+    final class ChromeView: NSView {
+        var hidesTitle = false
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            applyWhenAttached()
+        }
+
+        func applyWhenAttached() {
+            DispatchQueue.main.async { [weak self] in
+                guard let self, let window = self.window else { return }
+                window.titlebarAppearsTransparent = true
+                window.titlebarSeparatorStyle = .none
+                window.styleMask.insert(.fullSizeContentView)
+                if self.hidesTitle {
+                    window.titleVisibility = .hidden
+                    window.title = ""
+                }
             }
         }
     }

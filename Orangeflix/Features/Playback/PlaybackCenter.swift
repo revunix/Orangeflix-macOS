@@ -12,6 +12,11 @@ import os
 
     /// libmpv; it plays every entry and draws into the player window.
     let engine = MPVPlayer()
+    /// An independent, reusable core for short search previews. It never
+    /// reports watch progress or changes the main player's queue.
+    @ObservationIgnored lazy var previewEngine = MPVPlayer(preview: true)
+    /// The hover preview every episode picture shares.
+    @ObservationIgnored lazy var preview = EpisodePreviewModel()
     /// The entries that play one after another.
     private(set) var queue: [PlaybackEntry] = []
     /// The entry that plays now.
@@ -80,6 +85,7 @@ import os
     /// Plays the episodes one after another, resuming each at the stored
     /// position (Go `App.Play`).
     func play(_ episodes: [Episode]) {
+        preview.stop()
         guard !episodes.isEmpty else {
             app.show(PlaybackError.noEpisodes.localizedDescription, error: true)
             return
@@ -93,6 +99,7 @@ import os
     /// Plays one episode from `seconds` on instead of the stored position;
     /// the search jumps to the chapter or the passage it found.
     func play(_ episode: Episode, from seconds: Int) {
+        preview.stop()
         guard !isClosed else { return }
         generation += 1
         let token = generation
@@ -102,6 +109,7 @@ import os
     /// Plays one episode inside the page of the episode; the player window
     /// stays closed. `seconds` replaces the stored position.
     func playInline(_ episode: Episode, from seconds: Int? = nil) {
+        preview.stop()
         guard !isClosed else { return }
         generation += 1
         let token = generation
@@ -113,6 +121,7 @@ import os
     /// Plays the running stream or its replay (Go `App.PlayLive`). Inline,
     /// the picture stays in the Live screen and the player window closes.
     func playLive(_ info: LivestreamInfo, mode: LivePlaybackMode, inline: Bool) async {
+        preview.stop()
         guard !isClosed else { return }
         generation += 1
         let token = generation
@@ -369,7 +378,9 @@ import os
     /// `episodeSource`): the version 3 API is preferred, the legacy API is
     /// the fallback.
     private func source(for episode: Episode) async throws -> PlaybackSource {
-        if (try? await app.ensureSession()) != nil {
+        let hasSession = (try? await app.ensureSession()) != nil
+        try Task.checkCancellation()
+        if hasSession {
             do {
                 let playback = try await app.services.api.playback(episode.identifier)
                 if !playback.files.isEmpty {
@@ -378,6 +389,8 @@ import os
                                          chapters: playback.chapters,
                                          thumbnailTrack: playback.thumbnailTrack)
                 }
+            } catch is CancellationError {
+                throw CancellationError()
             } catch {
                 app.record("Die Version-3-API liefert keine Datei für \(episode.identifier) (\(error.localizedDescription)), nutze die alte API.")
             }
@@ -390,6 +403,29 @@ import os
             headers["Authorization"] = "Basic \(token)"
         }
         return PlaybackSource(files: clip.files, subtitles: [], progress: WatchProgress(), headers: headers)
+    }
+
+    /// Resolves a low-bandwidth video for a search preview without starting
+    /// playback or reporting its position to the account.
+    enum PreviewError: LocalizedError {
+        case noAccess
+
+        var errorDescription: String? { "Für diese Folge fehlt der Zugang." }
+    }
+
+    func previewFile(for episode: Episode) async throws -> (URL, [String: String]) {
+        try await app.ensureSession()
+        let details = try await app.services.api.episodeDetails(episode.identifier, refresh: true)
+        try Task.checkCancellation()
+        guard !details.clip.id.isEmpty else { throw APIError.invalidRequest("Der Zugang zur Folge konnte nicht geprüft werden.") }
+        guard details.clip.canAccess else { throw PreviewError.noAccess }
+        let resolved = try await source(for: episode)
+        try Task.checkCancellation()
+        let file = try resolved.files.select(.sd).file
+        guard !file.isAudio, let url = URL(string: try app.legacy.toHTTPS(file.url)) else {
+            throw PlaybackError.invalidAddress(episode.identifier)
+        }
+        return (url, resolved.headers)
     }
 
     // MARK: Preparing the live stream
