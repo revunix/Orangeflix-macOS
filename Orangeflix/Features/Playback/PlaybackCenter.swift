@@ -17,6 +17,7 @@ import os
     @ObservationIgnored lazy var previewEngine = MPVPlayer(preview: true)
     /// The hover preview every episode picture shares.
     @ObservationIgnored lazy var preview = EpisodePreviewModel()
+    @ObservationIgnored weak var browseModel: BrowseModel?
     /// The entries that play one after another.
     private(set) var queue: [PlaybackEntry] = []
     /// The entry that plays now.
@@ -85,7 +86,7 @@ import os
     /// Plays the episodes one after another, resuming each at the stored
     /// position (Go `App.Play`).
     func play(_ episodes: [Episode]) {
-        preview.stop()
+        let previewRestore = preview.stop()
         guard !episodes.isEmpty else {
             app.show(PlaybackError.noEpisodes.localizedDescription, error: true)
             return
@@ -93,27 +94,36 @@ import os
         guard !isClosed else { return }
         generation += 1
         let token = generation
-        Task { await prepareAndPlay(episodes, generation: token) }
+        Task {
+            await previewRestore?.value
+            await prepareAndPlay(episodes, generation: token)
+        }
     }
 
     /// Plays one episode from `seconds` on instead of the stored position;
     /// the search jumps to the chapter or the passage it found.
     func play(_ episode: Episode, from seconds: Int) {
-        preview.stop()
+        let previewRestore = preview.stop()
         guard !isClosed else { return }
         generation += 1
         let token = generation
-        Task { await prepareAndPlay([episode], generation: token, startAt: max(seconds, 0)) }
+        Task {
+            await previewRestore?.value
+            await prepareAndPlay([episode], generation: token, startAt: max(seconds, 0))
+        }
     }
 
     /// Plays one episode inside the page of the episode; the player window
     /// stays closed. `seconds` replaces the stored position.
     func playInline(_ episode: Episode, from seconds: Int? = nil) {
-        preview.stop()
+        let previewRestore = preview.stop()
         guard !isClosed else { return }
         generation += 1
         let token = generation
-        Task { await prepareAndPlay([episode], generation: token, startAt: seconds.map { max($0, 0) }, inline: true) }
+        Task {
+            await previewRestore?.value
+            await prepareAndPlay([episode], generation: token, startAt: seconds.map { max($0, 0) }, inline: true)
+        }
     }
 
     // MARK: Live
@@ -121,7 +131,8 @@ import os
     /// Plays the running stream or its replay (Go `App.PlayLive`). Inline,
     /// the picture stays in the Live screen and the player window closes.
     func playLive(_ info: LivestreamInfo, mode: LivePlaybackMode, inline: Bool) async {
-        preview.stop()
+        let previewRestore = preview.stop()
+        await previewRestore?.value
         guard !isClosed else { return }
         generation += 1
         let token = generation
@@ -386,6 +397,7 @@ import os
                 if !playback.files.isEmpty {
                     return PlaybackSource(files: playback.files, subtitles: playback.subtitleURLs,
                                          progress: playback.progress, headers: [:],
+                                         durationSeconds: playback.durationSeconds,
                                          chapters: playback.chapters,
                                          thumbnailTrack: playback.thumbnailTrack)
                 }
@@ -402,7 +414,8 @@ import os
             let token = Data("\(credentials.username):\(credentials.password)".utf8).base64EncodedString()
             headers["Authorization"] = "Basic \(token)"
         }
-        return PlaybackSource(files: clip.files, subtitles: [], progress: WatchProgress(), headers: headers)
+        return PlaybackSource(files: clip.files, subtitles: [], progress: WatchProgress(), headers: headers,
+                              durationSeconds: max(episode.durationSeconds, BrowseLogic.clockToSeconds(episode.duration)))
     }
 
     /// Resolves a low-bandwidth video for a search preview without starting
@@ -413,7 +426,7 @@ import os
         var errorDescription: String? { "Für diese Folge fehlt der Zugang." }
     }
 
-    func previewFile(for episode: Episode) async throws -> (URL, [String: String]) {
+    func previewFile(for episode: Episode) async throws -> (URL, [String: String], Bool, Int) {
         try await app.ensureSession()
         let details = try await app.services.api.episodeDetails(episode.identifier, refresh: true)
         try Task.checkCancellation()
@@ -425,7 +438,25 @@ import os
         guard !file.isAudio, let url = URL(string: try app.legacy.toHTTPS(file.url)) else {
             throw PlaybackError.invalidAddress(episode.identifier)
         }
-        return (url, resolved.headers)
+        let wasWatched = max(resolved.progress.percentage, episode.progressPercent) >= BrowseLogic.watchedPercent
+        let duration = max(resolved.progress.lastPosition,
+                           max(resolved.durationSeconds,
+                               max(episode.durationSeconds, BrowseLogic.clockToSeconds(episode.duration))))
+        return (url, resolved.headers, wasWatched, duration)
+    }
+
+    /// A preview can register as a playback on the website even though this
+    /// player never reports positions. Restore the account state it had before
+    /// the preview, clearing incidental progress for unwatched episodes.
+    func restorePreviewProgress(_ identifier: String, wasWatched: Bool, duration: Int) async {
+        let percent = wasWatched ? 100 : 0
+        do {
+            try await app.services.api.updateProgress(identifier, seconds: wasWatched ? duration : 0)
+            app.episodes.setProgress(identifier, percent: percent)
+            browseModel?.removeFromRecents(identifier)
+        } catch {
+            app.record("Der Wiedergabestand nach der Vorschau konnte nicht wiederhergestellt werden: \(error.localizedDescription)", error: true)
+        }
     }
 
     // MARK: Preparing the live stream

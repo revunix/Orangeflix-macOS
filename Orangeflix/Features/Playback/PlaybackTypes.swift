@@ -48,6 +48,8 @@ struct PlaybackSource: Sendable {
     var subtitles: [String]
     /// The watch state of the account.
     var progress: WatchProgress
+    /// The length returned with the playback source, when known.
+    var durationSeconds: Int = 0
     /// The headers the address of the file needs.
     var headers: [String: String]
     /// The chapters from the clip page.

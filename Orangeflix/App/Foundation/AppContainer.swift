@@ -49,5 +49,6 @@ import Observation
         self.sessions = SessionModel(app: app)
         app.downloads = downloads
         app.playback = playback
+        playback.browseModel = browse
     }
 }

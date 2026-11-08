@@ -571,6 +571,12 @@ enum BrowseError: LocalizedError {
         current(episode).progressPercent >= BrowseLogic.watchedPercent
     }
 
+    /// Removes a clip from the loaded Weiterschauen shelf after its progress
+    /// has been restored or reset successfully.
+    func removeFromRecents(_ identifier: String) {
+        recents.episodes.removeAll { $0.identifier == identifier }
+    }
+
     /// "Ansehen" or "Weiterschauen" (progress 1–89 %).
     func watchLabel(_ episode: Episode) -> String {
         let percent = current(episode).progressPercent
@@ -794,6 +800,7 @@ enum BrowseError: LocalizedError {
         do {
             let seconds = watched ? try await watchedSeconds(for: episode) : 0
             try await api.updateProgress(identifier, seconds: seconds)
+            removeFromRecents(identifier)
             app.show(watched ? "Als gesehen markiert." : "Als ungesehen markiert.")
         } catch is CancellationError {
             app.episodes.setProgress(identifier, percent: previous)

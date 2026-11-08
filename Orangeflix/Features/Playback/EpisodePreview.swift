@@ -21,12 +21,15 @@ import SwiftUI
     private var deniedUntil: [String: Date] = [:]
 
     @ObservationIgnored private var player: MPVPlayer?
+    @ObservationIgnored private weak var activePlayback: PlaybackCenter?
     @ObservationIgnored private var preparation: Task<Void, Never>?
     @ObservationIgnored private var generation = 0
     @ObservationIgnored private var startPosition = 0
     @ObservationIgnored private var waitingForSeek = false
     @ObservationIgnored private var needsDuration = false
     @ObservationIgnored private var fileLoaded = false
+    @ObservationIgnored private var pendingProgressRestore: (identifier: String, wasWatched: Bool, duration: Int)?
+    @ObservationIgnored private var progressRestoreTask: Task<Void, Never>?
     private(set) var origin: UUID?
 
     func isDenied(_ identifier: String) -> Bool {
@@ -59,7 +62,10 @@ import SwiftUI
         seek(to: positions[index])
     }
 
-    func stop() {
+    @discardableResult
+    func stop() -> Task<Void, Never>? {
+        let progressRestore = pendingProgressRestore
+        pendingProgressRestore = nil
         generation += 1
         preparation?.cancel()
         preparation = nil
@@ -78,10 +84,20 @@ import SwiftUI
         needsDuration = false
         fileLoaded = false
         origin = nil
+        let playback = activePlayback
+        activePlayback = nil
+        if let progressRestore, let playback {
+            progressRestoreTask = Task { [weak playback] in
+                await playback?.restorePreviewProgress(progressRestore.identifier,
+                                                       wasWatched: progressRestore.wasWatched,
+                                                       duration: progressRestore.duration)
+            }
+        }
+        return progressRestoreTask
     }
 
     private func start(_ episode: Episode, mode: Mode, seconds: Int, origin: UUID, muted: Bool, using playback: PlaybackCenter) {
-        stop()
+        let previousRestore = stop()
         failureIdentifier = nil
         failureMessage = nil
         let token = generation
@@ -96,16 +112,21 @@ import SwiftUI
         position = Double(startPosition)
 
         let engine = playback.previewEngine
+        activePlayback = playback
         player = engine
         // Never talk over a running main playback.
         engine.setMuted(muted || (playback.isPlaying && !playback.isPaused))
         engine.setSubtitlesOn(false)
         preparation = Task { [weak self] in
             do {
+                await previousRestore?.value
+                try Task.checkCancellation()
                 if mode == .hover { try await Task.sleep(for: .milliseconds(500)) }
-                let (url, headers) = try await playback.previewFile(for: episode)
+                try Task.checkCancellation()
+                let (url, headers, wasWatched, duration) = try await playback.previewFile(for: episode)
                 try Task.checkCancellation()
                 guard let self, self.generation == token else { return }
+                self.pendingProgressRestore = (episode.identifier, wasWatched, duration)
                 self.deniedUntil.removeValue(forKey: episode.identifier)
                 engine.onPosition = { [weak self] value in self?.positionChanged(value) }
                 engine.onFileLoaded = { [weak self] in

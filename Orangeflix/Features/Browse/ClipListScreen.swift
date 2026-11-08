@@ -172,6 +172,12 @@ struct ClipListScreen: View {
     }
 
     @ViewBuilder private func actions(for episode: Episode) -> some View {
+        if kind == .recents {
+            Button("Aus Weiterschauen entfernen") {
+                Task { await model.setWatched(episode, watched: false) }
+            }
+            Divider()
+        }
         Button(model.watchLabel(episode)) {
             model.play([episode])
         }
@@ -181,8 +187,17 @@ struct ClipListScreen: View {
         Button(model.isBookmarked(episode) ? "Von der Merkliste nehmen" : "Auf die Merkliste setzen") {
             Task { await model.toggleBookmark(episode) }
         }
-        Button(model.isWatched(episode) ? "Als ungesehen markieren" : "Als gesehen markieren") {
-            Task { await model.toggleWatched([episode]) }
+        if model.isWatched(episode) {
+            Button("Als ungesehen markieren") {
+                Task { await model.setWatched(episode, watched: false) }
+            }
+        } else {
+            Button("Als gesehen markieren") {
+                Task { await model.setWatched(episode, watched: true) }
+            }
+            Button("Als ungesehen markieren") {
+                Task { await model.setWatched(episode, watched: false) }
+            }
         }
         Button("Qualität wählen") {
             qualityEpisode = episode

@@ -293,15 +293,35 @@ struct EpisodesScreen: View {
                 model.play(selectedEpisodes)
             }
             Button("\(selection.count) markierte als gesehen markieren") {
-                Task { await model.toggleWatched(selectedEpisodes) }
+                Task {
+                    for episode in selectedEpisodes {
+                        await model.setWatched(episode, watched: true)
+                    }
+                }
+            }
+            Button("\(selection.count) markierte als ungesehen markieren") {
+                Task {
+                    for episode in selectedEpisodes {
+                        await model.setWatched(episode, watched: false)
+                    }
+                }
             }
             Divider()
         }
         Button(model.isBookmarked(episode) ? "Von der Merkliste nehmen" : "Auf die Merkliste setzen") {
             Task { await model.toggleBookmark(episode) }
         }
-        Button(model.isWatched(episode) ? "Als ungesehen markieren" : "Als gesehen markieren") {
-            Task { await model.toggleWatched([episode]) }
+        if model.isWatched(episode) {
+            Button("Als ungesehen markieren") {
+                Task { await model.setWatched(episode, watched: false) }
+            }
+        } else {
+            Button("Als gesehen markieren") {
+                Task { await model.setWatched(episode, watched: true) }
+            }
+            Button("Als ungesehen markieren") {
+                Task { await model.setWatched(episode, watched: false) }
+            }
         }
         Button("Qualität wählen") {
             qualityEpisode = episode
@@ -338,8 +358,17 @@ struct EpisodesScreen: View {
         Button(model.isBookmarked(episode) ? "Von der Merkliste nehmen" : "Auf die Merkliste setzen") {
             Task { await model.toggleBookmark(episode) }
         }
-        Button(model.isWatched(episode) ? "Als ungesehen markieren" : "Als gesehen markieren") {
-            Task { await model.toggleWatched([episode]) }
+        if model.isWatched(episode) {
+            Button("Als ungesehen markieren") {
+                Task { await model.setWatched(episode, watched: false) }
+            }
+        } else {
+            Button("Als gesehen markieren") {
+                Task { await model.setWatched(episode, watched: true) }
+            }
+            Button("Als ungesehen markieren") {
+                Task { await model.setWatched(episode, watched: false) }
+            }
         }
         Button("Qualität wählen") {
             qualityEpisode = episode

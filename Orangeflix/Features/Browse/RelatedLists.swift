@@ -289,8 +289,17 @@ struct HostScreen: View {
         Button(model.isBookmarked(episode) ? "Von der Merkliste nehmen" : "Auf die Merkliste setzen") {
             Task { await model.toggleBookmark(episode) }
         }
-        Button(model.isWatched(episode) ? "Als ungesehen markieren" : "Als gesehen markieren") {
-            Task { await model.toggleWatched([episode]) }
+        if model.isWatched(episode) {
+            Button("Als ungesehen markieren") {
+                Task { await model.setWatched(episode, watched: false) }
+            }
+        } else {
+            Button("Als gesehen markieren") {
+                Task { await model.setWatched(episode, watched: true) }
+            }
+            Button("Als ungesehen markieren") {
+                Task { await model.setWatched(episode, watched: false) }
+            }
         }
         Button("Titel kopieren") { model.copyTitle(episode) }
         if model.isDownloaded(episode.identifier) {

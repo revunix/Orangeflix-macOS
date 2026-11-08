@@ -349,6 +349,19 @@ struct EpisodeDetailScreen: View {
                 Link("Im Forum besprechen", destination: url)
             }
             Button("Ähnliche Folgen") { browse.navigationPath.append(.similar(shown)) }
+            Divider()
+            if browse.isWatched(shown) {
+                Button("Als ungesehen markieren") {
+                    Task { await browse.setWatched(shown, watched: false) }
+                }
+            } else {
+                Button("Als gesehen markieren") {
+                    Task { await browse.setWatched(shown, watched: true) }
+                }
+                Button("Als ungesehen markieren") {
+                    Task { await browse.setWatched(shown, watched: false) }
+                }
+            }
             if canWatch {
                 Divider()
                 Button("Link zum Teilen erstellen") {

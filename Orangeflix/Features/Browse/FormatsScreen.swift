@@ -272,6 +272,10 @@ struct FormatsScreen: View {
 
     /// The right-click menu of a card in Weiterschauen.
     @ViewBuilder private func recentMenu(_ episode: Episode) -> some View {
+        Button("Aus Weiterschauen entfernen") {
+            Task { await model.setWatched(episode, watched: false) }
+        }
+        Divider()
         Button(model.watchLabel(episode)) {
             model.formatsPath.append(.episode(episode, autoplay: true))
         }
@@ -290,8 +294,17 @@ struct FormatsScreen: View {
         Button(model.isBookmarked(episode) ? "Von der Merkliste nehmen" : "Auf die Merkliste setzen") {
             Task { await model.toggleBookmark(episode) }
         }
-        Button(model.isWatched(episode) ? "Als ungesehen markieren" : "Als gesehen markieren") {
-            Task { await model.toggleWatched([episode]) }
+        if model.isWatched(episode) {
+            Button("Als ungesehen markieren") {
+                Task { await model.setWatched(episode, watched: false) }
+            }
+        } else {
+            Button("Als gesehen markieren") {
+                Task { await model.setWatched(episode, watched: true) }
+            }
+            Button("Als ungesehen markieren") {
+                Task { await model.setWatched(episode, watched: false) }
+            }
         }
         Button("Ähnliche Folgen") {
             model.formatsPath.append(.similar(episode))
