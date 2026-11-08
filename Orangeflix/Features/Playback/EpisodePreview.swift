@@ -135,12 +135,12 @@ import SwiftUI
                     guard let self, self.generation == token else { return }
                     self.fileLoaded = true
                 }
-                engine.onEnd = { [weak self, weak playback] reason in
+                engine.onEnd = { [weak self] reason in
                     guard let self, self.generation == token else { return }
                     if case .failed = reason {
                         self.failureIdentifier = episode.identifier
                         self.failureMessage = "Die Vorschau konnte nicht abgespielt werden."
-                        if self.mode == .selected { playback?.app.show(self.failureMessage ?? "", error: true) }
+                        if self.mode == .selected { self.activePlayback?.app.show(self.failureMessage ?? "", error: true) }
                     }
                     if reason != .stopped { self.stop() }
                 }

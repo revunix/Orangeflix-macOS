@@ -16,13 +16,13 @@
     "„it should work“ · Deutschland" : {
 
     },
+    "„Mediathek“ zeigt ein Format in der Mediathek; die Bibliothek bleibt. „Melden“ schickt eine Mitteilung, sobald eine neue Folge erscheint. Ausgeblendete Formate werden nicht gemeldet." : {
+
+    },
     "„Zu Ende gesehen“ zählt Folgen ab 90 Prozent. Bibliothek und neue Folgen stammen aus der Bibliothek der App." : {
 
     },
     "@revunix" : {
-
-    },
-    "% gesehen" : {
 
     },
     "%@  %@" : {
@@ -71,6 +71,15 @@
     "%@ als ungesehen markieren" : {
 
     },
+    "%@ anzeigen" : {
+
+    },
+    "%@ ausblenden" : {
+
+    },
+    "%@ melden" : {
+
+    },
     "%@, %@" : {
       "localizations" : {
         "de" : {
@@ -82,9 +91,6 @@
       }
     },
     "%lld" : {
-
-    },
-    "%lld %%" : {
 
     },
     "%lld ausgewählt" : {
@@ -183,9 +189,6 @@
     "Abbrechen" : {
 
     },
-    "Abgeschaltete Formate verschwinden aus der Mediathek. Die Bibliothek bleibt." : {
-
-    },
     "Ablage" : {
 
     },
@@ -259,13 +262,7 @@
     "Alle als ungesehen markieren" : {
 
     },
-    "Alle anzeigen" : {
-
-    },
     "Alle anzeigen: %@" : {
-
-    },
-    "Alle ausblenden" : {
 
     },
     "Alle Folgen herunterladen?" : {
@@ -275,9 +272,6 @@
 
     },
     "Alle Formate" : {
-
-    },
-    "Alle melden" : {
 
     },
     "Alle Personen" : {
@@ -299,6 +293,9 @@
 
     },
     "Am Live-Rand" : {
+
+    },
+    "an" : {
 
     },
     "An das Studio senden (↩)" : {
@@ -367,6 +364,9 @@
     "AUFLÖSUNG" : {
 
     },
+    "aus" : {
+
+    },
     "Aus dem Verlauf entfernen" : {
 
     },
@@ -374,6 +374,9 @@
 
     },
     "Aus Weiterschauen entfernen" : {
+
+    },
+    "Aus: Flächen und Texte bleiben beim Standard, der Akzent bleibt Orangeflix-Orange." : {
 
     },
     "Aus: Nur die Akzentfarbe des Themes wird übernommen, Flächen und Texte bleiben beim Standard." : {
@@ -385,10 +388,10 @@
     "Auswahl als ungesehen markieren" : {
 
     },
-    "Automatisch: Der Chat steht dort, wo du ihn auf der Live-Seite im Größen-Menü wählst. Das Live-Fenster hat feste Größen, die genau zu Video und Chat passen." : {
+    "Automatisch nach Updates suchen" : {
 
     },
-    "Automatisch nach Updates suchen" : {
+    "Automatisch: Der Chat steht dort, wo du ihn auf der Live-Seite im Größen-Menü wählst. Das Live-Fenster hat feste Größen, die genau zu Video und Chat passen." : {
 
     },
     "Automatische Suchen erfolgen im gewählten Intervall, solange Orangeflix läuft. Vor der Installation prüft der Updater die Signatur des Downloads; die Versionshinweise erscheinen im Update-Fenster." : {
@@ -401,6 +404,9 @@
 
     },
     "Begleitdateien" : {
+
+    },
+    "Bei der Anmeldung starten" : {
 
     },
     "Beim Öffnen zeigen" : {
@@ -538,7 +544,7 @@
     "Die App greift auf die Schnittstellen von Orangeflix.de zu und braucht dafür ein Konto dort. Für Inhalte, Zugänge und Bedingungen ist der Anbieter verantwortlich, nicht dieses Programm." : {
 
     },
-    "Die App prüft den Katalog, solange sie läuft." : {
+    "Die App prüft alle 15 Minuten die neuesten Folgen und alle 2 Minuten, ob ein Livestream läuft. Ein Klick auf eine Mitteilung öffnet das Format oder die Live-Seite." : {
 
     },
     "Die ausgeschalteten Kategorien bleiben im Haupt-Feed aus." : {
@@ -622,6 +628,9 @@
     "Du kannst eigene Kapitel für diese Folge vorschlagen. Über die Aufnahme entscheidet der Server." : {
 
     },
+    "Durchsuchen" : {
+
+    },
     "E-Mail" : {
 
     },
@@ -641,6 +650,9 @@
 
     },
     "Einstellungen" : {
+
+    },
+    "Einstellungen …" : {
 
     },
     "Eintrag ändern …" : {
@@ -680,9 +692,6 @@
 
     },
     "Es gibt noch keine Sharing-Links." : {
-
-    },
-    "Es ist kein Gerät angemeldet." : {
 
     },
     "Es ist keine Folge ausgewählt. Es werden alle %lld gefilterten Folgen geladen." : {
@@ -736,6 +745,9 @@
     "Formate" : {
 
     },
+    "Formate suchen" : {
+
+    },
     "Freigabe" : {
 
     },
@@ -778,7 +790,7 @@
     "Gerade live" : {
 
     },
-    "Geräte" : {
+    "Geräte aktualisieren" : {
 
     },
     "gesehen" : {
@@ -797,9 +809,6 @@
 
     },
     "Gilt für alle Fenster der App. „Automatisch“ folgt der Einstellung des Macs." : {
-
-    },
-    "Gilt für die Formate, die in der Mediathek eingeschaltet sind." : {
 
     },
     "Gilt für Folgen und Rückblicke. Live läuft als Stream." : {
@@ -835,6 +844,9 @@
     "Herunterladen" : {
 
     },
+    "Hier stehen Geräte, die für Push-Mitteilungen des Servers registriert sind – nicht alle angemeldeten Sitzungen. Die Mitteilungen dieser Mac-App werden separat unter „Mitteilungen“ eingerichtet." : {
+
+    },
     "Im Finder zeigen" : {
 
     },
@@ -842,6 +854,12 @@
 
     },
     "Im Größen-Menü wählen" : {
+
+    },
+    "Im Hintergrund" : {
+
+    },
+    "Im Hintergrund weiterlaufen" : {
 
     },
     "Im Player-Fenster abspielen" : {
@@ -854,6 +872,12 @@
 
     },
     "In allen Formaten suchen" : {
+
+    },
+    "In den Anmeldeobjekten erlauben" : {
+
+    },
+    "In den Systemeinstellungen erlauben" : {
 
     },
     "In der eingestellten Qualität laden" : {
@@ -875,6 +899,12 @@
 
     },
     "Jetzt bestätigen" : {
+
+    },
+    "Jetzt live: %@" : {
+
+    },
+    "Jetzt nach Neuem suchen" : {
 
     },
     "Kalender" : {
@@ -901,6 +931,12 @@
     "Kein Format gefunden." : {
 
     },
+    "Kein Format in dieser Auswahl." : {
+
+    },
+    "Kein Format passt zu „%@“." : {
+
+    },
     "Keine Ankündigungen." : {
 
     },
@@ -911,6 +947,9 @@
 
     },
     "Keine Folge gewählt." : {
+
+    },
+    "Keine Geräte für Server-Push registriert." : {
 
     },
     "Keine melden" : {
@@ -937,7 +976,7 @@
     "Kennung kopieren" : {
 
     },
-    "Klassisch füllt Leisten und Panels mit einer ruhigen Fläche, Glas zeichnet sie durchscheinend. Ohne „Mit Theme einfärben“ bleiben die Flächen des Themes, nur der Akzent kommt vom Mac." : {
+    "Klassisch füllt Leisten und Panels mit einer ruhigen Fläche, Glas zeichnet sie durchscheinend. Ohne „Mit Theme einfärben“ bleiben die Flächen des Themes, der Akzent bleibt das Orangeflix-Orange." : {
 
     },
     "Klein" : {
@@ -1021,6 +1060,9 @@
     "Live-Ansicht öffnen" : {
 
     },
+    "Livestreams melden" : {
+
+    },
     "Lizenz" : {
 
     },
@@ -1030,10 +1072,10 @@
     "macOS hat die Mitteilungen für Orangeflix noch nicht erlaubt." : {
 
     },
-    "Markieren" : {
+    "macOS wartet auf deine Erlaubnis unter Systemeinstellungen › Allgemein › Anmeldeobjekte." : {
 
     },
-    "Mediathek" : {
+    "Markieren" : {
 
     },
     "Melde dich mit deinem Orangeflix-Konto an." : {
@@ -1055,12 +1097,6 @@
 
     },
     "Mitteilungen" : {
-
-    },
-    "Mitteilungen in den Systemeinstellungen erlauben" : {
-
-    },
-    "Mitteilungen je Format" : {
 
     },
     "Monatlich" : {
@@ -1094,6 +1130,9 @@
 
     },
     "Name im Abspann" : {
+
+    },
+    "Neu" : {
 
     },
     "Neu laden" : {
@@ -1144,9 +1183,6 @@
     "Normal" : {
 
     },
-    "Nur angemeldete Geräte bekommen die Mitteilungen des Servers." : {
-
-    },
     "Nur das Team liest mit" : {
 
     },
@@ -1174,6 +1210,9 @@
     "Orangeflix" : {
 
     },
+    "Orangeflix beenden" : {
+
+    },
     "Orangeflix for Mac" : {
 
     },
@@ -1181,6 +1220,9 @@
 
     },
     "Orangeflix for Mac ist ein unabhängiges, privat entwickeltes Projekt. Es steht in keiner Verbindung zu Orangeflix.de, zu deren Betreibern oder zu einem anderen Programm gleichen Namens. Es ist weder von dort beauftragt noch freigegeben, unterstützt oder mitgetragen." : {
+
+    },
+    "Orangeflix öffnen" : {
 
     },
     "Orangeflix, zur Mediathek" : {
@@ -1234,6 +1276,18 @@
     "Prüft einen Link, ohne angemeldet zu sein." : {
 
     },
+    "Push-Geräte" : {
+
+    },
+    "Push-Geräte konnten nicht geladen werden: %@" : {
+
+    },
+    "Push-Geräte werden geladen …" : {
+
+    },
+    "Push-Geräte wurden noch nicht geladen." : {
+
+    },
     "Qualität" : {
 
     },
@@ -1273,6 +1327,9 @@
     "Schließen" : {
 
     },
+    "Schließt du das Fenster, verschwindet Orangeflix aus dem Dock und bleibt als Symbol in der Menüleiste, damit Mitteilungen weiter ankommen. Beim Start nach der Anmeldung öffnet sich kein Fenster. Mit ⌘Q beendet, meldet die App nichts mehr." : {
+
+    },
     "Schriftgröße" : {
 
     },
@@ -1300,10 +1357,10 @@
     "Softwareupdate" : {
 
     },
-    "Suchintervall" : {
+    "Speichern" : {
 
     },
-    "Speichern" : {
+    "Speicherort" : {
 
     },
     "Speicherort ändern …" : {
@@ -1313,9 +1370,6 @@
 
     },
     "Start" : {
-
-    },
-    "Täglich" : {
 
     },
     "Status" : {
@@ -1336,7 +1390,13 @@
     "Suche leeren" : {
 
     },
+    "Suchintervall" : {
+
+    },
     "Tag und Monat genügen; das Jahr darf fehlen." : {
+
+    },
+    "Täglich" : {
 
     },
     "Tempo" : {
@@ -1373,6 +1433,9 @@
 
     },
     "Tonspur" : {
+
+    },
+    "Treffer nicht melden" : {
 
     },
     "Über Orangeflix" : {
@@ -1417,7 +1480,10 @@
     "Von der Merkliste nehmen" : {
 
     },
-    "Vor der Installation prüft der Updater die Signatur des Downloads. Die Versionshinweise erscheinen im Update-Fenster." : {
+    "Vor" : {
+
+    },
+    "Vor (⌘])" : {
 
     },
     "Vorab" : {
@@ -1493,9 +1559,6 @@
     "Zeitleiste" : {
 
     },
-    "Zielordner" : {
-
-    },
     "ZULETZT ANGEFANGEN" : {
 
     },
@@ -1512,6 +1575,9 @@
 
     },
     "Zurück" : {
+
+    },
+    "Zurück (⌘[)" : {
 
     },
     "Zurück zu heute" : {

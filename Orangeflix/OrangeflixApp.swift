@@ -138,6 +138,7 @@ struct SettingsWindowScene: Scene {
         // standard size of a Settings window and `WindowContentSize` brings
         // it to the size of the view right after, and the jump is visible.
         .defaultSize(width: SettingsScreen.windowSize.width, height: SettingsScreen.windowSize.height)
+        .windowToolbarStyle(.unified)
     }
 }
 

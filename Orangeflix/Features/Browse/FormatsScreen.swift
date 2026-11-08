@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 
 /// The Mediathek: the home of the app. The newest series stands on top as a
@@ -15,11 +16,13 @@ struct FormatsScreen: View {
     @State private var scrolledUnderTitlebar = false
     /// The banner that shows; the carousel moves it on.
     @State private var heroIndex = 0
+    @State private var heroColor: ThemeRGB?
     /// The episode whose quality picker is open from Weiterschauen.
     @State private var qualityEpisode: Episode?
     /// The downloaded episode waiting for the delete confirmation.
     @State private var deletedFile: Episode?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var colorScheme
 
     private let columns = Array(repeating: GridItem(.flexible(), spacing: Space.l, alignment: .top), count: 3)
 
@@ -27,7 +30,19 @@ struct FormatsScreen: View {
         @Bindable var model = model
         NavigationStack(path: $model.formatsPath) {
             content
-                .background(Palette.background)
+                .background(homeBackground.ignoresSafeArea())
+                .task(id: heroImageURL) {
+                    let color: ThemeRGB?
+                    if let url = URL(string: heroImageURL), !heroImageURL.isEmpty {
+                        color = await ImageCache.shared.representativeColor(for: url)
+                    } else {
+                        color = nil
+                    }
+                    guard !Task.isCancelled else { return }
+                    withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.9)) {
+                        heroColor = color
+                    }
+                }
                 .navigationTitle("")
                 .navigationDestination(for: BrowseRoute.self) { BrowseDestination(route: $0) }
         }
@@ -93,6 +108,23 @@ struct FormatsScreen: View {
     /// The banner and the shelves only make sense for the whole catalog.
     private var showsShelves: Bool {
         !model.libraryOnly
+    }
+
+    /// A local background only: no theme tokens or destination colors change.
+    private var homeBackground: Color {
+        guard showsShelves, let heroColor else { return Palette.background }
+        let dark = colorScheme == .dark
+        guard let base = ThemeRGB(hex: ThemeRuntime.shared.hex(.background, dark: dark)) else {
+            return Palette.background
+        }
+        let mixed = base.mixed(with: heroColor, dark ? 0.28 : 0.12)
+        return Color(.sRGB, red: mixed.red, green: mixed.green, blue: mixed.blue, opacity: 1)
+    }
+
+    private var heroImageURL: String {
+        let items = heroFormats
+        guard showsShelves, items.indices.contains(heroIndex) else { return "" }
+        return items[heroIndex].banner
     }
 
     private var header: some View {
@@ -175,7 +207,8 @@ struct FormatsScreen: View {
             eyebrow: format.newEpisode ? "Neue Folge" : "Empfohlen",
             title: format.title,
             meta: heroMeta(format),
-            text: format.description
+            text: format.description,
+            backdrop: homeBackground
         ) {
             PillButton(title: "Neueste Folge ansehen", symbol: "play.fill", style: .accent) {
                 Task { await model.latest(of: format, watch: true) }
@@ -223,7 +256,7 @@ struct FormatsScreen: View {
             Shelf(title: "Weiterschauen", trailing: "\(model.recents.episodes.count)",
                   onShowAll: { app.selection = .recents }) {
                 ForEach(model.recents.episodes, id: \.identifier) { episode in
-                    episodeCard(episode, opensPage: true)
+                    episodeCard(episode)
                         .contextMenu { recentMenu(episode) }
                 }
             }
@@ -232,7 +265,7 @@ struct FormatsScreen: View {
             Shelf(title: "Premium", trailing: "\(model.premiumEpisodes.count)",
                   onShowAll: { model.formatsPath.append(.premium) }) {
                 ForEach(model.premiumEpisodes, id: \.identifier) { episode in
-                    episodeCard(episode, opensPage: true)
+                    episodeCard(episode)
                 }
             }
         }
@@ -259,18 +292,18 @@ struct FormatsScreen: View {
         }
     }
 
-    private func episodeCard(_ episode: Episode, opensPage: Bool = false) -> some View {
+    private func episodeCard(_ episode: Episode) -> some View {
         let current = model.current(episode)
         return EpisodeCard(
             episode: current,
             percent: current.progressPercent,
             downloaded: model.isDownloaded(episode.identifier)
         ) {
-            if opensPage {
-                model.formatsPath.append(.episode(episode, autoplay: false))
-            } else {
-                model.play([episode])
-            }
+            model.formatsPath.append(.episode(episode, autoplay: false))
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            model.formatsPath.append(.episode(episode, autoplay: false))
         }
     }
 

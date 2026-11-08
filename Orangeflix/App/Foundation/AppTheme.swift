@@ -359,17 +359,14 @@ final class ThemeRuntime: @unchecked Sendable {
     private var dark = AppTheme.orangeflixDark
     private var lightExtended = true
     private var darkExtended = true
-    /// Whether the accent comes from the theme; off uses the accent of the
-    /// Mac for the accents of the app.
+    /// Whether the accent comes from the theme; off keeps the orange of
+    /// Orangeflix, whatever theme is active.
     private var tintWithTheme = true
-    /// The accent of the Mac, as an sRGB color.
-    private var neutralAccent = ThemeRGB(hex: "C27400") ?? .black
 
     /// Takes the themes the settings name.
     func apply(_ settings: AppSettings) {
         let light = AppTheme.resolve(id: settings.lightThemeID, dark: false, imported: settings.importedThemes)
         let dark = AppTheme.resolve(id: settings.darkThemeID, dark: true, imported: settings.importedThemes)
-        let neutral = ThemeRGB(NSColor.controlAccentColor) ?? ThemeRGB(hex: light.colors.accent) ?? .black
         lock.lock()
         defer { lock.unlock() }
         self.light = light
@@ -377,7 +374,6 @@ final class ThemeRuntime: @unchecked Sendable {
         lightExtended = settings.lightExtendedPalette
         darkExtended = settings.darkExtendedPalette
         tintWithTheme = settings.tintWithTheme
-        neutralAccent = neutral
     }
 
     /// The hex color of `token` in the appearance. Without the extended
@@ -388,17 +384,20 @@ final class ThemeRuntime: @unchecked Sendable {
         let theme = isDark ? dark : light
         let extended = isDark ? darkExtended : lightExtended
         if token.isAccent, !tintWithTheme {
-            return untinted(token, theme: theme, dark: isDark).hex
+            let backgroundTheme = extended ? theme : AppTheme.standard(dark: isDark)
+            return untinted(token, theme: backgroundTheme, dark: isDark).hex
         }
         if token.isAccent || extended { return theme.colors.hex(token) }
         return AppTheme.standard(dark: isDark).colors.hex(token)
     }
 
-    /// The accent colors when the accent of the Mac is in charge: the
-    /// background of the theme decides the quiet shade, so the accent stays
-    /// readable in either appearance.
+    /// The accent colors without the theme's tint: the orange of the
+    /// standard Orangeflix theme of the appearance (not the accent of the Mac,
+    /// which is blue by default). The actual background decides the quiet
+    /// shade, so the accent stays readable on it.
     private func untinted(_ token: ThemeToken, theme: AppTheme, dark: Bool) -> ThemeRGB {
-        switch token {
+        let neutralAccent = ThemeRGB(hex: AppTheme.standard(dark: dark).colors.accent) ?? .black
+        return switch token {
         case .accent:
             neutralAccent
         case .accentSoft:

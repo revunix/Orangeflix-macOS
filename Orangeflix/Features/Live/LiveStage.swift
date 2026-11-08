@@ -386,7 +386,7 @@ struct LivePollAnswer: View {
                     .multilineTextAlignment(.leading)
                 Spacer(minLength: Space.s)
                 if poll.showsResults {
-                    Text("\(poll.percent(of: index)) %")
+                    Text(AppFormat.percent(poll.percent(of: index)))
                         .font(AppFont.digitsMedium)
                         .foregroundStyle(Palette.textSecondary)
                 }

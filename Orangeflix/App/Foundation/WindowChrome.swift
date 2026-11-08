@@ -78,7 +78,7 @@ struct WindowContentSize: NSViewRepresentable {
 }
 
 /// Widens the window to `minimum` while it is set: a narrower window grows
-/// around its middle and stays on the screen. When the floor is gone and
+/// from its top-left corner and stays on the screen. When the floor is gone and
 /// `restoresWidth` is set, the window goes back to the width it had, unless
 /// the user resized it in between. The SwiftUI frame of the content keeps
 /// the user from making it narrower again.
@@ -131,17 +131,13 @@ struct WindowWidthFloor: NSViewRepresentable {
             }
         }
 
-        /// Changes the width around the middle of the window and keeps it
+        /// Changes the width without shifting the left edge, and keeps it
         /// inside the visible part of its screen.
         private func setWidth(_ width: CGFloat, of window: NSWindow) {
-            var frame = window.frame
-            let visible = (window.screen ?? NSScreen.main)?.visibleFrame ?? frame
-            let target = min(width, visible.width)
-            frame.origin.x -= (target - frame.width) / 2
-            frame.size.width = target
-            if frame.maxX > visible.maxX { frame.origin.x = visible.maxX - frame.width }
-            if frame.minX < visible.minX { frame.origin.x = visible.minX }
-            window.setFrame(frame, display: true, animate: true)
+            let size = NSSize(width: width, height: window.frame.height)
+            let frame = MainWindowFrameLogic.resizing(window.frame, to: size,
+                                                      in: window.screen?.visibleFrame)
+            window.setFrame(frame, display: true, animate: false)
         }
     }
 }
@@ -195,5 +191,31 @@ struct TitlebarContent<Content: View>: NSViewRepresentable {
     /// Keeps the hosting view of the titlebar.
     final class Coordinator {
         var host: NSHostingView<Content>?
+    }
+}
+
+/// Gives a window the unified toolbar: title and toolbar items share one
+/// row at the top, the sidebar reaches up under it. A `Settings` window gets
+/// the centered preference style otherwise, with the title in its own row.
+struct UnifiedWindowToolbar: NSViewRepresentable {
+    func makeNSView(context: Context) -> StyleView { StyleView() }
+    func updateNSView(_ view: StyleView, context: Context) { view.apply() }
+
+    final class StyleView: NSView {
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            apply()
+        }
+
+        func apply() {
+            // SwiftUI installs its toolbar a moment after the window appears.
+            for delay in [0.0, 0.1, 0.4] {
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                    guard let window = self?.window else { return }
+                    if window.toolbarStyle != .unified { window.toolbarStyle = .unified }
+                    window.titleVisibility = .visible
+                }
+            }
+        }
     }
 }

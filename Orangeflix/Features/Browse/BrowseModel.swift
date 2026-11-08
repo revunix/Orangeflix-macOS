@@ -74,13 +74,26 @@ enum BrowseError: LocalizedError {
     var selectedFormatPID: Int?
     var formatsPath: [BrowseRoute] = []
     var searchPath: [BrowseRoute] = []
+    var recentsPath: [BrowseRoute] = []
+    var bookmarksPath: [BrowseRoute] = []
 
     /// Routes opened from a detail page stay in the navigation stack it came from.
     var navigationPath: [BrowseRoute] {
-        get { app.selection == .search ? searchPath : formatsPath }
+        get {
+            switch app.selection {
+            case .search: searchPath
+            case .recents: recentsPath
+            case .bookmarks: bookmarksPath
+            default: formatsPath
+            }
+        }
         set {
-            if app.selection == .search { searchPath = newValue }
-            else { formatsPath = newValue }
+            switch app.selection {
+            case .search: searchPath = newValue
+            case .recents: recentsPath = newValue
+            case .bookmarks: bookmarksPath = newValue
+            default: formatsPath = newValue
+            }
         }
     }
 
@@ -223,6 +236,8 @@ enum BrowseError: LocalizedError {
             bookmarks = BrowseClipListState()
             resetSearch()
             searchPath = []
+            recentsPath = []
+            bookmarksPath = []
             searchError = nil
         }
         // A new account must not look fresh.

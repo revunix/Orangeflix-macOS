@@ -63,7 +63,8 @@ struct ClipListScreen: View {
     }
 
     var body: some View {
-        NavigationStack {
+        @Bindable var model = model
+        return NavigationStack(path: kind == .recents ? $model.recentsPath : $model.bookmarksPath) {
             VStack(spacing: 0) {
                 PageChrome(title: kind.title, subtitle: subtitle) {
                     MoreMenu {
@@ -87,6 +88,7 @@ struct ClipListScreen: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .navigationTitle("")
+            .navigationDestination(for: BrowseRoute.self) { BrowseDestination(route: $0) }
             .inspector(isPresented: $showsInspector) { inspector }
             .sheet(isPresented: Binding(get: { qualityEpisode != nil }, set: { if !$0 { qualityEpisode = nil } })) {
                 if let episode = qualityEpisode {
@@ -232,7 +234,7 @@ struct ClipListScreen: View {
             Divider()
         }
         Button(model.watchLabel(episode)) {
-            model.play([episode])
+            model.navigationPath.append(.episode(episode, autoplay: true))
         }
         Button("Herunterladen") {
             Task { await model.downloadEpisodes([episode], of: nil) }
@@ -275,7 +277,11 @@ struct ClipListScreen: View {
     private func watch() {
         let episodes = selection.isEmpty ? (focusedEpisode.map { [$0] } ?? []) : selectedEpisodes
         guard !episodes.isEmpty else { return }
-        model.play(episodes)
+        if episodes.count == 1, let episode = episodes.first {
+            model.navigationPath.append(.episode(episode, autoplay: true))
+        } else {
+            model.play(episodes)
+        }
     }
 
     /// One episode is marked at once; several only after a question.

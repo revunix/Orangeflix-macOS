@@ -284,11 +284,17 @@ enum NotificationModels {
     /// a named field.
     static func devices(from data: Data) throws -> [NotificationDevice] {
         let raw = try APIJSON.decode(JSONValue.self, from: data)
-        let list = raw.arrayValue
+        guard let list = raw.arrayValue
             ?? raw.array("devices")
             ?? raw.array("items")
-            ?? []
-        return list.map { NotificationDevice(raw: $0) }.filter { !$0.deviceID.isEmpty }
+        else {
+            throw APIError.decoding("Die Geräteliste hat ein unbekanntes Format.")
+        }
+        let devices = list.map { NotificationDevice(raw: $0) }
+        guard devices.allSatisfy({ !$0.deviceID.isEmpty }) else {
+            throw APIError.decoding("Ein Gerät hat keine erkennbare Kennung.")
+        }
+        return devices
     }
 
     /// Reads the result of the test notification out of an answer.

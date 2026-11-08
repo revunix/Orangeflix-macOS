@@ -120,8 +120,8 @@ struct AppSettings: Codable, Sendable, Hashable {
     var theme: Theme = .auto
     /// How the chrome and the floating panels of the app are drawn.
     var interfaceStyle: InterfaceStyle = .glass
-    /// Whether the accent comes from the theme; off keeps the accent of the
-    /// Mac.
+    /// Whether the accent comes from the theme; off keeps the orange of
+    /// Orangeflix.
     var tintWithTheme = true
     /// Whether the app draws its own plates in glass; the style decides
     /// whether the choice shows at all.

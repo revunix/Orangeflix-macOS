@@ -72,7 +72,7 @@ struct BrowseEpisodeDetails: View {
             BrowseDetailRow(label: "Status", value: badge.label)
             BrowseDetailRow(label: "Merkliste", value: bookmarked ? "ja" : "nein")
             if percent > 0 {
-                BrowseDetailRow(label: "Gesehen", value: "\(percent) %")
+                BrowseDetailRow(label: "Gesehen", value: AppFormat.percent(percent))
             }
             if showsGuests, !episode.participants.isEmpty {
                 BrowseDetailRow(
@@ -430,7 +430,7 @@ struct BrowseClipListView: View {
             percent: current.progressPercent,
             downloaded: model.isDownloaded(episode.identifier)
         ) {
-            model.play([episode])
+            model.navigationPath.append(.episode(episode, autoplay: false))
         }
         .padding(Space.xs)
         .background {
@@ -440,7 +440,7 @@ struct BrowseClipListView: View {
             }
         }
         .contentShape(Rectangle())
-        .onTapGesture { select(episode.identifier) }
+        .onTapGesture { open(episode) }
         .contextMenu { menu(for: episode) }
     }
 
@@ -455,7 +455,7 @@ struct BrowseClipListView: View {
                 percent: percent,
                 downloaded: model.isDownloaded(episode.identifier)
             ) {
-                model.play([episode])
+                model.navigationPath.append(.episode(episode, autoplay: false))
             }
             .frame(width: 360)
             VStack(alignment: .leading, spacing: Space.s) {
@@ -471,10 +471,10 @@ struct BrowseClipListView: View {
                     .lineLimit(2)
                 if unfinished {
                     HStack(alignment: .firstTextBaseline, spacing: Space.xs) {
-                        Text("\(percent)")
+                        Text(AppFormat.percent(percent))
                             .font(AppFont.hero)
                             .foregroundStyle(Palette.accentText)
-                        Text("% gesehen")
+                        Text("gesehen")
                             .font(AppFont.body)
                             .foregroundStyle(Palette.textSecondary)
                     }
@@ -492,7 +492,7 @@ struct BrowseClipListView: View {
                         .foregroundStyle(Palette.textSecondary)
                 }
                 PillButton(title: model.watchLabel(episode), symbol: "play.fill", style: .accent) {
-                    model.play([episode])
+                    model.navigationPath.append(.episode(episode, autoplay: true))
                 }
                 .padding(.top, Space.xs)
             }
@@ -501,11 +501,12 @@ struct BrowseClipListView: View {
         .padding(Space.l)
         .contentCard(radius: Radius.panel, selected: selection.contains(episode.identifier))
         .contentShape(Rectangle())
-        .onTapGesture { select(episode.identifier) }
+        .onTapGesture { open(episode) }
         .contextMenu { menu(for: episode) }
     }
 
-    private func select(_ identifier: String) {
+    private func open(_ episode: Episode) {
+        let identifier = episode.identifier
         if NSEvent.modifierFlags.contains(.command) {
             if selection.contains(identifier) {
                 selection.remove(identifier)
@@ -514,12 +515,13 @@ struct BrowseClipListView: View {
             }
         } else {
             selection = [identifier]
+            model.navigationPath.append(.episode(episode, autoplay: false))
         }
     }
 
     @ViewBuilder private func menu(for episode: Episode) -> some View {
         Button(model.watchLabel(episode)) {
-            Task { model.play([episode]) }
+            model.navigationPath.append(.episode(episode, autoplay: true))
         }
         Button("Herunterladen") {
             Task { await model.downloadEpisodes([episode], of: nil) }

@@ -127,9 +127,9 @@ enum SettingsSearch {
               keywords: "code prüfen link testen"),
 
         // Mitteilungen
-        .init(id: "notifications.test", pane: .notifications, title: "Testmitteilung senden",
+        .init(id: "notifications.test", pane: .general, title: "Testmitteilung senden",
               section: "Kanäle", keywords: "benachrichtigung test"),
-        .init(id: "notifications.resubscribe", pane: .notifications,
+        .init(id: "notifications.resubscribe", pane: .general,
               title: "E-Mail-Versand wieder einschalten", section: "Kanäle",
               keywords: "email abmelden wieder anmelden"),
 
@@ -143,7 +143,8 @@ enum SettingsSearch {
         .init(id: "appearance.glass", pane: .appearance, title: "Glas für Flächen", section: "Oberflächenstil",
               keywords: "glas glass panels flächen material"),
         .init(id: "appearance.appIcon", pane: .appearance, title: "App-Symbol", section: "App-Symbol",
-              keywords: "icon app icon symbol dock leuchtend dämmerung twilight bright"),        .init(id: "appearance.lightExtended", pane: .appearance, title: "Erweiterte Theme-Palette verwenden",
+              keywords: "icon app icon symbol dock leuchtend dämmerung twilight bright"),
+        .init(id: "appearance.lightExtended", pane: .appearance, title: "Erweiterte Theme-Palette verwenden",
               section: "Heller Modus", keywords: "theme farben flächen texte akzent"),
         .init(id: "appearance.darkExtended", pane: .appearance, title: "Erweiterte Theme-Palette verwenden",
               section: "Dunkler Modus", keywords: "theme farben flächen texte akzent"),
@@ -185,19 +186,17 @@ enum SettingsSearch {
               keywords: "umfrage abstimmung voting einklappen ausblenden"),
 
         // Formate
-        .init(id: "formats.notifications", pane: .formats, title: "Neue Folgen melden", section: "Mitteilungen",
+        .init(id: "general.newEpisodes", pane: .general, title: "Neue Folgen melden", section: "Mitteilungen",
               keywords: "benachrichtigung hinweis"),
-        .init(id: "formats.live", pane: .formats, title: "Livestreams melden", section: "Mitteilungen",
+        .init(id: "general.liveNotifications", pane: .general, title: "Livestreams melden", section: "Mitteilungen",
               keywords: "live stream benachrichtigung mitteilung"),
-        .init(id: "formats.background", pane: .formats, title: "Im Hintergrund weiterlaufen", section: "Im Hintergrund",
+        .init(id: "formats.background", pane: .general, title: "Im Hintergrund weiterlaufen", section: "Im Hintergrund",
               keywords: "menüleiste dock hintergrund geschlossen mitteilung"),
-        .init(id: "formats.login", pane: .formats, title: "Bei der Anmeldung starten", section: "Im Hintergrund",
+        .init(id: "formats.login", pane: .general, title: "Bei der Anmeldung starten", section: "Im Hintergrund",
               keywords: "autostart anmeldeobjekt login start"),
-        .init(id: "live.notify", pane: .live, title: "Melden, wenn ein Livestream startet", section: "Mitteilungen",
-              keywords: "benachrichtigung mitteilung live"),
-        .init(id: "formats.test", pane: .formats, title: "Testmitteilung senden", section: "Mitteilungen",
+        .init(id: "general.testNotifications", pane: .general, title: "Testmitteilung senden", section: "Mitteilungen",
               keywords: "benachrichtigung test"),
-        .init(id: "formats.allow", pane: .formats, title: "In den Systemeinstellungen erlauben",
+        .init(id: "general.allowNotifications", pane: .general, title: "In den Systemeinstellungen erlauben",
               section: "Mitteilungen", keywords: "benachrichtigung erlaubnis"),
         .init(id: "formats.showAll", pane: .formats, title: "Alle Formate anzeigen", section: "Formate",
               keywords: "formate einblenden"),
@@ -209,13 +208,13 @@ enum SettingsSearch {
               keywords: "benachrichtigung formate"),
 
         // Speicherort
-        .init(id: "storage.folder", pane: .storage, title: "Ordner", section: "Zielordner",
+        .init(id: "storage.folder", pane: .general, title: "Ordner", section: "Zielordner",
               keywords: "pfad download speicherort"),
-        .init(id: "storage.change", pane: .storage, title: "Ordner ändern …", section: "Zielordner",
+        .init(id: "storage.change", pane: .general, title: "Ordner ändern …", section: "Zielordner",
               keywords: "pfad download auswählen"),
-        .init(id: "storage.reveal", pane: .storage, title: "Im Finder zeigen", section: "Zielordner",
+        .init(id: "storage.reveal", pane: .general, title: "Im Finder zeigen", section: "Zielordner",
               keywords: "öffnen"),
-        .init(id: "storage.reset", pane: .storage, title: "Auf ~/Downloads/Orangeflix zurücksetzen",
+        .init(id: "storage.reset", pane: .general, title: "Auf ~/Downloads/Orangeflix zurücksetzen",
               section: "Zielordner", keywords: "standard"),
 
         // Import & Export
@@ -235,11 +234,11 @@ enum SettingsSearch {
               section: "Bibliothek", keywords: "sicherung zurück datenbank rückgängig"),
 
         // Über
-        .init(id: "about.updates", pane: .about, title: "Nach Updates suchen …",
+        .init(id: "about.updates", pane: .general, title: "Nach Updates suchen …",
               section: "Softwareupdate", keywords: "aktualisierung neue version changelog änderungen updater sparkle"),
-        .init(id: "about.automaticUpdates", pane: .about, title: "Automatisch nach Updates suchen",
+        .init(id: "about.automaticUpdates", pane: .general, title: "Automatisch nach Updates suchen",
               section: "Softwareupdate", keywords: "automatisch prüfung einschalten ausschalten aktivieren deaktivieren"),
-        .init(id: "about.updateInterval", pane: .about, title: "Suchintervall", section: "Softwareupdate",
+        .init(id: "about.updateInterval", pane: .general, title: "Suchintervall", section: "Softwareupdate",
               keywords: "täglich wöchentlich monatlich häufigkeit wann turnus"),
         .init(id: "about.independence", pane: .about, title: "Keine Verbindung zur Plattform",
               section: "Unabhängigkeit", keywords: "unabhängig inoffiziell disclaimer keine verbindung orangeflix.de plattform rechtliches"),

@@ -69,7 +69,6 @@ struct SearchScreen: View {
         }
         .onChange(of: model.searchQuery) { selection = [] }
         .onChange(of: model.searchPath) { if !model.searchPath.isEmpty { preview.stop() } }
-        .onAppear { fieldFocused = true }
         .onDisappear { preview.stop() }
     }
 
@@ -105,6 +104,17 @@ struct SearchScreen: View {
                 .textFieldStyle(.plain)
                 .font(.system(size: 15))
                 .focused($fieldFocused)
+                .focusEffectDisabled()
+                .task {
+                    // Let the newly mounted field finish its first layout
+                    // before moving the editor into it. Focusing in the
+                    // screen's onAppear can flash at the initial position.
+                    await Task.yield()
+                    guard !Task.isCancelled, model.searchPath.isEmpty else { return }
+                    var transaction = Transaction(animation: nil)
+                    transaction.disablesAnimations = true
+                    withTransaction(transaction) { fieldFocused = true }
+                }
                 .onSubmit {
                     model.rememberSearch()
                     Task { await model.search() }
@@ -134,7 +144,9 @@ struct SearchScreen: View {
         }
         .padding(.horizontal, Space.m)
         .frame(height: 40)
-        .glassPlate(in: Capsule(), interactive: true)
+        // The text field handles focus and input itself; the surrounding
+        // glass is decorative and needs no separate interaction highlight.
+        .glassPlate(in: Capsule())
         .padding(.horizontal, Space.page)
     }
 
@@ -377,7 +389,7 @@ struct SearchScreen: View {
                         preview: preview,
                         pointer: pointer,
                         playback: playback)
-                    .padding(Space.m)
+                    .padding(Space.l)
                     .contentCard(selected: selection.contains(hit.id))
                     .contentShape(Rectangle())
                     .onTapGesture { open(hit) }
@@ -614,36 +626,48 @@ private struct SearchHitRow: View {
     @State private var expanded = false
 
     var body: some View {
-        HStack(alignment: .top, spacing: Space.l) {
+        HStack(alignment: .top, spacing: Space.xl) {
             SearchPreviewThumb(episode: episode, downloaded: downloaded, preview: preview, pointer: pointer, playback: playback)
-                .frame(width: 176)
-            VStack(alignment: .leading, spacing: Space.xs) {
-                HStack(spacing: Space.s) {
-                    kindTag
-                    Text(meta)
-                        .font(AppFont.caption)
-                        .foregroundStyle(Palette.textSecondary)
-                        .lineLimit(1)
+                // Reserve a full media column, rather than a small thumbnail
+                // beside the first line. The ScrollView supplies the width;
+                // all results keep the same split even when text expands.
+                .containerRelativeFrame(.horizontal) { width, _ in
+                    min(360, max(256, width * 0.28))
                 }
-                Text(SearchLogic.marked(BrowseLogic.title(of: episode), query: query))
-                    .font(AppFont.heading)
-                    .foregroundStyle(Palette.textPrimary)
-                    .lineLimit(2)
-                if let text = descriptionText {
-                    Text(text)
-                        .font(AppFont.bodySmall)
-                        .foregroundStyle(Palette.textSecondary)
-                        .lineLimit(2)
-                }
-                if hit.chapter != nil || !hit.passages.isEmpty {
-                    moments
-                        .padding(.top, Space.xxs)
-                }
-                BrowseBadgeView(badge: badge)
-            }
-            Spacer(minLength: 0)
+            details
+                .frame(maxWidth: .infinity, alignment: .topLeading)
         }
+        .frame(minHeight: 180, alignment: .topLeading)
         .padding(.vertical, Space.xs)
+    }
+
+    /// All result information stays in the right-hand column, including
+    /// the places whose preview is shown in the media column on the left.
+    private var details: some View {
+        VStack(alignment: .leading, spacing: Space.s) {
+            HStack(spacing: Space.s) {
+                kindTag
+                Text(meta)
+                    .font(AppFont.bodySmall)
+                    .foregroundStyle(Palette.textSecondary)
+                    .lineLimit(2)
+            }
+            Text(SearchLogic.marked(BrowseLogic.title(of: episode), query: query))
+                .font(AppFont.displaySmall)
+                .foregroundStyle(Palette.textPrimary)
+                .lineLimit(2)
+            if let text = descriptionText {
+                Text(text)
+                    .font(AppFont.body)
+                    .foregroundStyle(Palette.textSecondary)
+                    .lineLimit(2)
+            }
+            if hit.chapter != nil || !hit.passages.isEmpty {
+                moments
+                    .padding(.top, Space.xxs)
+            }
+            BrowseBadgeView(badge: badge)
+        }
     }
 
     private var meta: String {
@@ -669,7 +693,8 @@ private struct SearchHitRow: View {
         case .transcript: ("Gesprochen", "waveform")
         }
         return Label(title, systemImage: symbol)
-            .font(AppFont.micro)
+            .font(AppFont.captionMedium)
+            .fixedSize()
             .foregroundStyle(Palette.accentText)
             .padding(.horizontal, Space.s)
             .padding(.vertical, 3)
@@ -678,7 +703,7 @@ private struct SearchHitRow: View {
 
     private var moments: some View {
         let passages = expanded ? hit.passages : Array(hit.passages.prefix(Self.collapsedPassages))
-        return VStack(alignment: .leading, spacing: 2) {
+        return VStack(alignment: .leading, spacing: Space.xs) {
             if let chapter = hit.chapter {
                 MomentButton(moment: chapter, symbol: "list.bullet.rectangle", quoted: false,
                              episode: episode, preview: preview, pointer: pointer, playback: playback)
@@ -722,11 +747,11 @@ private struct MomentButton: View {
             } label: {
                 HStack(alignment: .firstTextBaseline, spacing: Space.s) {
                     Image(systemName: hovering ? "play.fill" : symbol)
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(Palette.accent)
                         .frame(width: 14)
                     Text(moment.startFormatted.isEmpty ? AppFormat.position(Double(moment.startSeconds)) : moment.startFormatted)
-                        .font(AppFont.digitsMedium)
+                        .font(AppFont.subheading.monospacedDigit())
                         .foregroundStyle(Palette.accentText)
                         .frame(minWidth: 52, alignment: .leading)
                 }
@@ -751,13 +776,13 @@ private struct MomentButton: View {
             .accessibilityHint(preview.isDenied(episode.identifier) ? "Für diese Folge fehlt der Zugang" :
                                "Eine Sekunde verweilen für eine Vorschau")
             Text(label)
-                .font(AppFont.bodySmall)
+                .font(AppFont.body)
                 .foregroundStyle(Palette.textPrimary)
                 .lineLimit(2)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(.horizontal, Space.s)
-        .padding(.vertical, 4)
+        .padding(.vertical, Space.s)
         .background {
             RoundedRectangle(cornerRadius: Radius.s, style: .continuous)
                 .fill(hovering ? Palette.accentSoft : .clear)
@@ -784,7 +809,7 @@ private struct MomentButton: View {
 /// Resolves the pointer against the actual visible thumbnail and timestamp
 /// rectangles. One target, at most, receives hover at any moment.
 @MainActor private final class SearchPointerTracker {
-    static let coordinateSpace = "search-preview-pointer"
+    nonisolated static let coordinateSpace = "search-preview-pointer"
 
     private struct Target {
         let frame: CGRect

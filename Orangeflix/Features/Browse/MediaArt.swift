@@ -501,6 +501,8 @@ struct HeroBanner<Actions: View>: View {
     let title: String
     let meta: String
     let text: String
+    /// Only the Mediathek supplies an image-derived page background.
+    var backdrop: Color? = nil
     @ViewBuilder var actions: Actions
 
     var body: some View {
@@ -528,6 +530,25 @@ struct HeroBanner<Actions: View>: View {
                         .init(color: .clear, location: 0.38),
                     ],
                     startPoint: .top, endPoint: .bottom)
+            }
+            .overlay(alignment: .bottom) {
+                if let backdrop {
+                    // Ease into the page color over a broad band. The last
+                    // part is fully opaque, so no image edge remains below.
+                    // Keep this behind the title and actions.
+                    LinearGradient(
+                        stops: [
+                            .init(color: backdrop.opacity(0), location: 0),
+                            .init(color: backdrop.opacity(0.08), location: 0.2),
+                            .init(color: backdrop.opacity(0.35), location: 0.45),
+                            .init(color: backdrop.opacity(0.75), location: 0.7),
+                            .init(color: backdrop, location: 0.94),
+                            .init(color: backdrop, location: 1),
+                        ],
+                        startPoint: .top, endPoint: .bottom)
+                        .frame(height: min(180, height * 0.48))
+                        .allowsHitTesting(false)
+                }
             }
             .overlay(alignment: .bottomLeading) {
                 VStack(alignment: .leading, spacing: Space.s) {
@@ -559,11 +580,13 @@ struct HeroBanner<Actions: View>: View {
                 .padding(Space.xl)
             }
             .overlay(alignment: .bottom) {
-                LinearGradient(
-                    colors: [.clear, Palette.background],
-                    startPoint: .top, endPoint: .bottom)
-                    .frame(height: 28)
-                    .allowsHitTesting(false)
+                if backdrop == nil {
+                    LinearGradient(
+                        colors: [.clear, Palette.background],
+                        startPoint: .top, endPoint: .bottom)
+                        .frame(height: 28)
+                        .allowsHitTesting(false)
+                }
             }
             .clipped()
     }

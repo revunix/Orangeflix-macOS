@@ -12,6 +12,7 @@ Die App wird privat von [Alexander (@revunix)](https://github.com/revunix) entwi
 - In **Weiterschauen** zwischen allen, offenen und gesehenen Folgen filtern, mehrere Folgen auswählen und die angezeigte Gruppe gesammelt als gesehen oder ungesehen markieren.
 - Folgen aus **Weiterschauen** entfernen. Die ausgeblendeten Folgen werden auf diesem Mac gespeichert und erscheinen erst wieder, wenn du sie erneut ansiehst.
 - Die Regale **Neu**, **Premium**, **Weiterschauen** und **Merkliste** über **Alle anzeigen** vollständig öffnen.
+- Der Hintergrund der Mediathek passt sich dezent an das aktuelle Hero-Bild an; ein weicher Verlauf verbindet Banner und Seiteninhalt.
 - Folgendetails mit Beschreibung, Kapiteln und weiteren Informationen ansehen, soweit verfügbar.
 - Folgen für später auf der Merkliste speichern sowie als gesehen oder ungesehen markieren.
 - Titel, Beschreibungen, Kapitel und Gesprochenes durchsuchen und Ergebnisse nach Format oder Person filtern. Treffer zeigen passende Textstellen und Zeitmarken; ein Klick öffnet die Folge an der gewählten Stelle.
@@ -49,7 +50,7 @@ Die App wird privat von [Alexander (@revunix)](https://github.com/revunix) entwi
 
 Für die Nutzung benötigst du **macOS 15 oder neuer**, eine Internetverbindung und ein Orangeflix-Konto. Die bereitgestellten Release-Builds sind für Macs mit **Apple Silicon** vorgesehen.
 
-1. Lade die aktuelle Version **1.2.2** (`Orangeflix-for-Mac.zip`) von den [GitHub Releases](https://github.com/revunix/Orangeflix-macOS/releases/latest) herunter.
+1. Lade die aktuelle Version **1.2.3** (`Orangeflix-for-Mac.zip`) von den [GitHub Releases](https://github.com/revunix/Orangeflix-macOS/releases/latest) herunter. Die Änderungen stehen im [Changelog](CHANGELOG.md).
 2. Entpacke das Archiv und verschiebe `Orangeflix.app` in den Ordner **Programme**.
 3. Starte die App und melde dich mit der E-Mail-Adresse und dem Passwort deines Orangeflix-Kontos an. Wenn für dein Konto die Zwei-Faktor-Anmeldung aktiviert ist, gib zusätzlich den Code aus deiner Authenticator-App ein.
 
@@ -146,10 +147,10 @@ swift test
 
 Die App verwendet [Sparkle](https://sparkle-project.org/) für Update-Prüfung,
 Download, Signaturprüfung und Installation. **Allgemein → Nach Updates suchen …**
-oder **Einstellungen → Über → Softwareupdate** öffnet die Update-Prüfung; Sparkle
+oder **Einstellungen → Allgemein → Softwareupdate** öffnet die Update-Prüfung; Sparkle
 zeigt die zum Release gehörenden Versionshinweise an.
 
-Unter **Einstellungen → Über → Softwareupdate** kannst du automatische
+Unter **Einstellungen → Allgemein → Softwareupdate** kannst du automatische
 Update-Prüfungen ein- oder ausschalten und das Intervall auf täglich,
 wöchentlich oder monatlich setzen. Die manuelle Suche ist außerdem im Menü
 **Orangeflix** neben dem Apple-Menü und im Menüleistensymbol verfügbar, wenn

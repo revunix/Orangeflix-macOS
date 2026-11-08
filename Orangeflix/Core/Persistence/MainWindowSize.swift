@@ -55,67 +55,122 @@ enum MainWindowSize {
     }
 }
 
-/// Applies the stored size to the window it lands in and writes the size
-/// back when the user is done with it: after a live resize, when the window
-/// closes and when the app quits. The resize that SwiftUI does while the
-/// window is built is none of these, so it never becomes the stored size.
-struct WindowSizeMemory: NSViewRepresentable {
-    final class SizeView: NSView {
-        private weak var watchedWindow: NSWindow?
-        private var didRestore = false
+/// Lives in MainWindowView, not in the bridge that SwiftUI rebuilds when
+/// switching screens. The regular window frame is independent of Live's
+/// temporary size and position.
+@MainActor final class MainWindowFrameMemory: NSObject {
+    private weak var window: NSWindow?
+    private var normalFrame: NSRect?
+    private var wasLive = false
+    private var restoring = false
+    private var restoreScheduled = false
+    private var isLive: () -> Bool = { false }
 
-        override func viewDidMoveToWindow() {
-            super.viewDidMoveToWindow()
-            guard let window = window, watchedWindow !== window else { return }
-            watchedWindow = window
-            restore(in: window)
-            didRestore = true
-            NotificationCenter.default.addObserver(
-                self,
-                selector: #selector(saveWindowSize(_:)),
-                name: NSWindow.didEndLiveResizeNotification,
-                object: window)
-            NotificationCenter.default.addObserver(
-                self,
-                selector: #selector(saveWindowSize(_:)),
-                name: NSWindow.willCloseNotification,
-                object: window)
-            NotificationCenter.default.addObserver(
-                self,
-                selector: #selector(saveWindowSize(_:)),
-                name: NSApplication.willTerminateNotification,
-                object: nil)
-        }
-
-        /// The stored size is a wish: the content asks for its minimum, so a
-        /// too small value ends at the minimum of the window.
-        private func restore(in window: NSWindow) {
-            guard !window.styleMask.contains(.fullScreen) else { return }
-            var size = MainWindowSize.load(for: window.screen) ?? MainWindowSize.fallback
-            // A size stored before the minimum existed grows to it.
-            let minimum = MainWindowSize.minimum(live: false, on: window.screen)
-            size.width = max(size.width, minimum.width)
-            size.height = max(size.height, minimum.height)
-            if let visible = window.screen?.visibleFrame.size {
-                size.width = min(size.width, visible.width)
-                size.height = min(size.height, visible.height)
+    func attach(to window: NSWindow, isLive: @escaping () -> Bool) {
+        self.isLive = isLive
+        if self.window !== window {
+            NotificationCenter.default.removeObserver(self)
+            self.window = window
+            restoreInitialSize(in: window)
+            normalFrame = window.styleMask.contains(.fullScreen) ? nil : window.frame
+            wasLive = isLive()
+            let center = NotificationCenter.default
+            for name in [NSWindow.didMoveNotification, NSWindow.didResizeNotification] {
+                center.addObserver(self, selector: #selector(frameChanged(_:)), name: name, object: window)
             }
-            var frame = window.frame
-            guard abs(frame.width - size.width) > 1 || abs(frame.height - size.height) > 1 else { return }
-            frame.size = size
-            window.setFrame(frame, display: true)
+            center.addObserver(self, selector: #selector(didExitFullScreen(_:)), name: NSWindow.didExitFullScreenNotification, object: window)
+            for name in [NSWindow.didEndLiveResizeNotification, NSWindow.willCloseNotification] {
+                center.addObserver(self, selector: #selector(saveWindowSize(_:)), name: name, object: window)
+            }
+            center.addObserver(self, selector: #selector(saveWindowSize(_:)), name: NSApplication.willTerminateNotification, object: nil)
         }
+        pageChanged()
+    }
 
-        @objc private func saveWindowSize(_ note: Notification) {
-            guard didRestore else { return }
-            let window = (note.object as? NSWindow) ?? watchedWindow
-            guard let window, !window.styleMask.contains(.fullScreen) else { return }
-            MainWindowSize.save(window.frame.size)
+    private func pageChanged() {
+        if isLive() {
+            wasLive = true
+        } else if wasLive, !restoreScheduled,
+                  let window, !window.styleMask.contains(.fullScreen) {
+            restoreScheduled = true
+            // Let SwiftUI release Live's fixed-size constraint first. Read
+            // the current page again so a rapid return to Live cancels this.
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.restoreScheduled = false
+                guard !self.isLive(), let window = self.window,
+                      !window.styleMask.contains(.fullScreen),
+                      let saved = self.normalFrame else { return }
+                let frame = MainWindowFrameLogic.fitting(saved, in: window.screen?.visibleFrame)
+                self.restoring = true
+                window.setFrame(frame, display: true, animate: false)
+                self.restoring = false
+                self.wasLive = false
+                self.normalFrame = window.frame
+            }
         }
     }
 
-    func makeNSView(context: Context) -> SizeView { SizeView() }
+    @objc private func didExitFullScreen(_ note: Notification) {
+        pageChanged()
+    }
 
-    func updateNSView(_ view: SizeView, context: Context) {}
+    @objc private func frameChanged(_ note: Notification) {
+        // Read the selection directly: resize notifications may precede the
+        // bridge's update during a page switch. Never record Live's frame.
+        guard !restoring, !wasLive, !isLive(),
+              let window, !window.styleMask.contains(.fullScreen) else { return }
+        normalFrame = window.frame
+    }
+
+    private func restoreInitialSize(in window: NSWindow) {
+        guard !window.styleMask.contains(.fullScreen) else { return }
+        var size = MainWindowSize.load(for: window.screen) ?? MainWindowSize.fallback
+        let minimum = MainWindowSize.minimum(live: false, on: window.screen)
+        size.width = max(size.width, minimum.width)
+        size.height = max(size.height, minimum.height)
+        let frame = MainWindowFrameLogic.resizing(window.frame, to: size, in: window.screen?.visibleFrame)
+        if window.frame != frame { window.setFrame(frame, display: true) }
+    }
+
+    @objc private func saveWindowSize(_ note: Notification) {
+        guard let window, !window.styleMask.contains(.fullScreen) else { return }
+        // Closing or quitting from Live must not replace the normal size.
+        MainWindowSize.save(normalFrame?.size ?? window.frame.size)
+    }
+
+    deinit { NotificationCenter.default.removeObserver(self) }
 }
 
+struct WindowSizeMemory: NSViewRepresentable {
+    let memory: MainWindowFrameMemory
+    let isLive: () -> Bool
+
+    final class SizeView: NSView {
+        var memory: MainWindowFrameMemory?
+        var isLive: () -> Bool = { false }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            apply()
+        }
+
+        func apply() {
+            guard let window else { return }
+            memory?.attach(to: window, isLive: isLive)
+        }
+    }
+
+    func makeNSView(context: Context) -> SizeView {
+        let view = SizeView()
+        view.memory = memory
+        view.isLive = isLive
+        return view
+    }
+
+    func updateNSView(_ view: SizeView, context: Context) {
+        view.memory = memory
+        view.isLive = isLive
+        view.apply()
+    }
+}

@@ -30,22 +30,21 @@ struct SettingsScreen: View {
 
     /// The areas of the sidebar.
     enum Pane: String, CaseIterable, Identifiable, Hashable {
-        case account, profile, sharing, notifications, appearance, downloads, streaming, live, formats, storage, transfer, about
+        case general, account, profile, sharing, appearance, downloads, streaming, live, formats, transfer, about
 
         var id: String { rawValue }
 
         var title: String {
             switch self {
+            case .general: "Allgemein"
             case .account: "Konto"
             case .profile: "Profil"
             case .sharing: "Sharing"
-            case .notifications: "Mitteilungen"
             case .appearance: "Darstellung"
             case .downloads: "Downloads"
             case .streaming: "Streaming"
             case .live: "Live"
             case .formats: "Formate"
-            case .storage: "Speicherort"
             case .transfer: "Import & Export"
             case .about: "Über"
             }
@@ -53,16 +52,15 @@ struct SettingsScreen: View {
 
         var icon: String {
             switch self {
+            case .general: "gearshape"
             case .account: "person.crop.circle"
             case .profile: "person.text.rectangle"
             case .sharing: "link.circle"
-            case .notifications: "bell.circle"
             case .appearance: "paintpalette"
             case .downloads: "arrow.down.circle"
             case .streaming: "play.rectangle"
             case .live: "dot.radiowaves.left.and.right"
             case .formats: "rectangle.stack"
-            case .storage: "folder"
             case .transfer: "arrow.up.arrow.down.circle"
             case .about: "info.circle"
             }
@@ -73,19 +71,19 @@ struct SettingsScreen: View {
             switch self {
             case .profile: "name chatname adresse geburtstag credits abo datenschutz legal"
             case .sharing: "link teilen weitergeben freigabe code"
-            case .notifications: "benachrichtigung push email ereignis gerät"
+            case .general: "mitteilungen benachrichtigung push email ereignis gerät updates aktualisierung updater automatisch prüfintervall speicherort ordner download hintergrund anmeldung starten autostart"
             case .appearance: "themes design erscheinungsbild hell dunkel automatisch farben"
             case .live: "livestream chat umfrage abstimmung voting schrift schriftgröße profilbild avatar uhrzeit"
             case .transfer: "import export sicherung backup wiederherstellen config bibliothek library datenbank"
-            case .about: "version lizenz mit lizenz text rechtliches impressum disclaimer unabhängig inoffiziell projekt danke update aktualisierung updater automatisch prüfintervall"
+            case .about: "version lizenz mit lizenz text rechtliches impressum disclaimer unabhängig inoffiziell projekt danke"
             default: ""
             }
         }
     }
 
-    @State private var pane: Pane = .account
+    @State private var pane: Pane = .general
     /// The areas visited, so the arrows in the bar can walk them.
-    @State private var history: [Pane] = [.account]
+    @State private var history: [Pane] = [.general]
     @State private var historyIndex = 0
     /// The text of the search in the sidebar.
     @State private var search = ""
@@ -144,33 +142,58 @@ struct SettingsScreen: View {
     private static let limitFormat: IntegerFormatStyle<Int> = .number.locale(german)
 
     var body: some View {
-        HStack(spacing: 0) {
+        // The native split view of macOS: a floating Liquid Glass sidebar
+        // with the search, the arrows and the title in the toolbar, like the
+        // System Settings. No titlebar tricks; macOS draws the chrome.
+        NavigationSplitView {
             sidebar
+                .navigationSplitViewColumnWidth(min: 200, ideal: 215, max: 260)
+                // The sidebar of the settings always shows.
+                .toolbar(removing: .sidebarToggle)
+        } detail: {
             detail
+                .navigationTitle(pane.title)
+                .toolbar {
+                    if #available(macOS 26, *) {
+                        // The capsule draws its own glass, so the gap before it
+                        // can sit outside it: the toolbar's shared glass would
+                        // grow around any padding, and an empty item before it
+                        // moves it by a fixed, too large amount.
+                        ToolbarItem(placement: .navigation) {
+                            historyArrows
+                                .glassEffect(.regular.interactive(), in: .capsule)
+                                .padding(.leading, Self.arrowsInset)
+                                // Room between the capsule and the title.
+                                .padding(.trailing, Self.titleGap)
+                        }
+                        .sharedBackgroundVisibility(.hidden)
+                    } else {
+                        ToolbarItem(placement: .navigation) {
+                            historyArrows
+                                .padding(.leading, Self.arrowsInset)
+                                .padding(.trailing, Self.titleGap)
+                        }
+                    }
+                }
+        }
+        .searchable(text: $search, placement: .sidebar, prompt: "Durchsuchen")
+        .onSubmit(of: .search) {
+            let words = SettingsSearch.words(search)
+            guard !words.isEmpty, let group = searchGroups(words).first else { return }
+            if let entry = group.entries.first {
+                open(entry)
+            } else {
+                select(group.pane)
+            }
         }
         .frame(minWidth: Self.windowSize.width, idealWidth: Self.windowSize.width,
                minHeight: 560, idealHeight: Self.windowSize.height)
         .tint(themeColor(.accent))
         .environment(\.interfaceStyle, app.settings.interfaceStyle)
         .environment(\.glassPanels, app.settings.glassPanels)
-        .background { TitlebarTransparency(hidesTitle: true) }
         .background { WindowContentSize(width: Self.windowSize.width, height: Self.windowSize.height) }
         .background { WindowAppearance(theme: app.settings.theme) }
-        .background {
-            TitlebarContent(leading: 210 + Space.m) {
-                HStack(spacing: Space.s) {
-                    GlassBackForward(
-                        canGoBack: historyIndex > 0,
-                        canGoForward: historyIndex < history.count - 1,
-                        onStep: { step($0) }
-                    )
-                    Text(pane.title)
-                        .font(AppFont.heading)
-                        .foregroundStyle(themeColor(.textPrimary))
-                }
-                .fixedSize()
-            }
-        }
+        .background { UnifiedWindowToolbar() }
         .confirmationDialog(
             "Die Bibliothek der App wird ersetzt. Bitte die App danach neu starten.",
             isPresented: Binding(get: { pendingLibrary != nil }, set: { if !$0 { pendingLibrary = nil } }),
@@ -186,48 +209,52 @@ struct SettingsScreen: View {
         }
     }
 
-    /// The areas on the left. Drawn by the app, not by the system list, so
-    /// the page, the texts and the chosen row follow the active theme.
+    /// The room between the edge of the sidebar and the arrows.
+    private static let arrowsInset: CGFloat = 20
+    /// The room between the arrows and the title of the area.
+    private static let titleGap: CGFloat = 10
+
+    /// Back and forth through the visited areas.
+    private var historyArrows: some View {
+        ControlGroup {
+            Button { step(-1) } label: { Label("Zurück", systemImage: "chevron.left") }
+                .disabled(historyIndex == 0)
+                .keyboardShortcut("[", modifiers: .command)
+                .help("Zurück (⌘[)")
+            Button { step(1) } label: { Label("Vor", systemImage: "chevron.right") }
+                .disabled(historyIndex >= history.count - 1)
+                .keyboardShortcut("]", modifiers: .command)
+                .help("Vor (⌘])")
+        }
+        .controlGroupStyle(.navigation)
+    }
+
+    /// The areas on the left: the system sidebar list. While searching it
+    /// shows the matching areas with the controls found in them.
     private var sidebar: some View {
-        ScrollView {
-            VStack(spacing: 2) {
-                let words = SettingsSearch.words(search)
-                if words.isEmpty {
-                    ForEach(Pane.allCases) { item in
-                        sidebarRow(item)
-                    }
-                } else {
-                    let groups = searchGroups(words)
-                    if groups.isEmpty {
-                        Text("Keine Treffer")
-                            .font(AppFont.bodySmall)
-                            .foregroundStyle(themeColor(.textSecondary))
-                            .padding(.top, Space.m)
-                    }
-                    ForEach(groups) { group in
-                        sidebarRow(group.pane)
-                        ForEach(group.entries) { entry in
-                            resultRow(entry)
-                        }
+        // No list selection: macOS would draw it in the system accent (blue
+        // by default). The rows draw the chosen one in the theme's accent.
+        List {
+            let words = SettingsSearch.words(search)
+            if words.isEmpty {
+                ForEach(Pane.allCases) { item in
+                    sidebarRow(item)
+                }
+            } else {
+                let groups = searchGroups(words)
+                if groups.isEmpty {
+                    Text("Keine Treffer")
+                        .foregroundStyle(.secondary)
+                }
+                ForEach(groups) { group in
+                    sidebarRow(group.pane)
+                    ForEach(group.entries) { entry in
+                        resultRow(entry)
                     }
                 }
             }
-            .padding(.horizontal, Space.s)
-            .padding(.bottom, Space.s)
         }
-        .scrollIndicators(.never)
-        .safeAreaInset(edge: .top, spacing: 0) {
-            searchField
-        }
-        .frame(width: 210)
-        .background {
-            themeColor(.surfaceMuted)
-                .ignoresSafeArea(edges: .top)
-        }
-        .overlay(alignment: .trailing) {
-            Hairline(vertical: true, color: themeColor(.divider))
-                .ignoresSafeArea(edges: .top)
-        }
+        .listStyle(.sidebar)
     }
 
     /// One area of the sidebar; the chosen one stands on the accent.
@@ -236,62 +263,22 @@ struct SettingsScreen: View {
         return Button {
             select(item)
         } label: {
-            HStack(spacing: Space.s) {
-                Image(systemName: item.icon)
-                    .font(.system(size: 14))
-                    .foregroundStyle(chosen ? onAccent : themeColor(.accent))
-                    .frame(width: 20)
+            Label {
                 Text(item.title)
-                    .font(AppFont.body)
-                    .foregroundStyle(chosen ? onAccent : themeColor(.textPrimary))
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, Space.s)
-            .frame(height: 30)
-            .background {
-                RoundedRectangle(cornerRadius: Radius.m, style: .continuous)
-                    .fill(chosen ? themeColor(.accent) : .clear)
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(chosen ? .isSelected : [])
-    }
-
-    /// A control the search found; it opens its area and lights it up.
-    private func resultRow(_ entry: SettingsSearchEntry) -> some View {
-        let chosen = entry.id == highlight
-        return Button {
-            open(entry)
-        } label: {
-            VStack(alignment: .leading, spacing: 1) {
-                Text(entry.title)
-                    .font(AppFont.bodySmall)
-                    .foregroundStyle(themeColor(.textPrimary))
-                    .lineLimit(1)
-                Text(entry.section)
-                    .font(AppFont.caption)
-                    .foregroundStyle(themeColor(.textTertiary))
-                    .lineLimit(1)
+                    .foregroundStyle(chosen ? onAccent : Color.primary)
+            } icon: {
+                Image(systemName: item.icon)
+                    .foregroundStyle(chosen ? onAccent : themeColor(.accent))
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.leading, 20 + Space.s * 2)
-            .padding(.trailing, Space.s)
-            .padding(.vertical, 4)
-            .background {
-                RoundedRectangle(cornerRadius: Radius.m, style: .continuous)
-                    .fill(chosen ? themeColor(.accentSoft) : .clear)
-            }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-    }
-
-    /// Shows the area of `entry`, scrolls to the control and lights it up.
-    private func open(_ entry: SettingsSearchEntry) {
-        select(entry.pane)
-        highlight = entry.id
-        jumps += 1
+        .listRowBackground(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(chosen ? themeColor(.accent) : .clear)
+                .padding(.horizontal, 10))
+        .accessibilityAddTraits(chosen ? .isSelected : [])
     }
 
     /// The text on the accent: dark on a bright accent, white on a deep one.
@@ -300,21 +287,43 @@ struct SettingsScreen: View {
         return accent.luminance > 0.4 ? Color.black.opacity(0.85) : .white
     }
 
-    /// The search of the areas, drawn by AppKit, so it looks like the
-    /// search field of every other Mac app.
-    private var searchField: some View {
-        NativeSearchField(text: $search, placeholder: "Durchsuchen")
-            .padding(.horizontal, Space.s)
-            .padding(.top, Space.s)
-            .padding(.bottom, Space.s)
+    /// A control the search found; it opens its area and lights it up.
+    private func resultRow(_ entry: SettingsSearchEntry) -> some View {
+        Button {
+            open(entry)
+        } label: {
+            VStack(alignment: .leading, spacing: 1) {
+                Text(entry.title)
+                    .lineLimit(1)
+                Text(entry.section)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.leading, 26)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .listRowBackground(entry.id == highlight
+                           ? RoundedRectangle(cornerRadius: 6).fill(themeColor(.accentSoft)) : nil)
     }
 
-    /// The page of the area. The way back and forth and the name of the
-    /// area live in the titlebar (see `body`); the page starts below them.
+    /// Shows the area of `entry`, scrolls to the control and lights it up.
+    private func open(_ entry: SettingsSearchEntry) {
+        if entry.id.hasPrefix("formats.visible.") || entry.id.hasPrefix("formats.notify.") {
+            formatQuery = ""
+            formatFilter = .all
+        }
+        select(entry.pane)
+        highlight = entry.id
+        jumps += 1
+    }
+
+    /// The page of the area; the toolbar above it holds the arrows and the
+    /// name of the area.
     private var detail: some View {
         VStack(spacing: 0) {
-            Color.clear.frame(height: 44)
-
             ScrollViewReader { proxy in
                 Form {
                     if let settingsError {
@@ -340,6 +349,7 @@ struct SettingsScreen: View {
                     guard jumps > 0, let target = highlight else { return }
                     // The page of another area needs a moment to appear.
                     try? await Task.sleep(for: .milliseconds(80))
+                    guard !Task.isCancelled, highlight == target else { return }
                     withAnimation(.easeInOut(duration: 0.25)) { proxy.scrollTo(target, anchor: .center) }
                     try? await Task.sleep(for: .seconds(2))
                     guard !Task.isCancelled else { return }
@@ -348,12 +358,12 @@ struct SettingsScreen: View {
             }
         }
         .background(themeColor(.background))
-        .ignoresSafeArea(edges: .top)
     }
 
     /// Shows `next` and remembers the way there.
     private func select(_ next: Pane) {
         guard next != pane else { return }
+        highlight = nil
         history = Array(history.prefix(historyIndex + 1))
         history.append(next)
         historyIndex = history.count - 1
@@ -364,6 +374,7 @@ struct SettingsScreen: View {
     private func step(_ direction: Int) {
         let next = historyIndex + direction
         guard history.indices.contains(next) else { return }
+        highlight = nil
         historyIndex = next
         pane = history[next]
     }
@@ -395,14 +406,14 @@ struct SettingsScreen: View {
         let formats = browse.formats.flatMap { format in
             [
                 SettingsSearchEntry(id: "formats.visible.\(format.pid)", pane: .formats, title: format.title,
-                                    section: "Formate", keywords: "format anzeigen mediathek ausblenden"),
+                                    section: "Formate · Mediathek", keywords: "format anzeigen mediathek ausblenden"),
                 SettingsSearchEntry(id: "formats.notify.\(format.pid)", pane: .formats, title: format.title,
-                                    section: "Formate", keywords: "format melden benachrichtigung mitteilung"),
+                                    section: "Formate · Mitteilungen", keywords: "format melden benachrichtigung mitteilung"),
             ]
         }
         let all = SettingsSearch.entries + themes + formats
         // Signed out, the pages of the account have no rows to jump to.
-        let accountPages: Set<Pane> = [.account, .profile, .sharing, .notifications]
+        let accountPages: Set<Pane> = [.account, .profile, .sharing]
         return app.hasCredentials ? all : all.filter { !accountPages.contains($0.pane) }
     }
 
@@ -410,16 +421,15 @@ struct SettingsScreen: View {
 
     @ViewBuilder private var page: some View {
         switch pane {
+        case .general: generalPage
         case .account: accountPage
         case .profile: profilePage
         case .sharing: sharingPage
-        case .notifications: notificationsPage
         case .appearance: appearancePage
         case .downloads: downloadsPage
         case .streaming: streamingPage
         case .live: livePage
         case .formats: formatsPage
-        case .storage: storagePage
         case .transfer: transferPage
         case .about: aboutPage
         }
@@ -938,6 +948,91 @@ struct SettingsScreen: View {
         }
     }
 
+    /// App-wide preferences that were previously split across several panes.
+    private var generalPage: some View {
+        Group {
+            Section {
+                HStack {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Updates für Orangeflix for Mac")
+                        Text("Neue Versionen mit Änderungen und Fehlerbehebungen abrufen.")
+                            .font(AppFont.bodySmall)
+                            .foregroundStyle(themeColor(.textSecondary))
+                    }
+                    Spacer(minLength: Space.m)
+                    Button("Nach Updates suchen …") {
+                        updaterController.checkForUpdates(nil)
+                    }
+                }
+                .searchAnchor("about.updates")
+
+                Toggle("Automatisch nach Updates suchen", isOn: automaticUpdateChecksBinding)
+                    .searchAnchor("about.automaticUpdates")
+                Picker("Suchintervall", selection: updateCheckIntervalBinding) {
+                    Text("Täglich").tag(TimeInterval(86_400))
+                    Text("Wöchentlich").tag(TimeInterval(604_800))
+                    Text("Monatlich").tag(TimeInterval(2_592_000))
+                }
+                .disabled(!automaticUpdateChecks)
+                .searchAnchor("about.updateInterval")
+            } header: {
+                Text("Softwareupdate")
+            } footer: {
+                Text("Automatische Suchen erfolgen im gewählten Intervall, solange Orangeflix läuft. Vor der Installation prüft der Updater die Signatur des Downloads; die Versionshinweise erscheinen im Update-Fenster.")
+            }
+
+            Section {
+                LabeledContent("Ordner") {
+                    Text(AppFormat.displayPath(app.downloadFolder))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+                .searchAnchor("storage.folder")
+                Button("Ordner ändern …") { chooseFolder() }
+                    .searchAnchor("storage.change")
+                Button("Im Finder zeigen") { AppFormat.reveal(app.downloadFolder) }
+                    .searchAnchor("storage.reveal")
+                Button("Auf ~/Downloads/Orangeflix zurücksetzen") { resetFolder() }
+                    .searchAnchor("storage.reset")
+            } header: { Text("Speicherort") } footer: { Text("Wohin die Downloads geschrieben werden.") }
+
+            Section {
+                Toggle("Neue Folgen melden", isOn: notificationsBinding)
+                    .searchAnchor("general.newEpisodes")
+                Toggle("Livestreams melden", isOn: liveNotificationsBinding)
+                    .searchAnchor("general.liveNotifications")
+                HStack {
+                    Button("Testmitteilung senden") {
+                        Task {
+                            await watcher.sendTestNotification()
+                            await watcher.check()
+                        }
+                    }
+                    .searchAnchor("general.testNotifications")
+                    if !watcher.isAllowed {
+                        Button("In den Systemeinstellungen erlauben") {
+                            watcher.openSystemSettings()
+                        }
+                        .searchAnchor("general.allowNotifications")
+                    }
+                }
+            } header: {
+                Text("Mitteilungen")
+            } footer: {
+                if let error = watcher.lastError {
+                    Text(error)
+                } else if watcher.isAllowed {
+                    Text("Die App prüft alle 15 Minuten die neuesten Folgen und alle 2 Minuten, ob ein Livestream läuft. Ein Klick auf eine Mitteilung öffnet das Format oder die Live-Seite.")
+                } else {
+                    Text("macOS hat die Mitteilungen für Orangeflix noch nicht erlaubt.")
+                }
+            }
+
+            notificationsPage
+            backgroundSection
+        }
+    }
+
     /// The notifications of the account: the events of the catalog, the
     /// channels and the devices.
     private var notificationsPage: some View {
@@ -984,34 +1079,49 @@ struct SettingsScreen: View {
                 }
 
                 Section {
-                    if notifications.devices.isEmpty {
-                        Text("Es ist kein Gerät angemeldet.")
+                    if notifications.isLoading {
+                        Text("Push-Geräte werden geladen …")
+                            .foregroundStyle(.secondary)
+                    } else if let error = notifications.devicesError {
+                        Text("Push-Geräte konnten nicht geladen werden: \(error)")
+                            .foregroundStyle(.secondary)
+                    } else if !notifications.devicesLoaded {
+                        Text("Push-Geräte wurden noch nicht geladen.")
+                            .foregroundStyle(.secondary)
+                    } else if notifications.devices.isEmpty {
+                        Text("Keine Geräte für Server-Push registriert.")
                             .foregroundStyle(.secondary)
                     }
-                    ForEach(notifications.devices) { device in
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(device.name.isEmpty ? device.deviceID : device.name)
-                                    .font(AppFont.body)
-                                Text(device.platform)
-                                    .font(AppFont.caption)
-                                    .foregroundStyle(.tertiary)
-                            }
-                            Spacer(minLength: 0)
-                            Button("Abmelden") {
-                                Task { await notifications.removeDevice(device.deviceID) }
+                    if !notifications.isLoading, notifications.devicesError == nil, notifications.devicesLoaded {
+                        ForEach(notifications.devices) { device in
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(device.name.isEmpty ? device.deviceID : device.name)
+                                        .font(AppFont.body)
+                                    Text(device.platform)
+                                        .font(AppFont.caption)
+                                        .foregroundStyle(.tertiary)
+                                }
+                                Spacer(minLength: 0)
+                                Button("Abmelden") {
+                                    Task { await notifications.removeDevice(device.deviceID) }
+                                }
                             }
                         }
                     }
+                    Button("Geräte aktualisieren") {
+                        Task { await notifications.load() }
+                    }
+                    .disabled(notifications.isLoading)
                 } header: {
-                    Text("Geräte")
+                    Text("Push-Geräte")
                 } footer: {
-                    Text("Nur angemeldete Geräte bekommen die Mitteilungen des Servers.")
+                    Text("Hier stehen Geräte, die für Push-Mitteilungen des Servers registriert sind – nicht alle angemeldeten Sitzungen. Die Mitteilungen dieser Mac-App werden separat unter „Mitteilungen“ eingerichtet.")
                 }
             }
         }
-        .task {
-            if app.hasCredentials, notifications.preferences == nil { await notifications.load() }
+        .task(id: app.hasCredentials) {
+            if app.hasCredentials { await notifications.load() }
         }
     }
 
@@ -1062,7 +1172,7 @@ struct SettingsScreen: View {
             } header: {
                 Text("Oberflächenstil")
             } footer: {
-                Text("Klassisch füllt Leisten und Panels mit einer ruhigen Fläche, Glas zeichnet sie durchscheinend. Ohne „Mit Theme einfärben“ bleiben die Flächen des Themes, nur der Akzent kommt vom Mac.")
+                Text("Klassisch füllt Leisten und Panels mit einer ruhigen Fläche, Glas zeichnet sie durchscheinend. Ohne „Mit Theme einfärben“ bleiben die Flächen des Themes, der Akzent bleibt das Orangeflix-Orange.")
             }
 
             themeSection("Heller Modus", dark: false)
@@ -1156,7 +1266,11 @@ struct SettingsScreen: View {
             }
         } footer: {
             if !(dark ? settings.darkExtendedPalette : settings.lightExtendedPalette) {
-                Text("Aus: Nur die Akzentfarbe des Themes wird übernommen, Flächen und Texte bleiben beim Standard.")
+                if settings.tintWithTheme {
+                    Text("Aus: Nur die Akzentfarbe des Themes wird übernommen, Flächen und Texte bleiben beim Standard.")
+                } else {
+                    Text("Aus: Flächen und Texte bleiben beim Standard, der Akzent bleibt Orangeflix-Orange.")
+                }
             }
         }
     }
@@ -1293,14 +1407,6 @@ struct SettingsScreen: View {
     private var livePage: some View {
         Group {
             Section {
-                Toggle("Melden, wenn ein Livestream startet", isOn: liveNotificationsBinding)
-                    .searchAnchor("live.notify")
-            } header: {
-                Text("Mitteilungen")
-            } footer: {
-                Text("Damit die Mitteilung auch bei geschlossenem Fenster kommt, schalte unter Formate › Im Hintergrund „Im Hintergrund weiterlaufen“ ein.")
-            }
-            Section {
                 Toggle("Beim Öffnen zeigen", isOn: liveChatOpenBinding)
                     .searchAnchor("live.chatStart")
                 Picker("Position", selection: liveChatPositionBinding) {
@@ -1344,39 +1450,8 @@ struct SettingsScreen: View {
     /// One list with a search and a filter; every row switches both.
     private var formatsPage: some View {
         Group {
-            Section {
-                Toggle("Neue Folgen melden", isOn: notificationsBinding)
-                    .searchAnchor("formats.notifications")
-                Toggle("Livestreams melden", isOn: liveNotificationsBinding)
-                    .searchAnchor("formats.live")
-                HStack {
-                    Button("Testmitteilung senden") {
-                        Task {
-                            await watcher.sendTestNotification()
-                            await watcher.check()
-                        }
-                    }
-                    .searchAnchor("formats.test")
-                    if !watcher.isAllowed {
-                        Button("In den Systemeinstellungen erlauben") {
-                            watcher.openSystemSettings()
-                        }
-                        .searchAnchor("formats.allow")
-                    }
-                }
-            } header: {
-                Text("Mitteilungen")
-            } footer: {
-                if let error = watcher.lastError {
-                    Text(error)
-                } else if watcher.isAllowed {
-                    Text("Die App prüft alle 15 Minuten die neuesten Folgen und alle 2 Minuten, ob ein Livestream läuft. Ein Klick auf eine Mitteilung öffnet das Format oder die Live-Seite.")
-                } else {
-                    Text("macOS hat die Mitteilungen für Orangeflix noch nicht erlaubt.")
-                }
-            }
 
-            backgroundSection
+
 
             Section {
                 SettingsFormatSearch(query: $formatQuery, filter: $formatFilter, counts: formatFilterCounts)
@@ -1411,13 +1486,6 @@ struct SettingsScreen: View {
                 }
             } footer: {
                 formatBulkActions
-            }
-        }
-        .onChange(of: highlight) {
-            // A jump from the sidebar search must find its row.
-            if highlight?.hasPrefix("formats.") == true {
-                formatQuery = ""
-                formatFilter = .all
             }
         }
     }
@@ -1535,27 +1603,6 @@ struct SettingsScreen: View {
         }
     }
 
-    private var storagePage: some View {
-        Section {
-            LabeledContent("Ordner") {
-                Text(AppFormat.displayPath(app.downloadFolder))
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-            }
-            .searchAnchor("storage.folder")
-            Button("Ordner ändern …") { chooseFolder() }
-                .searchAnchor("storage.change")
-            Button("Im Finder zeigen") { AppFormat.reveal(app.downloadFolder) }
-                .searchAnchor("storage.reveal")
-            Button("Auf ~/Downloads/Orangeflix zurücksetzen") { resetFolder() }
-                .searchAnchor("storage.reset")
-        } header: {
-            Text("Zielordner")
-        } footer: {
-            Text("Wohin die Downloads geschrieben werden.")
-        }
-    }
-
     /// Import and export: the backup of the app, the settings file of the
     /// command line tool and the library.
     private var transferPage: some View {
@@ -1648,35 +1695,6 @@ struct SettingsScreen: View {
                 Text("Ein inoffizielles Zusatzprogramm für macOS, um die Mediathek eines Orangeflix.de-Kontos am Schreibtisch zu nutzen.")
             }
 
-            Section {
-                HStack {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("Updates für Orangeflix for Mac")
-                        Text("Neue Versionen mit Änderungen und Fehlerbehebungen abrufen.")
-                            .font(AppFont.bodySmall)
-                            .foregroundStyle(themeColor(.textSecondary))
-                    }
-                    Spacer(minLength: Space.m)
-                    Button("Nach Updates suchen …") {
-                        updaterController.checkForUpdates(nil)
-                    }
-                }
-                .searchAnchor("about.updates")
-
-                Toggle("Automatisch nach Updates suchen", isOn: automaticUpdateChecksBinding)
-                    .searchAnchor("about.automaticUpdates")
-                Picker("Suchintervall", selection: updateCheckIntervalBinding) {
-                    Text("Täglich").tag(TimeInterval(86_400))
-                    Text("Wöchentlich").tag(TimeInterval(604_800))
-                    Text("Monatlich").tag(TimeInterval(2_592_000))
-                }
-                .disabled(!automaticUpdateChecks)
-                .searchAnchor("about.updateInterval")
-            } header: {
-                Text("Softwareupdate")
-            } footer: {
-                Text("Automatische Suchen erfolgen im gewählten Intervall, solange Orangeflix läuft. Vor der Installation prüft der Updater die Signatur des Downloads; die Versionshinweise erscheinen im Update-Fenster.")
-            }
 
             Section {
                 HStack(spacing: Space.m) {

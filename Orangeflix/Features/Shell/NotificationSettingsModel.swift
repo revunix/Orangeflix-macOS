@@ -12,6 +12,10 @@ import Observation
     private(set) var preferences: NotificationPreferences?
     /// The devices registered for the push notifications.
     private(set) var devices: [NotificationDevice] = []
+    /// Whether the server has successfully returned a device list.
+    private(set) var devicesLoaded = false
+    /// The error of the last attempt to read the devices.
+    private(set) var devicesError: String?
     /// Whether the data is being loaded.
     private(set) var isLoading = false
     /// The error of the last attempt.
@@ -68,15 +72,41 @@ import Observation
         guard !isLoading else { return }
         isLoading = true
         error = nil
+        devicesError = nil
         defer { isLoading = false }
         do {
             try await app.ensureSession()
-            async let events = app.services.api.notificationEvents()
-            async let prefs = app.services.api.notificationPreferences()
-            async let list = app.services.api.notificationDevices()
-            catalog = try await events.events
-            preferences = try await prefs
+        } catch is CancellationError {
+            return
+        } catch {
+            self.error = error.localizedDescription
+            devicesError = error.localizedDescription
+            app.record("Die Mitteilungseinstellungen konnten nicht geladen werden: \(error.localizedDescription)", error: true)
+            return
+        }
+
+        async let events = app.services.api.notificationEvents()
+        async let prefs = app.services.api.notificationPreferences()
+        async let list = app.services.api.notificationDevices()
+        do {
             devices = try await list
+            devicesLoaded = true
+        } catch is CancellationError {
+            return
+        } catch {
+            devicesError = error.localizedDescription
+            app.record("Die Push-Geräte konnten nicht geladen werden: \(error.localizedDescription)", error: true)
+        }
+        do {
+            catalog = try await events.events
+        } catch is CancellationError {
+            return
+        } catch {
+            self.error = error.localizedDescription
+            app.record("Die Mitteilungsereignisse konnten nicht geladen werden: \(error.localizedDescription)", error: true)
+        }
+        do {
+            preferences = try await prefs
         } catch is CancellationError {
             return
         } catch {

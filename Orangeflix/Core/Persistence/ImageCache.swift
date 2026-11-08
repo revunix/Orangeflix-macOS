@@ -1,4 +1,5 @@
 import AppKit
+import CoreGraphics
 import CryptoKit
 import Foundation
 import os
@@ -29,6 +30,8 @@ actor ImageCache {
     /// Files that are being fetched; a second reader waits instead of
     /// downloading the same picture again.
     private var running: [URL: Task<NSImage?, Never>] = [:]
+    /// The hero carousel reuses its image-derived colors on every turn.
+    private var imageColors: [URL: ThemeRGB] = [:]
 
     init(session: URLSession = .shared, folder: URL? = nil) {
         self.session = session
@@ -58,6 +61,49 @@ actor ImageCache {
     /// Drops the memory layer; the files stay for the next start.
     func clear() {
         memory.removeAllObjects()
+        imageColors.removeAll()
+    }
+
+    /// A small, color-weighted sample of the already cached image. Sampling
+    /// stays on this actor, not in the view's layout or on the main actor.
+    func representativeColor(for url: URL) async -> ThemeRGB? {
+        if let color = imageColors[url] { return color }
+        guard let image = await image(for: url),
+              let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil),
+              let space = CGColorSpace(name: CGColorSpace.sRGB) else { return nil }
+        let side = 24
+        var pixels = [UInt8](repeating: 0, count: side * side * 4)
+        let rendered = pixels.withUnsafeMutableBytes { bytes -> Bool in
+            guard let context = CGContext(data: bytes.baseAddress, width: side, height: side,
+                                          bitsPerComponent: 8, bytesPerRow: side * 4, space: space,
+                                          bitmapInfo: CGBitmapInfo.byteOrder32Big.rawValue |
+                                              CGImageAlphaInfo.premultipliedLast.rawValue) else { return false }
+            context.interpolationQuality = .high
+            context.draw(cgImage, in: CGRect(x: 0, y: 0, width: side, height: side))
+            return true
+        }
+        guard rendered else { return nil }
+        var red = 0.0, green = 0.0, blue = 0.0, total = 0.0
+        for index in stride(from: 0, to: pixels.count, by: 4) {
+            let alpha = Double(pixels[index + 3]) / 255
+            guard alpha > 0.05 else { continue }
+            let r = min(1, Double(pixels[index]) / 255 / alpha)
+            let g = min(1, Double(pixels[index + 1]) / 255 / alpha)
+            let b = min(1, Double(pixels[index + 2]) / 255 / alpha)
+            let saturation = max(r, g, b) - min(r, g, b)
+            // Prefer the picture's color over white lettering or black bars,
+            // but still produce a neutral shade for monochrome artwork.
+            let weight = alpha * (0.15 + saturation * 0.85)
+            red += r * weight
+            green += g * weight
+            blue += b * weight
+            total += weight
+        }
+        guard total > 0 else { return nil }
+        let color = ThemeRGB(red: red / total, green: green / total, blue: blue / total)
+        if imageColors.count >= 64 { imageColors.removeAll() }
+        imageColors[url] = color
+        return color
     }
 
     // MARK: Loading

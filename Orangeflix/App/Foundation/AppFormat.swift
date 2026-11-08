@@ -35,6 +35,11 @@ enum AppFormat {
         ByteCountFormatter.string(fromByteCount: count, countStyle: .file)
     }
 
+    /// A percentage supplied as whole percentage points, not a fraction.
+    static func percent(_ value: Int) -> String {
+        (Double(value) / 100).formatted(.percent.precision(.fractionLength(0)))
+    }
+
     /// "mm:ss" or "h:mm:ss" for player positions.
     static func position(_ seconds: Double) -> String {
         guard seconds.isFinite, seconds > 0 else { return "0:00" }

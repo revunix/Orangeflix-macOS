@@ -153,7 +153,13 @@ struct ContinueWatchingView: View {
                 .font(AppFont.captionMedium)
                 .foregroundStyle(Palette.textSecondary)
                 .padding(.leading, Space.s)
-            barButton("Abspielen", symbol: "play.fill") { model.play(chosen) }
+            barButton("Abspielen", symbol: "play.fill") {
+                if chosen.count == 1, let episode = chosen.first {
+                    model.navigationPath.append(.episode(episode, autoplay: true))
+                } else {
+                    model.play(chosen)
+                }
+            }
             barButton("Als gesehen markieren", symbol: "checkmark.circle") { onMark(chosen, true) }
                 .disabled(marking)
             barButton("Als ungesehen markieren", symbol: "circle.dashed") { onMark(chosen, false) }
@@ -277,7 +283,7 @@ struct ContinueWatchingView: View {
             percent: current.progressPercent,
             downloaded: model.isDownloaded(episode.identifier)
         ) {
-            model.play([episode])
+            model.navigationPath.append(.episode(episode, autoplay: false))
         }
         .padding(Space.xs)
         .background {
@@ -287,7 +293,7 @@ struct ContinueWatchingView: View {
             }
         }
         .contentShape(Rectangle())
-        .onTapGesture { select(episode.identifier) }
+        .onTapGesture { open(episode) }
         .contextMenu { menu(for: episode) }
     }
 
@@ -301,7 +307,7 @@ struct ContinueWatchingView: View {
                 percent: percent,
                 downloaded: model.isDownloaded(episode.identifier)
             ) {
-                model.play([episode])
+                model.navigationPath.append(.episode(episode, autoplay: false))
             }
             .frame(width: 360)
             VStack(alignment: .leading, spacing: Space.s) {
@@ -340,7 +346,7 @@ struct ContinueWatchingView: View {
                 }
                 HStack(spacing: Space.s) {
                     PillButton(title: model.watchLabel(episode), symbol: "play.fill", style: .accent) {
-                        model.play([episode])
+                        model.navigationPath.append(.episode(episode, autoplay: true))
                     }
                     PillButton(title: "Gesehen", symbol: "checkmark", style: .glass) {
                         onMark([episode], true)
@@ -355,7 +361,7 @@ struct ContinueWatchingView: View {
         .padding(Space.l)
         .contentCard(radius: Radius.panel, selected: selection.contains(episode.identifier))
         .contentShape(Rectangle())
-        .onTapGesture { select(episode.identifier) }
+        .onTapGesture { open(episode) }
         .contextMenu { menu(for: episode) }
     }
 
@@ -371,7 +377,8 @@ struct ContinueWatchingView: View {
 
     // MARK: Selection and menu
 
-    private func select(_ identifier: String) {
+    private func open(_ episode: Episode) {
+        let identifier = episode.identifier
         if NSEvent.modifierFlags.contains(.command) {
             if selection.contains(identifier) { selection.remove(identifier) } else { selection.insert(identifier) }
         } else if NSEvent.modifierFlags.contains(.shift), let anchor = selection.first,
@@ -379,7 +386,8 @@ struct ContinueWatchingView: View {
                   let to = visibleEpisodes.firstIndex(where: { $0.identifier == identifier }) {
             selection = Set(visibleEpisodes[min(from, to)...max(from, to)].map(\.identifier))
         } else {
-            selection = selection == [identifier] ? [] : [identifier]
+            selection = [identifier]
+            model.navigationPath.append(.episode(episode, autoplay: false))
         }
     }
 
@@ -394,7 +402,9 @@ struct ContinueWatchingView: View {
                 Task { await model.downloadEpisodes(chosen, of: nil) }
             }
         } else {
-            Button(model.watchLabel(episode)) { model.play([episode]) }
+            Button(model.watchLabel(episode)) {
+                model.navigationPath.append(.episode(episode, autoplay: true))
+            }
             if model.isWatched(episode) {
                 Button("Als ungesehen markieren") { onMark([episode], false) }
             } else {

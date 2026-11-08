@@ -353,7 +353,7 @@ struct EpisodesScreen: View {
             Task { await model.downloadEpisodes([episode], of: format) }
         }
         Button(model.watchLabel(episode)) {
-            model.play([episode])
+            model.navigationPath.append(.episode(episode, autoplay: true))
         }
         Button(model.isBookmarked(episode) ? "Von der Merkliste nehmen" : "Auf die Merkliste setzen") {
             Task { await model.toggleBookmark(episode) }
@@ -426,7 +426,11 @@ struct EpisodesScreen: View {
     private func watch() {
         let episodes = selection.isEmpty ? (focusedEpisode.map { [$0] } ?? []) : selectedEpisodes
         guard !episodes.isEmpty else { return }
-        model.play(episodes)
+        if episodes.count == 1, let episode = episodes.first {
+            model.navigationPath.append(.episode(episode, autoplay: true))
+        } else {
+            model.play(episodes)
+        }
     }
 
     private func openHost(_ episode: Episode) {

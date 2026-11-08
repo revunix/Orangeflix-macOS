@@ -38,6 +38,8 @@ struct MainWindowView: View {
     @State private var trailingColumn: CGFloat = 0
     /// The size a screen gives the window (the Live page); nil leaves it free.
     @State private var fixedPageSize: CGSize?
+    /// Outlives the screen views, including their AppKit bridges.
+    @State private var windowMemory = MainWindowFrameMemory()
 
     var body: some View {
         content
@@ -52,10 +54,10 @@ struct MainWindowView: View {
             .background(Palette.background.ignoresSafeArea())
             .background { TitlebarTransparency() }
             .background { WindowAppearance(theme: app.settings.theme) }
-            .background { WindowSizeMemory() }
+            .background { WindowSizeMemory(memory: windowMemory, isLive: { [app] in app.selection == .live }) }
             // The smallest window of the open page, and wide enough for the
             // navigation pill. One frame: a second, outer one would cap it.
-            .modifier(PageSizing(fixed: fixedPageSize, floor: windowFloor,
+            .modifier(PageSizing(fixed: app.selection == .live ? fixedPageSize : nil, floor: windowFloor,
                                  minWidth: max(windowFloor, pageMinimum.width), minHeight: pageMinimum.height))
             .background {
                 WindowWidthFloor(minimum: windowFloor, restoresWidth: app.selection != .live)
@@ -184,7 +186,7 @@ struct MainWindowView: View {
         // the three buttons on the right need their room beside it. Without
         // it the toolbar squeezes the pill and its words break apart.
         let toolbar = pillWidth + 260
-        guard trailingColumn > 0 else { return toolbar }
+        guard app.selection == .live, trailingColumn > 0 else { return toolbar }
         let needed = max(toolbar, (2 * (trailingColumn + Space.l) + pillWidth).rounded(.up))
         let screen = NSScreen.main?.visibleFrame.width ?? needed
         return min(needed, screen)
@@ -479,7 +481,7 @@ private struct ToolbarSection: View {
                     .overlay {
                         Text(title)
                             .font(isCurrent ? AppFont.subheading : AppFont.body)
-                            .foregroundStyle(isCurrent ? Palette.textPrimary : Palette.textSecondary)
+                            .foregroundStyle(Palette.textPrimary.opacity(isCurrent ? 1 : 0.85))
                     }
                     // The word never breaks into two lines under a clipped
                     // title.
@@ -531,16 +533,21 @@ private struct BlinkingLiveDot: View {
     }
 }
 
-/// Before macOS 26 the toolbar draws no glass around its items, so the
-/// navigation pill brings its own material capsule. From macOS 26 on it sits
-/// in the glass of the toolbar, like the buttons on the right.
+/// The toolbar glass can sit over a bright or busy hero image, regardless of
+/// the window's appearance. A translucent theme-colored backing keeps the
+/// navigation readable without losing the glass around it.
 private struct ToolbarPill: ViewModifier {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
     func body(content: Content) -> some View {
         if #available(macOS 26, *) {
             content
+                .frame(height: 36)
+                .background(Palette.background.opacity(reduceTransparency ? 1 : 0.90), in: Capsule())
         } else {
             content
                 .frame(height: 36)
+                .background(Palette.background.opacity(reduceTransparency ? 1 : 0.90), in: Capsule())
                 .background(.ultraThinMaterial, in: Capsule())
         }
     }

@@ -136,6 +136,7 @@ struct SettingsFormatRow: View {
                 on: visible,
                 help: visible ? "In der Mediathek ausblenden" : "In der Mediathek anzeigen"
             ) { visible.toggle() }
+            .searchAnchor("formats.visible.\(format.pid)")
             SettingsFormatChip(
                 title: "Melden",
                 symbol: notify && notificationsOn ? "bell.fill" : "bell.slash",
@@ -148,7 +149,6 @@ struct SettingsFormatRow: View {
         }
         .padding(.vertical, 2)
         .contentShape(Rectangle())
-        .searchAnchor("formats.visible.\(format.pid)")
         .accessibilityElement(children: .contain)
         .accessibilityLabel(format.title)
     }
