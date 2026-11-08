@@ -396,8 +396,9 @@ import os
                 let playback = try await app.services.api.playback(episode.identifier)
                 if !playback.files.isEmpty {
                     return PlaybackSource(files: playback.files, subtitles: playback.subtitleURLs,
-                                         progress: playback.progress, headers: [:],
+                                         progress: playback.progress,
                                          durationSeconds: playback.durationSeconds,
+                                         headers: [:],
                                          chapters: playback.chapters,
                                          thumbnailTrack: playback.thumbnailTrack)
                 }
@@ -414,8 +415,9 @@ import os
             let token = Data("\(credentials.username):\(credentials.password)".utf8).base64EncodedString()
             headers["Authorization"] = "Basic \(token)"
         }
-        return PlaybackSource(files: clip.files, subtitles: [], progress: WatchProgress(), headers: headers,
-                              durationSeconds: max(episode.durationSeconds, BrowseLogic.clockToSeconds(episode.duration)))
+        return PlaybackSource(files: clip.files, subtitles: [], progress: WatchProgress(),
+                              durationSeconds: max(episode.durationSeconds, BrowseLogic.clockToSeconds(episode.duration)),
+                              headers: headers)
     }
 
     /// Resolves a low-bandwidth video for a search preview without starting
