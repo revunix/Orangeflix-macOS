@@ -47,7 +47,35 @@ Für die Nutzung benötigst du **macOS 15 oder neuer**, eine Internetverbindung 
 2. Entpacke das Archiv und verschiebe `Orangeflix.app` in den Ordner **Programme**.
 3. Starte die App und melde dich mit der E-Mail-Adresse und dem Passwort deines Orangeflix-Kontos an. Wenn für dein Konto die Zwei-Faktor-Anmeldung aktiviert ist, gib zusätzlich den Code aus deiner Authenticator-App ein.
 
-Die App ist nicht von Apple notarisiert. macOS kann deshalb beim ersten Öffnen eine Warnung anzeigen; gegebenenfalls musst du das Öffnen in **Systemeinstellungen → Datenschutz & Sicherheit** erlauben.
+### Beim ersten Öffnen
+
+Die Release-App ist **Ad-hoc-signiert**, aber nicht von Apple notarisiert. Deshalb kann Gatekeeper beim ersten Start eine Warnung anzeigen. Dafür brauchst du keinen Apple-Developer-Account.
+
+1. Versuche, die App im Finder zu öffnen.
+2. Falls macOS sie blockiert, öffne **Systemeinstellungen → Datenschutz & Sicherheit** und wähle bei der Meldung zu Orangeflix **Dennoch öffnen**. Bestätige die Nachfrage.
+
+**Wichtig:** Öffne die App nur, wenn du ihrer Herkunft vertraust. Die folgenden Terminalbefehle umgehen beziehungsweise verändern Sicherheitsprüfungen; sie sind keine Bestätigung, dass ein Download sicher ist. Bei einer konkreten Malware-Warnung solltest du die App nicht auf diese Weise freigeben.
+
+#### Alternative: Quarantäne-Attribut entfernen
+
+Falls die Freigabe über die Systemeinstellungen nicht möglich ist, kannst du im Terminal das von macOS gesetzte Quarantäne-Attribut für diese App und ihren Inhalt entfernen:
+
+```sh
+xattr -dr com.apple.quarantine /Applications/Orangeflix.app
+```
+
+Passe den Pfad an, falls die App nicht in **Programme** liegt; bei Pfaden mit Leerzeichen setze ihn in Anführungszeichen. Danach die App erneut im Finder öffnen. Dieser Befehl entfernt nur das Quarantäne-Attribut, nicht alle Metadaten. Er signiert die App nicht und macht sie auch nicht notariert. Bei einer erneuten Installation oder einem Download kann das Attribut wieder vorhanden sein.
+
+#### Alternative: lokal Ad-hoc signieren
+
+Eine erneute Signierung ist normalerweise **nicht nötig**, da die Release-App bereits Ad-hoc-signiert ist. Falls die Signatur des App-Bundles beschädigt wurde, kannst du eine vertrauenswürdige Kopie lokal erneut signieren:
+
+```sh
+codesign --force --sign - --preserve-metadata=identifier,entitlements,flags,runtime /Applications/Orangeflix.app
+codesign --verify --deep --strict --verbose=2 /Applications/Orangeflix.app
+```
+
+`-` erstellt eine lokale Ad-hoc-Signatur ohne Apple-Developer-Account. Die erste Zeile ersetzt die Signatur des äußeren App-Bundles und versucht, unter anderem dessen bestehende Berechtigungen zu erhalten; die zweite prüft auch eingebetteten Code. Eine lokale Signatur ist **keine** Apple-Notarisierung und umgeht Gatekeeper nicht automatisch. Beschädigte eingebettete Komponenten werden damit nicht repariert: Schlägt die Prüfung fehl, lade eine unveränderte Kopie aus den Releases herunter. Durch eine Neusignierung können unter anderem Schlüsselbundzugriff oder Updates beeinträchtigt werden; im Zweifel ebenfalls das Original erneut installieren.
 
 ## Bedienung
 
