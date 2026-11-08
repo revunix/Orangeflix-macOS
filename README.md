@@ -173,3 +173,13 @@ zu Signaturen und Verteilung gibt es in der [Sparkle-Dokumentation](https://spar
 ## Lizenz
 
 Der Quelltext steht unter der [MIT-Lizenz](LICENSE).
+
+## Danksagung und Quellen
+
+Vielen Dank an alle, deren Projekte, Dokumentationen und Quellen die Entwicklung dieser App ermöglicht haben. Besonderer Dank gilt:
+
+- [mpv](https://mpv.io/) für den Player und die verwendeten Bibliotheken.
+- [Sparkle](https://sparkle-project.org/) für das Update-Framework.
+- Den Bereitstellern der [Massengeschmack-API und ihrer Dokumentation](https://massengeschmack.tv/api/v3/docs#description/introduction), die diese App verwendet.
+
+Die App ist ein unabhängiges, inoffizielles Projekt und steht in keiner Verbindung zu Orangeflix oder dessen Betreibern.
