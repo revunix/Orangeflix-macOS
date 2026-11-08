@@ -38,6 +38,33 @@ Das Swift-Package enthält Tests für reine Logik ohne SwiftUI, AppKit oder mpv:
 swift test
 ```
 
+## Updates
+
+Die App verwendet [Sparkle](https://sparkle-project.org/) für Update-Prüfung,
+Download, Signaturprüfung und Installation. **Orangeflix → Nach Updates suchen …**
+oder **Einstellungen → Über → Softwareupdate** öffnet die Update-Prüfung; Sparkle
+zeigt die zum Release gehörenden Versionshinweise an.
+
+Updates werden aus GitHub Releases bezogen. Dafür muss das Repository öffentlich
+sein und ein Release die von Sparkle signierte `appcast.xml`, ein signiertes
+App-Archiv und die Versionshinweise enthalten. Der private EdDSA-Schlüssel liegt
+lokal im macOS-Schlüsselbund und darf nicht in dieses Repository gelangen.
+
+### Release veröffentlichen
+
+Unter **Actions → Publish macOS release → Run workflow** eine Version im Format
+`X.Y.Z` und den Changelog eingeben. Der Workflow erstellt ein signiertes und
+notarisiertes Release-Archiv, erzeugt daraus `appcast.xml` und veröffentlicht
+Release und Versionshinweise zusammen.
+
+Dafür müssen im Repository unter **Settings → Secrets and variables → Actions**
+diese Secrets hinterlegt sein: `SPARKLE_EDDSA_PRIVATE_KEY` (base64-kodierter
+privater Sparkle-Schlüssel), `APPLE_CERTIFICATE_P12` (base64-kodiertes Developer
+ID-Zertifikat), `APPLE_CERTIFICATE_PASSWORD`, `APPLE_TEAM_ID`, `APPLE_NOTARY_KEY_ID`,
+`APPLE_NOTARY_ISSUER_ID` und `APPLE_NOTARY_KEY_P8` (Inhalt des App-Store-Connect-
+Notarisierungsschlüssels). Private Schlüssel gehören ausschließlich in GitHub
+Secrets, nie in den Quelltext.
+
 ## Lizenz
 
 Der Quelltext steht unter der [MIT-Lizenz](LICENSE).

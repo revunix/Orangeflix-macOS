@@ -16,7 +16,10 @@ struct TitlebarTransparency: NSViewRepresentable {
             window.titlebarAppearsTransparent = true
             window.titlebarSeparatorStyle = .none
             window.styleMask.insert(.fullSizeContentView)
-            if hidesTitle { window.titleVisibility = .hidden }
+            if hidesTitle {
+                window.titleVisibility = .hidden
+                window.title = ""
+            }
         }
     }
 }

@@ -11,6 +11,15 @@
       "de",
     ],
   },
+  "packages": [
+    {
+      "kind": "remote",
+      "repository": "https://github.com/sparkle-project/Sparkle",
+      "version": {
+        "up-to-next-major-version": "2.7.0",
+      },
+    },
+  ],
   "files": [
     { "kind": "folder", "path": "Orangeflix", "target-membership": [ "Orangeflix" ] },
     {
@@ -156,6 +165,13 @@
           ],
         },
       ],
+      "package-product-members": [
+        {
+          "package": "Sparkle",
+          "product-name": "Sparkle",
+          "build-phase": { "build-phase": "frameworks" },
+        },
+      ],
       "build-settings": {
         "ASSETCATALOG_COMPILER_APPICON_NAME": "AppIcon",
         "CODE_SIGN_ENTITLEMENTS": "Orangeflix.entitlements",
@@ -168,7 +184,8 @@
         "ENABLE_PREVIEWS": "YES",
         "ENABLE_USER_SCRIPT_SANDBOXING": "NO",
         "ENABLE_USER_SELECTED_FILES": "readwrite",
-        "GENERATE_INFOPLIST_FILE": "YES",
+        "GENERATE_INFOPLIST_FILE": "NO",
+        "INFOPLIST_FILE": "Config/Info.plist",
         "INFOPLIST_KEY_CFBundleDisplayName": "Orangeflix for Mac",
         "INFOPLIST_KEY_LSApplicationCategoryType": "public.app-category.entertainment",
         "INFOPLIST_KEY_NSHumanReadableCopyright": "MIT-Lizenz",

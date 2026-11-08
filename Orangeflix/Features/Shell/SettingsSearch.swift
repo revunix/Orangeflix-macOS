@@ -227,6 +227,8 @@ enum SettingsSearch {
               section: "Bibliothek", keywords: "sicherung zurück datenbank rückgängig"),
 
         // Über
+        .init(id: "about.updates", pane: .about, title: "Nach Updates suchen …",
+              section: "Softwareupdate", keywords: "aktualisierung neue version changelog änderungen updater sparkle"),
         .init(id: "about.independence", pane: .about, title: "Keine Verbindung zur Plattform",
               section: "Unabhängigkeit", keywords: "unabhängig inoffiziell disclaimer keine verbindung orangeflix.de plattform rechtliches"),
         .init(id: "about.license", pane: .about, title: "Lizenz", section: "Lizenz",

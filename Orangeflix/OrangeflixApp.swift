@@ -1,11 +1,18 @@
 import SwiftUI
+import Sparkle
 
 @main
 struct OrangeflixApp: App {
     /// The models of the app; nil when the library database cannot be opened.
     private let container: AppContainer?
+    private let updaterController: SPUStandardUpdaterController
 
     init() {
+        updaterController = SPUStandardUpdaterController(
+            startingUpdater: true,
+            updaterDelegate: nil,
+            userDriverDelegate: nil
+        )
         do {
             let services = try AppServices.live()
             container = AppContainer(services: services)
@@ -28,17 +35,17 @@ struct OrangeflixApp: App {
         .windowResizability(.contentSize)
         .windowStyle(.automatic)
         .windowToolbarStyle(.unified)
-        .commands { AppCommands(container: container) }
+        .commands { AppCommands(container: container, updaterController: updaterController) }
 
         PlayerWindowScene(playback: container?.playback, app: container?.app)
-        SettingsWindowScene(container: container)
+        SettingsWindowScene(container: container, updaterController: updaterController)
     }
 
     @ViewBuilder
     private var mainWindow: some View {
         if let container {
-            RootView()
-                // The smallest window comes from `RootView`, per page. No frame
+            MainWindowView()
+                // The smallest window comes from `MainWindowView`, per page. No frame
                 // here: an outer minimum would cap the one of the page.
                 .opensPlayerWindow()
                 .environment(container.app)
@@ -64,10 +71,11 @@ struct OrangeflixApp: App {
 /// The menu bar of the app; empty when the library could not be opened.
 struct AppCommands: Commands {
     let container: AppContainer?
+    let updaterController: SPUStandardUpdaterController
 
     var body: some Commands {
         if let container {
-            ShellCommands(app: container.app, account: container.account)
+            ShellCommands(app: container.app, account: container.account, updaterController: updaterController)
         }
     }
 }
@@ -101,11 +109,12 @@ struct PlayerWindowScene: Scene {
 /// toolbar and ⌘, open it the way macOS expects.
 struct SettingsWindowScene: Scene {
     let container: AppContainer?
+    let updaterController: SPUStandardUpdaterController
 
     var body: some Scene {
         Settings {
             if let container {
-                SettingsScreen()
+                SettingsScreen(updaterController: updaterController)
                     .environment(container.app)
                     .environment(container.account)
                     .environment(container.browse)

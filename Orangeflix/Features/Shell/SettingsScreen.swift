@@ -1,10 +1,12 @@
 import AppKit
 import SwiftUI
+import Sparkle
 
 /// The window of the settings. It is built from the native building blocks
 /// of the Mac: a sidebar list, a grouped form and the system chrome — no
 /// own rows, cards or titlebar.
 struct SettingsScreen: View {
+    let updaterController: SPUStandardUpdaterController
     @Environment(AppModel.self) private var app
     @Environment(AccountModel.self) private var account
     @Environment(BrowseModel.self) private var browse
@@ -1505,6 +1507,26 @@ struct SettingsScreen: View {
                 Text("App")
             } footer: {
                 Text("Ein inoffizielles Zusatzprogramm für macOS, um die Mediathek eines Orangeflix.de-Kontos am Schreibtisch zu nutzen.")
+            }
+
+            Section {
+                HStack {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Updates für Orangeflix for Mac")
+                        Text("Neue Versionen mit Änderungen und Fehlerbehebungen abrufen.")
+                            .font(AppFont.bodySmall)
+                            .foregroundStyle(themeColor(.textSecondary))
+                    }
+                    Spacer(minLength: Space.m)
+                    Button("Nach Updates suchen …") {
+                        updaterController.checkForUpdates(nil)
+                    }
+                }
+                .searchAnchor("about.updates")
+            } header: {
+                Text("Softwareupdate")
+            } footer: {
+                Text("Vor der Installation prüft der Updater die Signatur des Downloads. Die Versionshinweise erscheinen im Update-Fenster.")
             }
 
             Section {

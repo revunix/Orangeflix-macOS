@@ -5,7 +5,7 @@ import SwiftUI
 
 /// The main window. The brand, section navigation and global actions live in
 /// the native macOS toolbar; the selected screen fills the content area.
-struct RootView: View {
+struct MainWindowView: View {
     @Environment(AppModel.self) private var app
     @Environment(BrowseModel.self) private var browse
     @Environment(AccountModel.self) private var account

@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import Sparkle
 
 /// The menu bar of the app (Go palette "Gehe zu" and "Allgemein"): the
 /// sections of the sidebar with ⌘1…⌘8, the search, the sign-out, the
@@ -10,13 +11,15 @@ struct ShellCommands: Commands {
     let app: AppModel
     /// The account; the "Abmelden" command uses it.
     let account: AccountModel
+    let updaterController: SPUStandardUpdaterController
 
     /// Whether the Protokoll is shown; the window reads the same key.
     @AppStorage("showLogPanel") private var showLogPanel = false
 
-    init(app: AppModel, account: AccountModel) {
+    init(app: AppModel, account: AccountModel, updaterController: SPUStandardUpdaterController) {
         self.app = app
         self.account = account
+        self.updaterController = updaterController
     }
 
     var body: some Commands {
@@ -39,6 +42,8 @@ struct ShellCommands: Commands {
             }
             .keyboardShortcut("l", modifiers: .command)
             Button("Speicherort ändern …") { chooseFolder() }
+            Divider()
+            Button("Nach Updates suchen …") { updaterController.checkForUpdates(nil) }
         }
     }
 

@@ -1,0 +1,152 @@
+name: Publish macOS release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version, for example 1.1.0
+        required: true
+        type: string
+      changelog:
+        description: Release notes shown on GitHub and in Sparkle
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: xcode-27
+    timeout-minutes: 60
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SPARKLE_EDDSA_PRIVATE_KEY: ${{ secrets.SPARKLE_EDDSA_PRIVATE_KEY }}
+      APPLE_CERTIFICATE_P12: ${{ secrets.APPLE_CERTIFICATE_P12 }}
+      APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      APPLE_NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
+      APPLE_NOTARY_ISSUER_ID: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
+      APPLE_NOTARY_KEY_P8: ${{ secrets.APPLE_NOTARY_KEY_P8 }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Validate release inputs and signing secrets
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          set -eu
+          if ! [[ "$RELEASE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Version must have the form X.Y.Z" >&2
+            exit 1
+          fi
+          for name in SPARKLE_EDDSA_PRIVATE_KEY APPLE_CERTIFICATE_P12 APPLE_CERTIFICATE_PASSWORD APPLE_TEAM_ID APPLE_NOTARY_KEY_ID APPLE_NOTARY_ISSUER_ID APPLE_NOTARY_KEY_P8; do
+            case "$name" in
+              SPARKLE_EDDSA_PRIVATE_KEY) value="$SPARKLE_EDDSA_PRIVATE_KEY" ;;
+              APPLE_CERTIFICATE_P12) value="$APPLE_CERTIFICATE_P12" ;;
+              APPLE_CERTIFICATE_PASSWORD) value="$APPLE_CERTIFICATE_PASSWORD" ;;
+              APPLE_TEAM_ID) value="$APPLE_TEAM_ID" ;;
+              APPLE_NOTARY_KEY_ID) value="$APPLE_NOTARY_KEY_ID" ;;
+              APPLE_NOTARY_ISSUER_ID) value="$APPLE_NOTARY_ISSUER_ID" ;;
+              APPLE_NOTARY_KEY_P8) value="$APPLE_NOTARY_KEY_P8" ;;
+            esac
+            if [ -z "$value" ]; then echo "Missing repository secret: $name" >&2; exit 1; fi
+          done
+
+      - name: Install and bundle mpv libraries
+        run: |
+          brew install mpv
+          scripts/vendor-libmpv.sh
+
+      - name: Import Developer ID certificate
+        run: |
+          set -eu
+          KEYCHAIN_PATH="$RUNNER_TEMP/orangeflix-signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -hex 24)"
+          CERTIFICATE_PATH="$RUNNER_TEMP/developer-id.p12"
+          printf '%s' "$APPLE_CERTIFICATE_P12" | base64 -D > "$CERTIFICATE_PATH"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERTIFICATE_PATH" -P "$APPLE_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          rm -f "$CERTIFICATE_PATH"
+
+      - name: Build and archive app
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          set -eu
+          BUILD_NUMBER="$((2000 + GITHUB_RUN_NUMBER))"
+          DEVELOPER_DIR="$(xcode-select -p)" xcodebuild \
+            -project Orangeflix.xcodeproj \
+            -scheme Orangeflix \
+            -configuration Release \
+            -destination 'platform=macOS,arch=arm64' \
+            -derivedDataPath "$RUNNER_TEMP/OrangeflixDerived" \
+            -archivePath "$RUNNER_TEMP/Orangeflix.xcarchive" \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY='Developer ID Application' \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            MARKETING_VERSION="$RELEASE_VERSION" \
+            CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
+            archive
+
+      - name: Prepare signed Sparkle feed and release assets
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+          RELEASE_NOTES: ${{ inputs.changelog }}
+        run: |
+          set -eu
+          APP_PATH="$RUNNER_TEMP/Orangeflix.xcarchive/Products/Applications/Orangeflix.app"
+          DIST="$RUNNER_TEMP/release-assets"
+          ARCHIVE="$DIST/Orangeflix-for-Mac.zip"
+          NOTES="$DIST/Orangeflix-for-Mac.md"
+          mkdir -p "$DIST"
+          printf '%s\n' "$RELEASE_NOTES" > "$NOTES"
+
+          codesign --verify --deep --strict "$APP_PATH"
+          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$ARCHIVE"
+
+          NOTARY_KEY="$RUNNER_TEMP/AuthKey_${APPLE_NOTARY_KEY_ID}.p8"
+          printf '%s' "$APPLE_NOTARY_KEY_P8" > "$NOTARY_KEY"
+          xcrun notarytool submit "$ARCHIVE" \
+            --key "$NOTARY_KEY" \
+            --key-id "$APPLE_NOTARY_KEY_ID" \
+            --issuer "$APPLE_NOTARY_ISSUER_ID" \
+            --wait
+          rm -f "$NOTARY_KEY"
+
+          rm -rf "$RUNNER_TEMP/notarized-app"
+          mkdir -p "$RUNNER_TEMP/notarized-app"
+          ditto -x -k "$ARCHIVE" "$RUNNER_TEMP/notarized-app"
+          xcrun stapler staple "$RUNNER_TEMP/notarized-app/Orangeflix.app"
+          rm -f "$ARCHIVE"
+          ditto -c -k --sequesterRsrc --keepParent \
+            "$RUNNER_TEMP/notarized-app/Orangeflix.app" "$ARCHIVE"
+
+          SPARKLE_TOOL="$RUNNER_TEMP/OrangeflixDerived/SourcePackages/artifacts/sparkle/Sparkle/bin/generate_appcast"
+          printf '%s' "$SPARKLE_EDDSA_PRIVATE_KEY" | "$SPARKLE_TOOL" --ed-key-file - "$DIST"
+          test -s "$DIST/appcast.xml"
+
+      - name: Create GitHub release and upload updater assets
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+          RELEASE_NOTES: ${{ inputs.changelog }}
+        run: |
+          set -eu
+          TAG="v$RELEASE_VERSION"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists" >&2
+            exit 1
+          fi
+          printf '%s\n' "$RELEASE_NOTES" > "$RUNNER_TEMP/release-notes.md"
+          gh release create "$TAG" \
+            --target "$GITHUB_SHA" \
+            --title "Orangeflix for Mac $RELEASE_VERSION" \
+            --notes-file "$RUNNER_TEMP/release-notes.md" \
+            "$RUNNER_TEMP/release-assets/Orangeflix-for-Mac.zip" \
+            "$RUNNER_TEMP/release-assets/Orangeflix-for-Mac.md" \
+            "$RUNNER_TEMP/release-assets/appcast.xml"
