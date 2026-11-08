@@ -8,6 +8,9 @@ import SwiftUI
 /// page itself has none).
 @MainActor @Observable final class EpisodePreviewModel {
     enum Mode { case hover, selected }
+    /// Scrolling often crosses several thumbnails quickly. Wait long enough
+    /// to avoid requesting a stream unless the pointer settles on one.
+    private static let hoverDelay: Duration = .milliseconds(1_200)
 
     private(set) var identifier: String?
     private(set) var mode: Mode?
@@ -121,7 +124,7 @@ import SwiftUI
             do {
                 await previousRestore?.value
                 try Task.checkCancellation()
-                if mode == .hover { try await Task.sleep(for: .milliseconds(500)) }
+                if mode == .hover { try await Task.sleep(for: Self.hoverDelay) }
                 try Task.checkCancellation()
                 let (url, headers, wasWatched, duration) = try await playback.previewFile(for: episode)
                 try Task.checkCancellation()
