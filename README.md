@@ -50,7 +50,7 @@ Die App wird privat von [Alexander (@revunix)](https://github.com/revunix) entwi
 
 Für die Nutzung benötigst du **macOS 15 oder neuer**, eine Internetverbindung und ein Orangeflix-Konto. Die bereitgestellten Release-Builds sind für Macs mit **Apple Silicon** vorgesehen.
 
-1. Lade die aktuelle Version **1.2.3** (`Orangeflix-for-Mac.zip`) von den [GitHub Releases](https://github.com/revunix/Orangeflix-macOS/releases/latest) herunter. Die Änderungen stehen im [Changelog](CHANGELOG.md).
+1. Lade die aktuelle Version **1.2.4** (`Orangeflix-for-Mac.zip`) von den [GitHub Releases](https://github.com/revunix/Orangeflix-macOS/releases/latest) herunter. Die Änderungen stehen im [Changelog](CHANGELOG.md).
 2. Entpacke das Archiv und verschiebe `Orangeflix.app` in den Ordner **Programme**.
 3. Starte die App und melde dich mit der E-Mail-Adresse und dem Passwort deines Orangeflix-Kontos an. Wenn für dein Konto die Zwei-Faktor-Anmeldung aktiviert ist, gib zusätzlich den Code aus deiner Authenticator-App ein.
 

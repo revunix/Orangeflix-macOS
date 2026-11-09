@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.2.4 – 2026-11-09
+
+### Suche
+- Suchfeld und Filter schweben auf Glas über den Treffern; Karten laufen beim Scrollen darunter hindurch und blenden zum Seitentitel weich aus.
+- Die Filtermenüs für Format, Reihenfolge und Person sind besser lesbar. Aktive Einschränkungen sind in der Akzentfarbe markiert.
+- Der Suchfokus wird ohne sichtbares Aufpoppen gesetzt.
+
+### Live und Chat
+- Der Chat folgt neuen Nachrichten, solange du am unteren Ende liest. Beim Zurückscrollen pausiert er und zählt neue Nachrichten; eine Schaltfläche führt zurück zur neuesten Nachricht.
+- Die Live-Fenstergröße passt sich an die Videogröße und die gewählte Chatposition an.
+- Antworten auf eigene Chatnachrichten werden zuverlässiger den ausstehenden Nachrichten zugeordnet.
+
 ## 1.2.3 – 2026-11-08
 
 ### Mediathek und Darstellung
