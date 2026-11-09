@@ -34,6 +34,7 @@ let package = Package(
                 "Core/Persistence/MainWindowFrameLogic.swift",
                 "Features/Browse/RecentsDismissal.swift",
                 "Features/Browse/SearchPointerLogic.swift",
+                "Features/Live/LiveChatScroll.swift",
                 "Features/Playback/PlaybackLogic.swift",
             ]
         ),

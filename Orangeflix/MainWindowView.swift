@@ -36,8 +36,8 @@ struct MainWindowView: View {
     /// The width of a column the screen keeps at the right edge, under the
     /// toolbar (the chat of the Live screen); 0 when there is none.
     @State private var trailingColumn: CGFloat = 0
-    /// The size a screen gives the window (the Live page); nil leaves it free.
-    @State private var fixedPageSize: CGSize?
+    /// How the Live page grows with its picture; nil on every other page.
+    @State private var livePage: LivePageGeometry?
     /// Outlives the screen views, including their AppKit bridges.
     @State private var windowMemory = MainWindowFrameMemory()
 
@@ -57,8 +57,10 @@ struct MainWindowView: View {
             .background { WindowSizeMemory(memory: windowMemory, isLive: { [app] in app.selection == .live }) }
             // The smallest window of the open page, and wide enough for the
             // navigation pill. One frame: a second, outer one would cap it.
-            .modifier(PageSizing(fixed: app.selection == .live ? fixedPageSize : nil, floor: windowFloor,
+            .modifier(PageSizing(live: app.selection == .live ? livePage : nil, floor: windowFloor,
                                  minWidth: max(windowFloor, pageMinimum.width), minHeight: pageMinimum.height))
+            // The Live window scales like a video player.
+            .background { LiveWindowSizing(geometry: app.selection == .live ? livePage : nil) }
             .background {
                 WindowWidthFloor(minimum: windowFloor, restoresWidth: app.selection != .live)
             }
@@ -146,7 +148,7 @@ struct MainWindowView: View {
             .onPreferenceChange(TitlebarBackdropKey.self) { heroUnderTitlebar = $0 }
             .onPreferenceChange(TitlebarScrimKey.self) { titlebarScrolled = $0 }
             .onPreferenceChange(TrailingColumnKey.self) { trailingColumn = $0 }
-            .onPreferenceChange(FixedPageSizeKey.self) { fixedPageSize = $0 }
+            .onPreferenceChange(LivePageGeometryKey.self) { livePage = $0 }
 
             .task {
                 // Notifications reopen the window through this after it closed.
@@ -194,7 +196,7 @@ struct MainWindowView: View {
 
     /// The smallest window of the open page.
     private var pageMinimum: NSSize {
-        MainWindowSize.minimum(live: app.selection == .live, on: nil)
+        MainWindowSize.minimum(on: nil)
     }
 
     /// Whether the app itself shows: started, and an account signed in.
@@ -611,26 +613,22 @@ private extension ToolbarContent {
     }
 }
 
-/// The exact size a screen wants for the window; nil for a free window.
-struct FixedPageSizeKey: PreferenceKey {
-    static var defaultValue: CGSize? { nil }
-    static func reduce(value: inout CGSize?, nextValue: () -> CGSize?) {
-        value = nextValue() ?? value
-    }
-}
-
-/// A screen with a fixed size gets exactly it, and the window cannot be
-/// dragged; every other screen has its minimum and grows freely.
+/// The Live page lies between its smallest picture and the screen; the
+/// window keeps its proportions there (`LiveWindowSizing`). Every other
+/// screen has its minimum and grows freely.
 private struct PageSizing: ViewModifier {
-    let fixed: CGSize?
+    let live: LivePageGeometry?
     /// The width the toolbar needs; a fixed size keeps it too.
     let floor: CGFloat
     let minWidth: CGFloat
     let minHeight: CGFloat
 
     func body(content: Content) -> some View {
-        if let fixed {
-            content.frame(width: max(fixed.width, floor), height: fixed.height)
+        if let live {
+            // The screen is the upper bound; `LiveWindowSizing` keeps it.
+            let lower = live.minPage
+            content.frame(minWidth: max(lower.width, floor), maxWidth: .infinity,
+                          minHeight: lower.height, maxHeight: .infinity)
         } else {
             content.frame(minWidth: minWidth, maxWidth: .infinity, minHeight: minHeight, maxHeight: .infinity)
         }

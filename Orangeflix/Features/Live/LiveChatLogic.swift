@@ -30,6 +30,8 @@ struct LiveChatLine: Hashable, Sendable {
     var mine: Set<String> = []
     /// The cursor of the server the reactions belong to.
     var cursor: String = ""
+    /// Names a line written here until the server answers with its id.
+    var localID: String = ""
 }
 
 /// The reactions of one message at a cursor of the server.
@@ -222,17 +224,27 @@ enum LiveChatLogic {
     /// `applyEvent` for a message of the account). A pending line that is
     /// older than `echoWindow` is left alone.
     static func replacePending(with line: LiveChatLine, in lines: inout [LiveChatLine], now: Date) -> Bool {
-        var index = lines.count - 1
-        while index >= 0 {
-            let old = lines[index]
-            if old.isSelf && !old.isSystem && old.text == line.text {
-                if let time = old.time, now.timeIntervalSince(time) > echoWindow { return false }
+        // The text decides first; only then an answer is known by the
+        // message it answers, so two quick answers keep their order.
+        for byText in [true, false] {
+            for index in lines.indices.reversed() where isEcho(line, of: lines[index], byText: byText) {
+                if let time = lines[index].time, now.timeIntervalSince(time) > echoWindow { return false }
                 lines[index] = line
                 return true
             }
-            index -= 1
         }
         return false
+    }
+
+    /// Whether a message of the server is the echo of a line of the account.
+    /// A line that came from the server already is only replaced by the same
+    /// message. The server cleans the text (white space, markup), so the text
+    /// is compared cleaned; an answer is also known by the message it answers.
+    static func isEcho(_ line: LiveChatLine, of old: LiveChatLine, byText: Bool) -> Bool {
+        guard old.isSelf, !old.isSystem, !old.isStudio else { return false }
+        if !old.id.isEmpty { return byText && old.id == line.id }
+        if byText { return old.text == line.text || LiveHTML.cleanText(old.text) == line.text }
+        return !line.replyTo.isEmpty && old.replyTo == line.replyTo
     }
 
     // MARK: Reactions

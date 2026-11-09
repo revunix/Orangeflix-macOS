@@ -34,9 +34,20 @@ struct SearchScreen: View {
                         }
                     }
                 }
-                searchField
-                if isQueryActive { filterBar }
-                content
+                // The field and the filters float: the page scrolls on
+                // beneath their glass and dissolves towards the title. The
+                // inset hangs on a stack and not on `content` itself: on the
+                // changing content it is rebuilt with every change of the
+                // page, and the field loses the focus after the first letter.
+                ZStack { content }
+                    .safeAreaInset(edge: .top, spacing: 0) {
+                        VStack(spacing: Space.s) {
+                            searchField
+                            if isQueryActive { filterBar }
+                        }
+                        .padding(.bottom, Space.s)
+                        .background { chromeFade }
+                    }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .navigationTitle("")
@@ -105,15 +116,15 @@ struct SearchScreen: View {
                 .font(.system(size: 15))
                 .focused($fieldFocused)
                 .focusEffectDisabled()
-                .task {
-                    // Let the newly mounted field finish its first layout
-                    // before moving the editor into it. Focusing in the
-                    // screen's onAppear can flash at the initial position.
-                    await Task.yield()
-                    guard !Task.isCancelled, model.searchPath.isEmpty else { return }
-                    var transaction = Transaction(animation: nil)
-                    transaction.disablesAnimations = true
-                    withTransaction(transaction) { fieldFocused = true }
+                .background {
+                    // The field takes the focus once it stands in the window
+                    // with its focus ring off, so no timing guess is needed.
+                    SearchFieldRing {
+                        guard model.searchPath.isEmpty else { return }
+                        var transaction = Transaction(animation: nil)
+                        transaction.disablesAnimations = true
+                        withTransaction(transaction) { fieldFocused = true }
+                    }
                 }
                 .onSubmit {
                     model.rememberSearch()
@@ -144,9 +155,12 @@ struct SearchScreen: View {
         }
         .padding(.horizontal, Space.m)
         .frame(height: 40)
-        // The text field handles focus and input itself; the surrounding
-        // glass is decorative and needs no separate interaction highlight.
-        .glassPlate(in: Capsule())
+        // The text field handles focus and input itself. The plate must not
+        // scale in, and it must not light up when the field becomes focused.
+        // Its whole shape takes the click, so none reaches a card beneath.
+        .glassPlate(in: Capsule(), quietAppear: true)
+        .contentShape(Capsule())
+        .focusEffectDisabled()
         .padding(.horizontal, Space.page)
     }
 
@@ -185,10 +199,12 @@ struct SearchScreen: View {
             }
             .padding(3)
             .glassPlate(in: Capsule(), interactive: true)
+            .contentShape(Capsule())
 
             Spacer(minLength: 0)
 
-            Menu {
+            SearchFilterMenu(title: formatTitle, symbol: "rectangle.stack",
+                             narrows: model.searchFormatPID != nil) {
                 Picker("Format", selection: $model.searchFormatPID) {
                     Text("Alle Formate").tag(Int?.none)
                     Divider()
@@ -197,31 +213,22 @@ struct SearchScreen: View {
                     }
                 }
                 .pickerStyle(.inline)
-            } label: {
-                Label(formatTitle, systemImage: "rectangle.stack")
             }
-            .menuStyle(.button)
-            .glassButtonStyle()
-            .fixedSize()
             .help("Nur in einem Format suchen")
 
-            Menu {
+            SearchFilterMenu(title: model.searchSort.title, symbol: "arrow.up.arrow.down") {
                 Picker("Reihenfolge", selection: $model.searchSort) {
                     ForEach(SearchSort.allCases) { sort in
                         Text(sort.title).tag(sort)
                     }
                 }
                 .pickerStyle(.inline)
-            } label: {
-                Label(model.searchSort.title, systemImage: "arrow.up.arrow.down")
             }
-            .menuStyle(.button)
-            .glassButtonStyle()
-            .fixedSize()
             .help("Reihenfolge der Treffer")
 
             if !searchablePersons.isEmpty {
-                Menu {
+                SearchFilterMenu(title: personTitle, symbol: "person.crop.circle",
+                                 narrows: model.searchPersonID != nil) {
                     Picker("Person", selection: $model.searchPersonID) {
                         Text("Alle Personen").tag(String?.none)
                         Divider()
@@ -230,17 +237,21 @@ struct SearchScreen: View {
                         }
                     }
                     .pickerStyle(.inline)
-                } label: {
-                    Label(personTitle, systemImage: "person.crop.circle")
                 }
-                .menuStyle(.button)
-                .glassButtonStyle()
-                .fixedSize()
                 .help("Nur nach einer Person suchen")
             }
         }
-        .controlSize(.regular)
         .padding(.horizontal, Space.page)
+    }
+
+    /// The page colour, thinning out downwards. It lies between the page and
+    /// the floating field and filters, so a card fades out beneath them
+    /// instead of ending at a hard line below the title. Clicks pass through
+    /// to the cards.
+    private var chromeFade: some View {
+        LinearGradient(colors: [Palette.background, Palette.background.opacity(0)],
+                       startPoint: .top, endPoint: .bottom)
+            .allowsHitTesting(false)
     }
 
     /// The name of the person the search is narrowed to.
@@ -525,6 +536,43 @@ struct SearchScreen: View {
         let episodes = selection.isEmpty ? (focusedEpisode.map { [$0] } ?? []) : selectedEpisodes
         guard !episodes.isEmpty else { return }
         Task { await model.downloadEpisodes(episodes, of: nil) }
+    }
+}
+
+/// A filter of the bar: a menu on its own glass plate, the same glass as the
+/// kinds beside it, so its words stay readable over the hits that scroll
+/// beneath. A filter that narrows the search stands in the accent, like the
+/// chosen kind.
+private struct SearchFilterMenu<Items: View>: View {
+    let title: String
+    let symbol: String
+    var narrows = false
+    @ViewBuilder var items: Items
+
+    var body: some View {
+        Menu {
+            items
+        } label: {
+            HStack(spacing: Space.xs) {
+                Image(systemName: symbol)
+                Text(title)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 8, weight: .semibold))
+                    .foregroundStyle(narrows ? Palette.accentText : Palette.textTertiary)
+                    .accessibilityHidden(true)
+            }
+            .font(AppFont.captionMedium)
+            .foregroundStyle(narrows ? Palette.accentText : Palette.textPrimary)
+            .padding(.horizontal, Space.m)
+            // As tall as the capsule of the kinds.
+            .frame(height: 34)
+            .contentShape(Capsule())
+        }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
+        .glassPlate(in: Capsule(), interactive: true)
+        .fixedSize()
     }
 }
 
@@ -988,6 +1036,68 @@ private struct SearchMouseEvents: NSViewRepresentable {
     }
 }
 
+/// Prepares the search field before it takes the focus. It turns off the AppKit
+/// focus ring of the field, which is a second drawing of the focus, and calls
+/// `onReady` once the field stands in the window with its frame. Focusing
+/// earlier draws the shared field editor for one frame at the window origin.
+private struct SearchFieldRing: NSViewRepresentable {
+    /// Called once the field is prepared; it may take the focus.
+    let onReady: () -> Void
+
+    func makeNSView(context: Context) -> AnchorView { AnchorView(onReady: onReady) }
+
+    func updateNSView(_ view: AnchorView, context: Context) {
+        view.onReady = onReady
+        view.prepare()
+    }
+
+    final class AnchorView: NSView {
+        var onReady: () -> Void
+        private var done = false
+
+        init(onReady: @escaping () -> Void) {
+            self.onReady = onReady
+            super.init(frame: .zero)
+        }
+
+        required init?(coder: NSCoder) {
+            fatalError("AnchorView is not loaded from a nib")
+        }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            prepare()
+        }
+
+        override func layout() {
+            super.layout()
+            prepare()
+        }
+
+        /// Finds the field under the anchor, which fills its background, and
+        /// turns its ring off. Runs once per field.
+        func prepare() {
+            guard !done, let window, bounds.width > 1, let root = window.contentView else { return }
+            let middle = convert(NSPoint(x: bounds.midX, y: bounds.midY), to: nil)
+            guard let field = Self.textField(in: root, containing: middle) else { return }
+            done = true
+            field.focusRingType = .none
+            // After the layout pass, so the focus moves into a placed field.
+            DispatchQueue.main.async { [onReady] in onReady() }
+        }
+
+        private static func textField(in node: NSView, containing point: NSPoint) -> NSTextField? {
+            if let field = node as? NSTextField, field.convert(field.bounds, to: nil).contains(point) {
+                return field
+            }
+            for subview in node.subviews {
+                if let field = textField(in: subview, containing: point) { return field }
+            }
+            return nil
+        }
+    }
+}
+
 /// The last searches as chips that wrap; a click searches again.
 private struct FlowChips: View {
     let items: [String]
@@ -1019,7 +1129,7 @@ private struct FlowChips: View {
                 }
                 .padding(.horizontal, Space.m)
                 .padding(.vertical, 6)
-                .glassPlate(in: Capsule(), interactive: true)
+                .glassPlate(in: Capsule(), interactive: true, quietAppear: true)
             }
         }
     }

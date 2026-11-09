@@ -13,15 +13,13 @@ enum MainWindowSize {
     /// The size of the first start; the scene names the same numbers.
     static let fallback = NSSize(width: 1_240, height: 1_000)
 
-    /// The smallest window frame on every page.
+    /// The smallest window frame. The Live page sizes itself from its picture
+    /// (`LiveWindowSizing`).
     static let minimumSize = NSSize(width: 1_000, height: 1_000)
-    /// The smallest window frame on the Live page: the show, the picture and
-    /// the chat need more height.
-    static let liveMinimumSize = NSSize(width: 1_000, height: 1_000)
 
-    /// The smallest frame for a page, never larger than the screen offers.
-    static func minimum(live: Bool, on screen: NSScreen?) -> NSSize {
-        let size = live ? liveMinimumSize : minimumSize
+    /// The smallest frame, never larger than the screen offers.
+    static func minimum(on screen: NSScreen?) -> NSSize {
+        let size = minimumSize
         guard let visible = (screen ?? NSScreen.main)?.visibleFrame.size else { return size }
         return NSSize(width: min(size.width, visible.width), height: min(size.height, visible.height))
     }
@@ -126,7 +124,7 @@ enum MainWindowSize {
     private func restoreInitialSize(in window: NSWindow) {
         guard !window.styleMask.contains(.fullScreen) else { return }
         var size = MainWindowSize.load(for: window.screen) ?? MainWindowSize.fallback
-        let minimum = MainWindowSize.minimum(live: false, on: window.screen)
+        let minimum = MainWindowSize.minimum(on: window.screen)
         size.width = max(size.width, minimum.width)
         size.height = max(size.height, minimum.height)
         let frame = MainWindowFrameLogic.resizing(window.frame, to: size, in: window.screen?.visibleFrame)

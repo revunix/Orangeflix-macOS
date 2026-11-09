@@ -13,6 +13,9 @@ import Observation
     private(set) var isLoading = false
     /// The lines of the chat, the oldest first.
     private(set) var lines: [LiveChatLine] = []
+        /// Every line that came into the chat, including those the history cap
+        /// drops again. The Live screen counts new messages with it.
+        private(set) var receivedLines = 0
     /// The voting of the show.
     private(set) var poll: LivePoll?
     /// Whether the chat is connected.
@@ -209,6 +212,12 @@ import Observation
                 return
             }
             session = opened
+            // The chat name of the account is known from the token, so the
+            // own picture shows from the first message on.
+            if !opened.username.isEmpty {
+                selfName = opened.username
+                loadAvatar(named: opened.username)
+            }
             isChatConnected = true
             chatStatus = "Chat verbunden"
             retryCount = 0
@@ -315,6 +324,7 @@ import Observation
     private func append(_ message: ChatMessage) {
         if message.isSelf, !message.from.isEmpty, message.from != "Du" {
             selfName = message.from
+            loadAvatar(named: message.from)
         }
         let line = LiveChatLine(id: message.id, from: message.from, text: message.text,
                                 time: message.time, isSelf: message.isSelf, isAdmin: message.isAdmin,
@@ -323,13 +333,19 @@ import Observation
         if message.isSelf, LiveChatLogic.replacePending(with: line, in: &lines, now: Date()) {
             return
         }
-        LiveChatLogic.append(line, to: &lines)
+        add(line)
         loadAvatar(for: line)
+    }
+
+    /// Adds a line to the chat and counts it.
+    private func add(_ newLine: LiveChatLine) {
+        LiveChatLogic.append(newLine, to: &lines)
+        receivedLines += 1
     }
 
     /// Adds a note of the program to the chat.
     private func appendSystem(_ text: String) {
-        LiveChatLogic.append(LiveChatLine(text: text, isSystem: true), to: &lines)
+        add(LiveChatLine(text: text, isSystem: true))
     }
 
     /// Adds a message of the chat transcript of a replay; it cannot be
@@ -339,7 +355,7 @@ import Observation
         if line.unix > 0 {
             chat.time = Date(timeIntervalSince1970: TimeInterval(line.unix))
         }
-        LiveChatLogic.append(chat, to: &lines)
+        add(chat)
         loadAvatar(for: chat)
     }
 
@@ -360,28 +376,31 @@ import Observation
         let target = replyTarget
         replyTarget = nil
         if outgoing.isStudio {
-            LiveChatLogic.append(LiveChatLine(from: "Du", text: outgoing.text, time: Date(),
-                                              isSelf: true, isStudio: true), to: &lines)
+            add(LiveChatLine(from: "Du", text: outgoing.text, time: Date(),
+                                              isSelf: true, isStudio: true))
             Task { await sendStudio(outgoing.text, session: session) }
             return
         }
         let replyTo = target?.id ?? ""
-        LiveChatLogic.append(LiveChatLine(from: "Du", text: outgoing.text, time: Date(),
-                                          isSelf: true, isPending: true, replyTo: replyTo), to: &lines)
-        Task { await sendMessage(outgoing.text, replyTo: replyTo, session: session) }
+        let localID = UUID().uuidString
+        var pending = LiveChatLine(from: "Du", text: outgoing.text, time: Date(),
+                                   isSelf: true, isPending: true, replyTo: replyTo)
+        pending.localID = localID
+        add(pending)
+        Task { await sendMessage(outgoing.text, replyTo: replyTo, localID: localID, session: session) }
     }
 
     /// Writes a message to the chat of the room (Go `SendChat`).
-    private func sendMessage(_ text: String, replyTo: String, session: ChatSession) async {
+    private func sendMessage(_ text: String, replyTo: String, localID: String, session: ChatSession) async {
         do {
             if replyTo.isEmpty {
                 try await session.send(text)
             } else {
                 try await session.sendReply(text, replyTo: replyTo)
             }
-            clearPending()
+            markSent(localID)
         } catch {
-            removePending()
+            removePending(localID)
             appendSystem("Nachricht nicht gesendet: \(error.localizedDescription)")
         }
     }
@@ -410,16 +429,16 @@ import Observation
         replyTarget = nil
     }
 
-    /// The pending lines wait for the echo of the server.
-    private func clearPending() {
-        for index in lines.indices where lines[index].isPending {
-            lines[index].isPending = false
-        }
+    /// The server took the message: its line no longer looks pending,
+    /// whether or not the echo found it.
+    private func markSent(_ localID: String) {
+        guard let index = lines.lastIndex(where: { $0.localID == localID }) else { return }
+        lines[index].isPending = false
     }
 
-    /// The newest pending line goes when the sending failed.
-    private func removePending() {
-        if let index = lines.lastIndex(where: { $0.isPending }) {
+    /// The line of a message that could not be sent goes.
+    private func removePending(_ localID: String) {
+        if let index = lines.lastIndex(where: { $0.localID == localID && $0.id.isEmpty }) {
             lines.remove(at: index)
         }
     }
@@ -613,7 +632,14 @@ import Observation
     /// Loads the picture of a sender (Go `ChatAvatar`).
     private func loadAvatar(for line: LiveChatLine) {
         guard !line.isSystem, !line.isReplay else { return }
-        let name = line.isSelf ? (selfName.isEmpty ? line.from : selfName) : line.from
+        // A line written here says "Du"; without the name of the account
+        // there is no picture to ask for yet.
+        if line.isSelf, selfName.isEmpty { return }
+        loadAvatar(named: line.isSelf ? selfName : line.from)
+    }
+
+    /// Loads the picture of a chat name once.
+    private func loadAvatar(named name: String) {
         guard !name.isEmpty, avatars[name] == nil else { return }
         Task {
             guard let data = await avatarLoader.data(for: name) else { return }

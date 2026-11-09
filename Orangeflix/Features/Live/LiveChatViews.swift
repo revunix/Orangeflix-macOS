@@ -15,6 +15,8 @@ struct LiveChatBubble: View {
 
     @State private var hovering = false
     @Environment(\.liveChatStyle) private var style
+    /// While the list scrolls, rows passing under the pointer stay calm.
+    @Environment(\.liveChatScrolling) private var scrolling
 
     /// The size of the picture of the sender.
     static let avatarSize: CGFloat = 28
@@ -24,7 +26,8 @@ struct LiveChatBubble: View {
         .system(size: size * style.scale, weight: weight)
     }
 
-    private var showsActions: Bool { hovering || lines.contains(where: isSelected) }
+    private var pointed: Bool { hovering && !scrolling }
+    private var showsActions: Bool { pointed || lines.contains(where: isSelected) }
     private var isOwn: Bool { lines.first?.isSelf == true }
 
     var body: some View {
@@ -43,29 +46,38 @@ struct LiveChatBubble: View {
         }
         .padding(.horizontal, Space.s)
         .padding(.vertical, 6)
-        .background(rowFill, in: RoundedRectangle(cornerRadius: Radius.l, style: .continuous))
+        // Only the fill fades under the pointer; the animation stays on it,
+        // so the text and the reactions of the row never move with it.
+        .background {
+            RoundedRectangle(cornerRadius: Radius.l, style: .continuous)
+                .fill(rowFill)
+                .animation(.easeOut(duration: 0.12), value: pointed)
+        }
         // The actions float over the upper edge of the row; nothing moves
-        // when they come.
+        // when they come. They only fade: the glass does not scale in.
         .overlay(alignment: .topTrailing) {
-            if showsActions, let target = actionTarget {
-                LiveChatActionBar(model: model, line: target)
-                    .offset(y: -10)
-                    .padding(.trailing, Space.s)
-                    .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .topTrailing)))
+            ZStack(alignment: .topTrailing) {
+                if showsActions, let target = actionTarget {
+                    LiveChatActionBar(model: model, line: target)
+                        .offset(y: -10)
+                        .padding(.trailing, Space.s)
+                        .transition(.opacity)
+                }
             }
+            .animation(.easeOut(duration: 0.12), value: showsActions)
         }
         .zIndex(showsActions ? 1 : 0)
         .contentShape(Rectangle())
-        .onHover { hovering = $0 }
-        .animation(.easeOut(duration: 0.12), value: showsActions)
-        .animation(.easeOut(duration: 0.12), value: hovering)
+        .onHover { inside in
+            if hovering != inside { hovering = inside }
+        }
     }
 
     /// The quiet fill of the row: a tint for one's own messages, a shade
     /// under the pointer.
     private var rowFill: Color {
-        if isOwn { return Palette.accent.opacity(hovering ? 0.14 : 0.09) }
-        return hovering ? Palette.textPrimary.opacity(0.05) : .clear
+        if isOwn { return Palette.accent.opacity(pointed ? 0.14 : 0.09) }
+        return pointed ? Palette.textPrimary.opacity(0.05) : .clear
     }
 
     /// One message: the quote it answers, the text and its reactions.
@@ -329,7 +341,9 @@ struct LiveChatActionBar: View {
             }
         }
         .padding(2)
-        .glassPlate(in: Capsule(), tint: .black.opacity(0.45), interactive: true)
+        // No scale-in of the glass: it would play on top of the fade and
+        // let the bar jitter when the pointer moves from row to row.
+        .glassPlate(in: Capsule(), tint: .black.opacity(0.45), interactive: true, quietAppear: true)
         .shadow(color: .black.opacity(0.18), radius: 6, y: 2)
     }
 
@@ -382,7 +396,8 @@ struct LiveComposer: View {
     @Bindable var model: LiveModel
 
     @FocusState private var focused: Bool
-    @State private var showsEmojis = false
+    /// Whether the row of quick emoji stands above the field.
+    @State private var showsQuickEmojis = false
 
     /// The height of the round buttons inside the field.
     private static let control: CGFloat = 26
@@ -398,10 +413,15 @@ struct LiveComposer: View {
                 replyBanner(target)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
+            if showsQuickEmojis {
+                quickEmojis
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
             field
             footer
         }
         .animation(.easeOut(duration: 0.15), value: model.replyTarget?.id)
+        .animation(.easeOut(duration: 0.15), value: showsQuickEmojis)
     }
 
     /// The message that is answered, with the way back.
@@ -444,19 +464,16 @@ struct LiveComposer: View {
     private var field: some View {
         HStack(alignment: .bottom, spacing: Space.xs) {
             Button {
-                showsEmojis.toggle()
+                withAnimation(.easeOut(duration: 0.15)) { showsQuickEmojis.toggle() }
             } label: {
-                Image(systemName: "face.smiling")
+                Image(systemName: showsQuickEmojis ? "face.smiling.fill" : "face.smiling")
                     .font(.system(size: 15))
-                    .foregroundStyle(showsEmojis ? Palette.accent : Palette.textSecondary)
+                    .foregroundStyle(Palette.textSecondary)
                     .frame(width: Self.control, height: Self.control)
                     .contentShape(Circle())
             }
             .buttonStyle(.plain)
-            .help("Emoji einfügen")
-            .popover(isPresented: $showsEmojis, arrowEdge: .top) {
-                emojiGrid
-            }
+            .help("Schnell-Emojis")
 
             TextField(model.sendToStudio ? "Nachricht an das Studio …" : "Nachricht schreiben …",
                       text: $model.composerText, axis: .vertical)
@@ -518,17 +535,40 @@ struct LiveComposer: View {
         .animation(.easeOut(duration: 0.15), value: count > 0)
     }
 
-    /// The quick emoji of the web chat.
-    private var emojiGrid: some View {
-        LazyVGrid(columns: Array(repeating: GridItem(.fixed(32), spacing: 2), count: 5), spacing: 2) {
+    /// The quick emoji above the field; the last button opens the full picker.
+    private var quickEmojis: some View {
+        HStack(spacing: 2) {
             ForEach(LiveChatLogic.quickEmojis, id: \.self) { emoji in
-                EmojiCell(emoji: emoji) {
+                QuickEmojiButton(emoji: emoji) {
                     model.composerText += emoji
                     focused = true
                 }
             }
+            Button {
+                showEmojiPicker()
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Palette.textSecondary)
+                    .frame(width: 30, height: 28)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("Alle Emojis (⌃⌘Leertaste)")
         }
-        .padding(Space.s)
+        .padding(.horizontal, Space.s)
+        .padding(.vertical, 4)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Palette.textPrimary.opacity(0.06), in: Capsule())
+    }
+
+    /// Opens the emoji picker of macOS at the field. The picker writes into
+    /// the field that has the focus, so the field takes it first.
+    private func showEmojiPicker() {
+        focused = true
+        DispatchQueue.main.async {
+            NSApp.orderFrontCharacterPalette(nil)
+        }
     }
 
     /// The colour of the counter of the composer (Go `composerField`).
@@ -538,6 +578,27 @@ struct LiveComposer: View {
         case .warning: return Palette.warning
         case .tooLong: return Palette.danger
         }
+    }
+}
+
+/// One emoji of the quick row above the composer.
+private struct QuickEmojiButton: View {
+    let emoji: String
+    let action: () -> Void
+
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Text(emoji)
+                .font(.system(size: 17))
+                .frame(width: 30, height: 28)
+                .background(hovering ? Palette.textPrimary.opacity(0.1) : .clear,
+                            in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
     }
 }
 
@@ -599,27 +660,6 @@ struct RecipientPill: View {
     }
 }
 
-/// One emoji in the popover of the composer.
-struct EmojiCell: View {
-    let emoji: String
-    let action: () -> Void
-
-    @State private var hovering = false
-
-    var body: some View {
-        Button(action: action) {
-            Text(emoji)
-                .font(.system(size: 18))
-                .frame(width: 32, height: 32)
-                .background(hovering ? Palette.textPrimary.opacity(0.1) : .clear,
-                            in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .onHover { hovering = $0 }
-    }
-}
-
 extension LiveAvatarStyle {
     /// The colour of a hex string like "#7dd3fc".
     static func color(_ hex: String) -> Color {
@@ -675,22 +715,10 @@ struct LiveChatStyle: Equatable {
 
 extension EnvironmentValues {
     @Entry var liveChatStyle = LiveChatStyle()
+    /// Whether the chat list is scrolling right now.
+    @Entry var liveChatScrolling = false
 }
 
-
-/// The sizes of the Live window.
-enum LiveWindowStep: String, CaseIterable {
-    case small, medium, large, largest
-
-    var title: String {
-        switch self {
-        case .small: "Klein"
-        case .medium: "Mittel"
-        case .large: "Groß"
-        case .largest: "Maximal"
-        }
-    }
-}
 
 /// Where the chat stands in the Live window.
 enum LiveWindowLayout: String {

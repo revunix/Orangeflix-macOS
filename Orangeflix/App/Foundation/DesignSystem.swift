@@ -471,8 +471,10 @@ extension View {
     /// the classic style draws a plain surface with one hairline instead. A
     /// tint colours the own chat bubbles; interactive glass brightens under
     /// the pointer.
-    func glassPlate<S: Shape>(in shape: S, tint: Color? = nil, interactive: Bool = false) -> some View {
-        modifier(GlassPlate(shape: shape, tint: tint, interactive: interactive))
+    func glassPlate<S: Shape>(
+        in shape: S, tint: Color? = nil, interactive: Bool = false, quietAppear: Bool = false
+    ) -> some View {
+        modifier(GlassPlate(shape: shape, tint: tint, interactive: interactive, quietAppear: quietAppear))
     }
 
     /// The scroll edge of macOS 26: content fades under the toolbar instead
@@ -505,6 +507,8 @@ private struct GlassPlate<S: Shape>: ViewModifier {
     let shape: S
     let tint: Color?
     let interactive: Bool
+    /// Skips the scale-in Liquid Glass plays the first time a plate appears.
+    var quietAppear = false
 
     @Environment(\.interfaceStyle) private var interfaceStyle
     @Environment(\.glassPanels) private var glassPanels
@@ -513,7 +517,7 @@ private struct GlassPlate<S: Shape>: ViewModifier {
     func body(content: Content) -> some View {
         if showsGlass {
             if #available(macOS 26, *) {
-                content.glassEffect(Glass.regular.tint(tint).interactive(interactive), in: shape)
+                macOS26Glass(content)
             } else {
                 content
                     .background {
@@ -536,6 +540,21 @@ private struct GlassPlate<S: Shape>: ViewModifier {
 
     private var showsGlass: Bool {
         interfaceStyle == .glass && glassPanels
+    }
+
+    /// The default glass transition scales the plate up from nothing. A field
+    /// that is already part of the page, such as the search field, should be
+    /// there at once.
+    @available(macOS 26, *)
+    @ViewBuilder
+    private func macOS26Glass(_ content: Content) -> some View {
+        if quietAppear {
+            content
+                .glassEffect(Glass.regular.tint(tint).interactive(interactive), in: shape)
+                .glassEffectTransition(.identity)
+        } else {
+            content.glassEffect(Glass.regular.tint(tint).interactive(interactive), in: shape)
+        }
     }
 }
 

@@ -1410,7 +1410,7 @@ struct SettingsScreen: View {
                 Toggle("Beim Öffnen zeigen", isOn: liveChatOpenBinding)
                     .searchAnchor("live.chatStart")
                 Picker("Position", selection: liveChatPositionBinding) {
-                    Text("Im Größen-Menü wählen").tag(AppSettings.LiveChatPosition.auto)
+                    Text("Auf der Live-Seite wählen").tag(AppSettings.LiveChatPosition.auto)
                     Text("Rechts neben dem Bild").tag(AppSettings.LiveChatPosition.side)
                     Text("Unter dem Bild").tag(AppSettings.LiveChatPosition.below)
                 }
@@ -1429,7 +1429,7 @@ struct SettingsScreen: View {
             } header: {
                 Text("Chat")
             } footer: {
-                Text("Automatisch: Der Chat steht dort, wo du ihn auf der Live-Seite im Größen-Menü wählst. Das Live-Fenster hat feste Größen, die genau zu Video und Chat passen.")
+                Text("Automatisch: Der Chat steht dort, wo du ihn auf der Live-Seite unter „Chat rechts“ oder „Chat unten“ wählst. Das Fenster wächst mit dem Bild wie ein Videoplayer.")
             }
             Section {
                 Picker("Anzeigen", selection: livePollsBinding) {

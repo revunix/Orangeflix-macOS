@@ -12,23 +12,20 @@ struct LiveScreen: View {
     @Environment(PlaybackCenter.self) private var playback
     @Environment(BrowseModel.self) private var browse
     @Environment(\.displayScale) private var displayScale
-    /// Whether the chat sticks to the newest message. Scrolling up keeps the
-    /// place and offers a jump back down.
+    /// Whether the chat sticks to the newest message. Scrolling up pauses it:
+    /// the place stays, a pill counts what came since and jumps back down.
     @State private var followLatest = true
-    @State private var unreadBelow = false
+    /// The messages that came while the chat was paused.
+    @State private var unreadCount = 0
     @State private var scrollToken = 0
-    /// Whether the pointer is dragging the chat. Layout passes must not
-    /// unpin the newest line; only a real scroll does.
-    @State private var userScrolling = false
+    /// Whether the chat list is moving under the pointer right now.
+    @State private var chatScrolling = false
     /// Whether the reader put the chat away. The page starts as the settings
     /// say; the messages come in the background either way.
     @State private var chatHidden = true
-    /// Where the chat stands when it shows.
     /// The size of the whole page, picture and chat column together; the
     /// automatic placement of the chat follows it.
     @State private var pageSize: CGSize = .zero
-    /// The size of the Live window, chosen in the size menu.
-    @AppStorage("liveWindowSize") private var windowStep: LiveWindowStep = .medium
     /// Where the chat stands in the Live window while the settings leave it
     /// open (`Automatisch`).
     @AppStorage("liveWindowLayout") private var windowLayout: LiveWindowLayout = .side
@@ -39,21 +36,14 @@ struct LiveScreen: View {
     /// The height of the show above the picture.
     @State private var headerHeight: CGFloat = 90
 
-    /// The width of the chat column.
     /// The narrowest chat column; it widens with the window.
     private static let chatWidth: CGFloat = 360
     /// The widest chat column; beyond it the picture would reach its full
     /// height anyway, and the page centres.
     private static let maxChatWidth: CGFloat = 560
-    /// The room the chat needs under the picture; the picture gives way
-    /// before the chat does.
-    /// The room under the picture for the chat at the least: the gap and
-    /// 300 pt of chat. The chat takes all the height beyond it.
-    private static let belowChatRoom: CGFloat = belowChatHeight
-    /// The chat under the picture in the Live window, with the gap above it.
+    /// The room under the picture for the chat that stands there: the gap and
+    /// the chat itself. The picture gives way before the chat does.
     private static let belowChatHeight: CGFloat = Space.l + 420
-    /// The room of the titlebar with the toolbar above the page.
-    private static let titlebarRoom: CGFloat = 60
     /// The page width beside the picture and the chat column: the margins
     /// left, between and right.
     private static let sideGutters: CGFloat = Space.page * 3
@@ -80,8 +70,8 @@ struct LiveScreen: View {
         }
         .onGeometryChange(for: CGSize.self) { $0.size } action: { pageSize = $0 }
         .background(Palette.background)
-        // The Live page has fixed sizes; the window takes the chosen one.
-        .preference(key: FixedPageSizeKey.self, value: fixedPageSize)
+        // The window scales with the picture, like a video player.
+        .preference(key: LivePageGeometryKey.self, value: pageGeometry)
         // The window keeps the navigation pill clear of the chat column.
         .preference(key: TrailingColumnKey.self, value: showsSideChat ? Self.chatWidth : 0)
         .animation(.snappy(duration: 0.25), value: showsSideChat)
@@ -207,7 +197,7 @@ struct LiveScreen: View {
         let header = model.info == nil ? 0 : headerHeight + Space.l
         // Under the picture only the chat takes room; without it the
         // picture reaches down to the margin.
-        let reserved = header + (showsBelowChat ? Self.belowChatRoom : 0)
+        let reserved = header + (showsBelowChat ? Self.belowChatHeight : 0)
         let height = min(width * 9 / 16, max(area.height - Self.margin * 2 - reserved, 220))
         return CGSize(width: height * 16 / 9, height: height)
     }
@@ -276,9 +266,11 @@ struct LiveScreen: View {
 
     /// The voting floating in the upper right corner of the picture. It folds into a small pill; on a short
     /// picture it scrolls instead of reaching over the controls.
-    @ViewBuilder
     private func stagePoll(_ poll: LivePoll, stageHeight: CGFloat) -> some View {
-        Group {
+        // A real container, not a `Group`: a `Group` hands the modifiers
+        // below to both branches, so folding slid the panel up out of the
+        // picture. The panel and the pill trade places in the corner.
+        ZStack(alignment: .topTrailing) {
             if pollCollapsed {
                 Button {
                     pollCollapsed = false
@@ -292,6 +284,7 @@ struct LiveScreen: View {
                 }
                 .buttonStyle(.plain)
                 .help("Abstimmung aufklappen")
+                .transition(Self.pollMorph)
             } else {
                 let room = max(stageHeight - Space.m * 2 - 72, 160)
                 ViewThatFits(in: .vertical) {
@@ -304,12 +297,18 @@ struct LiveScreen: View {
                 }
                 .frame(width: Self.pollWidth)
                 .frame(maxHeight: room, alignment: .top)
+                .transition(Self.pollMorph)
             }
         }
         .padding(Space.m)
         .environment(\.colorScheme, .dark)
         .onChange(of: LivePollVotes.identity(of: poll)) { pollCollapsed = app.settings.livePolls == .collapsed }
     }
+
+    /// How the voting folds into its pill and back: it shrinks into the
+    /// corner it stands in, never moving across the picture.
+    private static let pollMorph: AnyTransition =
+        .opacity.combined(with: .scale(scale: 0.92, anchor: .topTrailing))
 
     /// The show above the picture; its height leaves the picture its room.
     private func measuredHeader(_ info: LivestreamInfo) -> some View {
@@ -406,17 +405,19 @@ struct LiveScreen: View {
             Rectangle()
                 .fill(Palette.divider)
                 .frame(width: hairline, height: 16)
-            sizeMenu
+            windowMenu
         }
         .padding(Space.xxs)
         .glassPlate(in: Capsule())
         .fixedSize()
     }
 
-    /// The sizes of the Live window, and where the chat stands in it.
-    private var sizeMenu: some View {
-        Menu {
-            if app.settings.liveChatPosition == .auto {
+    /// The window: the standard size of the picture and, where the settings
+    /// leave the chat open, the place of the chat beside or under the picture.
+    private var windowMenu: some View {
+        let placementFixed = app.settings.liveChatPosition != .auto
+        return Menu {
+            if !placementFixed {
                 Picker("Chat", selection: Binding(
                     get: { windowLayout },
                     set: { value in withAnimation(.snappy(duration: 0.25)) { windowLayout = value; chatHidden = false } })) {
@@ -424,64 +425,36 @@ struct LiveScreen: View {
                     Label("Unter dem Bild", systemImage: "rectangle.bottomhalf.inset.filled").tag(LiveWindowLayout.below)
                 }
                 .pickerStyle(.inline)
+                Divider()
             }
-            Picker("Größe", selection: $windowStep) {
-                ForEach(LiveWindowStep.allCases, id: \.self) { step in
-                    Text(step.title).tag(step)
-                }
-            }
-            .pickerStyle(.inline)
+            Button("Standardgröße") { LiveWindowSizing.resetStage() }
         } label: {
-            Label(windowStep.title, systemImage: "macwindow")
+            if placementFixed {
+                Label("Fenster", systemImage: "macwindow")
+            } else {
+                Label(windowLayout == .below ? "Chat unten" : "Chat rechts",
+                      systemImage: windowLayout == .below ? "rectangle.bottomhalf.inset.filled" : "sidebar.trailing")
+            }
         }
         .menuStyle(.button)
         .buttonStyle(LiveHeaderButtonStyle())
         .menuIndicator(.hidden)
         .fixedSize()
-        .help("Größe des Fensters und Platz des Chats")
+        .help("Fenster und Platz des Chats")
     }
 
-    /// The page the Live window shows: the picture in the chosen size, the
-    /// chat beside it or under it, so nothing around them stays empty.
-    private var fixedPageSize: CGSize? {
+    /// How the page grows with the picture: what stands around the picture
+    /// in the current layout, and the smallest picture, so the chat and the
+    /// show keep their room.
+    private var pageGeometry: LivePageGeometry {
         let fixed = Self.margin * 2 + (model.info == nil ? 0 : headerHeight + Space.l)
-        let stage = stageHeight(for: windowStep, fixed: fixed)
-        return pageSize(stage: stage, fixed: fixed).map { CGSize(width: $0.width.rounded(), height: $0.height.rounded()) }
-    }
-
-    /// The page for a picture of this height in the current layout.
-    private func pageSize(stage: CGFloat, fixed: CGFloat) -> CGSize? {
-        let width = stage * 16 / 9
         if showsSideChat {
-            return CGSize(width: width + Self.sideGutters + Self.chatWidth, height: fixed + stage)
+            return LivePageGeometry(extraWidth: Self.sideGutters + Self.chatWidth, extraHeight: fixed, minStage: 450)
         }
         if showsBelowChat {
-            return CGSize(width: width + Space.page * 2, height: fixed + stage + Self.belowChatHeight)
+            return LivePageGeometry(extraWidth: Space.page * 2, extraHeight: fixed + Self.belowChatHeight, minStage: 550)
         }
-        return CGSize(width: width + Space.page * 2, height: fixed + stage)
-    }
-
-    /// The height of the picture of a size; the largest fills the screen.
-    private func stageHeight(for step: LiveWindowStep, fixed: CGFloat) -> CGFloat {
-        let largest: CGFloat = {
-            guard let visible = NSScreen.main?.visibleFrame.size else { return 760 }
-            // The titlebar with the toolbar stands above the page.
-            let height = visible.height - Self.titlebarRoom
-            let side = showsSideChat
-            let extraWidth = side ? Self.sideGutters + Self.chatWidth : Space.page * 2
-            let extraHeight = fixed + (showsBelowChat ? Self.belowChatHeight : 0)
-            return min((visible.width - extraWidth) * 9 / 16, height - extraHeight).rounded(.down)
-        }()
-        // Under the picture the window is as wide as the picture, so the
-        // sizes start larger; the smallest still makes a window of 1000 pt.
-        let below = showsBelowChat
-        let wanted: CGFloat = switch step {
-        case .small: below ? 550 : 450
-        case .medium: below ? 650 : 600
-        case .large: below ? 760 : 760
-        case .largest: largest
-        }
-        return max(min(wanted, largest), 300)
+        return LivePageGeometry(extraWidth: Space.page * 2, extraHeight: fixed, minStage: 450)
     }
 
     // MARK: Pieces of the show
@@ -500,9 +473,11 @@ struct LiveScreen: View {
                     if let poll = activePoll {
                         stagePoll(poll, stageHeight: geometry.size.height)
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-                            .transition(.move(edge: .top).combined(with: .opacity))
+                            .transition(.opacity.combined(with: .offset(y: -12)))
                     }
                 }
+                // Nothing of the voting ever reaches past the picture.
+                .clipShape(shape)
             }
             .animation(.snappy(duration: 0.25), value: activePoll != nil)
             .animation(.snappy(duration: 0.25), value: pollCollapsed)
@@ -917,13 +892,21 @@ struct LiveScreen: View {
         .glassPlate(in: shape)
     }
 
-    /// The messages. A reader who scrolled up is not pulled back down; the
-    /// button in the column jumps to the newest line.
+    /// The messages. While the reader is at the bottom the list follows every
+    /// new line; scrolling up pauses it, and the pill at the bottom counts
+    /// what came since and jumps back to the newest line.
     private var messageList: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: Space.xxs) {
-                    ForEach(Array(bubbles.enumerated()), id: \.offset) { _, bubble in
+                // A plain stack: the history is capped, and rows of measured
+                // height keep a bottom-anchored list from jumping the way
+                // the estimates of a lazy stack do with long messages.
+                VStack(alignment: .leading, spacing: Space.xxs) {
+                    // Each run is known by its first message, so a new line
+                    // or a trimmed old one does not hand every row the
+                    // content of its neighbour.
+                    ForEach(bubbles, id: \.key) { bubble in
+                        let bubble = bubble.lines
                         if bubble.count == 1, let line = bubble.first, line.isSystem {
                             systemNote(line)
                                 .snappedToPixels()
@@ -946,45 +929,143 @@ struct LiveScreen: View {
                 .padding(.bottom, Space.s)
             }
             .environment(\.liveChatStyle, chatStyle)
+            .environment(\.liveChatScrolling, chatScrolling)
             .defaultScrollAnchor(.bottom)
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                if unreadBelow, !followLatest {
-                    PillButton(title: "Neueste", symbol: "arrow.down", style: .glass) {
-                        followLatest = true
-                        unreadBelow = false
-                        scrollToken += 1
-                    }
-                    .padding(.bottom, Space.s)
-                }
-            }
             .onScrollPhaseChange { _, phase in
-                userScrolling = phase == .tracking || phase == .interacting || phase == .decelerating
+                let moving = phase.isScrolling
+                if chatScrolling != moving { chatScrolling = moving }
             }
-            .onScrollGeometryChange(for: Bool.self) { geo in
-                guard geo.contentSize.height > geo.containerSize.height + 8 else { return true }
-                return geo.visibleRect.maxY >= geo.contentSize.height - 64
-            } action: { _, atBottom in
-                if atBottom {
-                    followLatest = true
-                    unreadBelow = false
-                } else if userScrolling {
-                    followLatest = false
+            .overlay(alignment: .bottom) {
+                if !followLatest {
+                    pausedPill
+                        .padding(.bottom, Space.s)
+                        .transition(.opacity.combined(with: .offset(y: 8)))
                 }
             }
-            .onChange(of: model.lines.count) { _, _ in
-                if followLatest {
-                    withAnimation(.easeOut(duration: 0.2)) {
-                        proxy.scrollTo("chat-bottom", anchor: .bottom)
-                    }
-                } else {
-                    unreadBelow = true
-                }
+            .animation(.snappy(duration: 0.2), value: followLatest)
+            .animation(.snappy(duration: 0.2), value: unreadCount)
+            .onScrollGeometryChange(for: ChatScrollMetrics.self) { geo in
+                ChatScrollMetrics(offset: geo.contentOffset.y,
+                                  content: geo.contentSize.height,
+                                  container: geo.containerSize.height,
+                                  visibleMaxY: geo.visibleRect.maxY)
+            } action: { old, new in
+                chatScrolled(from: old, to: new, proxy: proxy)
+            }
+            .onChange(of: model.receivedLines) { old, new in
+                newLinesArrived(added: new - old, proxy: proxy)
             }
             .onChange(of: scrollToken) { _, _ in
-                withAnimation(.easeOut(duration: 0.2)) {
+                withAnimation(.easeOut(duration: 0.25)) {
                     proxy.scrollTo("chat-bottom", anchor: .bottom)
                 }
             }
+            .onChange(of: chatHidden) { _, hidden in
+                // A chat that comes back starts at the newest line.
+                guard !hidden else { return }
+                followLatest = true
+                unreadCount = 0
+            }
+        }
+    }
+
+    /// The pill over a paused chat: that it is paused, how much came since,
+    /// and the jump to the newest message.
+    private var pausedPill: some View {
+        Button(action: jumpToLatest) {
+            HStack(spacing: Space.s) {
+                Image(systemName: "pause.fill")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(Palette.textSecondary)
+                Text(unreadCount == 0 ? "Chat pausiert"
+                     : unreadCount == 1 ? "1 neue Nachricht"
+                     : "\(unreadCount > 99 ? "99+" : String(unreadCount)) neue Nachrichten")
+                    .font(AppFont.captionMedium)
+                    .monospacedDigit()
+                    .foregroundStyle(Palette.textPrimary)
+                    .contentTransition(.numericText())
+                    .lineLimit(1)
+                HStack(spacing: 3) {
+                    Text("Neueste")
+                    Image(systemName: "arrow.down")
+                }
+                .font(AppFont.captionMedium.weight(.semibold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, Space.s)
+                .frame(height: 22)
+                .background(Palette.accent, in: Capsule())
+            }
+            .padding(.leading, Space.m)
+            .padding(.trailing, 3)
+            .frame(height: 28)
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .glassPlate(in: Capsule(), interactive: true, quietAppear: true)
+        .shadow(color: .black.opacity(0.18), radius: 8, y: 2)
+        .fixedSize()
+        .help("Zur neuesten Nachricht springen; der Chat läuft dann wieder mit")
+        .accessibilityLabel(unreadCount == 0 ? "Chat pausiert, zur neuesten Nachricht"
+                            : "\(unreadCount) neue Nachrichten, zur neuesten Nachricht")
+    }
+
+    /// Lets the chat follow again and scrolls to the newest message.
+    private func jumpToLatest() {
+        followLatest = true
+        unreadCount = 0
+        scrollToken += 1
+    }
+
+    /// New lines came in: the list follows them, or a paused chat counts
+    /// them. One's own message always brings the list back down.
+    private func newLinesArrived(added: Int, proxy: ScrollViewProxy) {
+        guard !model.lines.isEmpty else {
+            followLatest = true
+            unreadCount = 0
+            return
+        }
+        // The lines that came since the last count, counted by the model
+        // before the history cap drops any of them.
+        let fresh = LiveChatScroll.fresh(model.lines, added: added)
+        guard !fresh.isEmpty else { return }
+        if fresh.contains(where: \.isSelf) {
+            jumpToLatest()
+            return
+        }
+        if followLatest {
+            pinToBottom(proxy)
+        } else {
+            unreadCount += fresh.filter { !$0.isSystem }.count
+        }
+    }
+
+    /// The reader scrolled, or the list changed its size. The rules are in
+    /// `LiveChatScroll`; here the decision only takes effect.
+    private func chatScrolled(from old: ChatScrollMetrics, to new: ChatScrollMetrics, proxy: ScrollViewProxy) {
+        switch LiveChatScroll.action(from: old, to: new, following: followLatest) {
+        case .follow:
+            if !followLatest || unreadCount != 0 {
+                followLatest = true
+                unreadCount = 0
+            }
+        case .pause:
+            // Set once: a scroll reports every frame and must not redraw the
+            // list each time.
+            if followLatest { followLatest = false }
+        case .pin:
+            pinToBottom(proxy)
+        case .keep:
+            break
+        }
+    }
+
+    /// Puts the newest line at the bottom without an animation, so a list
+    /// that grows never shows a half-way scroll.
+    private func pinToBottom(_ proxy: ScrollViewProxy) {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            proxy.scrollTo("chat-bottom", anchor: .bottom)
         }
     }
 
@@ -1062,8 +1143,8 @@ struct LiveScreen: View {
 
     /// The messages of the chat, grouped as in a messenger: the messages of
     /// one sender that follow each other share a bubble.
-    private var bubbles: [[LiveChatLine]] {
-        var runs: [[LiveChatLine]] = []
+    private var bubbles: [ChatRun] {
+        var runs: [ChatRun] = []
         var index = 0
         let lines = model.lines
         while index < lines.count {
@@ -1073,9 +1154,15 @@ struct LiveScreen: View {
                 run.append(lines[next])
                 next += 1
             }
-            runs.append(run)
+            runs.append(ChatRun(key: LiveChatBubble.anchor(run[0], index: index), lines: run))
             index = next
         }
         return runs
     }
+}
+
+/// The messages of one sender that follow each other, known by the first.
+private struct ChatRun {
+    let key: String
+    let lines: [LiveChatLine]
 }

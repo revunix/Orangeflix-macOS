@@ -11,6 +11,8 @@
 ### Suche und Folgennavigation
 - Suchkarten sind großzügiger aufgeteilt: links eine größere 16:9-Vorschau, rechts Titel, Beschreibung und Zeitmarken. Schriftgrößen und Abstände wurden angepasst.
 - Der Eingabefokus wird beim Öffnen der Suche später und ohne zusätzliche Fokusanimation gesetzt; der interaktive Leuchteffekt des umgebenden Glases entfällt.
+- Suchfeld und Filterleiste schweben über den Treffern: Beim Scrollen laufen die Karten unter den Glasflächen hindurch und blenden zum Seitentitel hin weich aus, statt an einer harten Kante zu enden.
+- Die Menüs für Format, Reihenfolge und Person stehen auf demselben Glas wie die Trefferarten und bleiben so über den Karten lesbar. Ein eingrenzender Filter erscheint in der Akzentfarbe.
 - Videokarten in Merkliste, Weiterschauen und ähnlichen Folgen führen zur Folgenseite statt unmittelbar ins separate Player-Fenster. Auch das Merkliste-Regal der Mediathek öffnet die Folgenseite.
 - „Ansehen“ für eine einzelne Folge startet die Wiedergabe auf der Folgenseite. Ausdrückliche Player-Fenster-Aktionen und die Wiedergabe mehrerer ausgewählter Folgen bleiben verfügbar.
 - Merkliste und Weiterschauen besitzen eigene Navigationsverläufe; weiterführende Seiten bleiben im jeweiligen Bereich.
