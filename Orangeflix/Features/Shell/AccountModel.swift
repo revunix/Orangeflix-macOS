@@ -41,6 +41,9 @@ import Observation
     private(set) var progress: [WatchProgressEntry]?
     /// The picture of the account; nil when it has none or it did not load.
     private(set) var avatar: Data?
+    /// The same picture, decoded once, so the Konto page does not decode it
+    /// on every redraw.
+    private(set) var avatarImage: NSImage?
     /// Whether the profile is being loaded.
     private(set) var isLoading = false
     /// The error of the last load.
@@ -96,7 +99,7 @@ import Observation
             profile = nil
             details = nil
             progress = nil
-            avatar = nil
+            rememberAvatar(nil)
         }
         // Without credentials there is nothing to check: the login screen
         // shows and the API would only answer with an error.
@@ -167,11 +170,17 @@ import Observation
             if let (data, response) = try? await URLSession.shared.data(for: request),
                (response as? HTTPURLResponse)?.statusCode == 200,
                data.count <= 2 << 20 {
-                avatar = data
+                rememberAvatar(data)
                 return
             }
         }
-        avatar = await avatarLoader.data(for: answer.chatname)
+        rememberAvatar(await avatarLoader.data(for: answer.chatname))
+    }
+
+    /// Keeps the bytes and the decoded picture together.
+    private func rememberAvatar(_ data: Data?) {
+        avatar = data
+        avatarImage = data.flatMap { NSImage(data: $0) }
     }
 
     /// Re-reads the library formats from the store. `minimumInterval` skips
@@ -210,7 +219,7 @@ import Observation
         profile = nil
         details = nil
         progress = nil
-        avatar = nil
+        rememberAvatar(nil)
         loadError = nil
         authProblem = nil
         expiryWarning = nil

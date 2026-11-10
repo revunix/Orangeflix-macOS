@@ -9,6 +9,13 @@ enum NewEpisodeLogic {
         let episodes: [Episode]
     }
 
+    /// The formats whose new episodes are announced: the chosen ones the
+    /// Mediathek shows. A hidden format keeps its choice and stays quiet
+    /// until it shows again.
+    static func announced(notified: [Int], hidden: [Int]) -> Set<Int> {
+        Set(notified).subtracting(hidden)
+    }
+
     /// The episodes of the chosen formats published after `since`, grouped
     /// by format in the order of their newest episode. Without `since` (the
     /// first check) nothing is new. Episodes without a date never count.

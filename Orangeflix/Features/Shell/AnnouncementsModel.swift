@@ -36,9 +36,6 @@ import Observation
             items = try await app.services.api.announcements(surface: "overview", limit: 10, refresh: force)
             hasLoaded = true
             lastLoadedAt = Date()
-            if !items.isEmpty, app.banner == nil {
-                app.show("\(items.count) Ankündigung(en) · unter „Ankündigungen“ öffnen")
-            }
         } catch is CancellationError {
             return
         } catch {

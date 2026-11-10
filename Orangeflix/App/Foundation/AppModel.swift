@@ -10,7 +10,8 @@ struct LogLine: Identifiable, Hashable, Sendable {
     let isError: Bool
 }
 
-/// A short message shown at the bottom of the window (the TUI's status line).
+/// A short message shown at the top of the active window (the TUI's status
+/// line).
 struct Banner: Identifiable, Hashable, Sendable {
     let id = UUID()
     let text: String
@@ -111,8 +112,13 @@ enum SidebarItem: String, Hashable, CaseIterable, Identifiable, Sendable {
     /// The legacy client (basic auth); rebuilt when the credentials change.
     @ObservationIgnored private(set) var legacy = LegacyAPIClient()
 
-    /// The status message at the bottom of the window.
-    var banner: Banner?
+    /// The status message of the moment; `show` sets it and it hides itself.
+    private(set) var banner: Banner?
+    /// Hides the status message when its time is over.
+    @ObservationIgnored private var bannerTimer: Task<Void, Never>?
+    /// How long a message stays; an error stays longer, it wants to be read.
+    private static let messageLifetime = Duration.seconds(4)
+    private static let errorLifetime = Duration.seconds(8)
     /// The Protokoll, newest last, capped at 500 lines.
     private(set) var log: [LogLine] = []
     @ObservationIgnored private var nextLogID = 0
@@ -390,8 +396,32 @@ enum SidebarItem: String, Hashable, CaseIterable, Identifiable, Sendable {
 
     /// Shows a status message (and logs errors).
     func show(_ text: String, error: Bool = false) {
-        banner = Banner(text: text, isError: error)
-        if error { record(text, error: true) }
+        flash(text, error: error)
+        if error, !text.isEmpty { record(text, error: true) }
+    }
+
+    /// Shows a status message without a line in the Protokoll, for what is
+    /// logged already. The message hides itself after a few seconds; the
+    /// time belongs to the message and not to a window, so it also ends
+    /// while no window shows it.
+    func flash(_ text: String, error: Bool = false) {
+        guard !text.isEmpty else { return }
+        let next = Banner(text: text, isError: error)
+        banner = next
+        bannerTimer?.cancel()
+        bannerTimer = Task { [weak self] in
+            try? await Task.sleep(for: error ? Self.errorLifetime : Self.messageLifetime)
+            guard !Task.isCancelled else { return }
+            self?.dismissBanner(next)
+        }
+    }
+
+    /// Takes the status message away when it is still the one that shows.
+    func dismissBanner(_ shown: Banner) {
+        guard banner?.id == shown.id else { return }
+        banner = nil
+        bannerTimer?.cancel()
+        bannerTimer = nil
     }
 
     /// Shows an error as status message.

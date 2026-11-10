@@ -76,9 +76,9 @@ enum SettingsTransfer {
         try encoder.encode(Backup(settings: exported)).write(to: url, options: .atomic)
     }
 
-    /// Replaces the settings with the ones of a backup. The record of the
-    /// announced episodes stays the one of this Mac.
-    static func importBackup(from url: URL, into app: AppModel) throws -> Result {
+    /// Reads the settings of a backup file. Nothing changes yet: the user
+    /// confirms first, then `applyBackup` takes them over.
+    static func readBackup(from url: URL) throws -> AppSettings {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         guard let data = try? Data(contentsOf: url),
@@ -86,7 +86,13 @@ enum SettingsTransfer {
               backup.format == Backup.kind else {
             throw TransferError.notABackup
         }
-        var next = backup.settings
+        return backup.settings
+    }
+
+    /// Replaces the settings with the ones of a backup. The record of the
+    /// announced episodes stays the one of this Mac.
+    static func applyBackup(_ settings: AppSettings, to app: AppModel) throws -> Result {
+        var next = settings
         next.announcedEpisodes = app.settings.announcedEpisodes
         try app.updateSettings { $0 = next }
         var result = Result()
@@ -193,18 +199,28 @@ enum SettingsTransfer {
     /// Puts the staged library in place of the library of the app. The
     /// previous library is kept as backup, so putting the backup back swaps
     /// the two; the app has to be restarted, because the running app still
-    /// reads the old file.
+    /// reads the old file. When a step fails, the files that already moved
+    /// go back, so the app never stays without its library.
     static func activateLibrary(staging: URL) throws {
         let live = try LibraryStore.defaultURL()
         let backup = try backupURL()
         let manager = FileManager.default
-        for suffix in ["", "-wal", "-shm"] {
-            let target = URL(fileURLWithPath: backup.path + suffix)
-            try? manager.removeItem(at: target)
-            let current = URL(fileURLWithPath: live.path + suffix)
-            guard manager.fileExists(atPath: current.path) else { continue }
-            try manager.moveItem(at: current, to: target)
+        var moved: [(current: URL, target: URL)] = []
+        do {
+            for suffix in ["", "-wal", "-shm"] {
+                let target = URL(fileURLWithPath: backup.path + suffix)
+                try? manager.removeItem(at: target)
+                let current = URL(fileURLWithPath: live.path + suffix)
+                guard manager.fileExists(atPath: current.path) else { continue }
+                try manager.moveItem(at: current, to: target)
+                moved.append((current, target))
+            }
+            try manager.moveItem(at: staging, to: live)
+        } catch {
+            for step in moved.reversed() {
+                try? manager.moveItem(at: step.target, to: step.current)
+            }
+            throw error
         }
-        try manager.moveItem(at: staging, to: live)
     }
 }

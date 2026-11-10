@@ -28,3 +28,6 @@ Vendor/libmpv/include/
 
 # Perch
 .perch/
+
+# Graphify: the local knowledge graph of the sources, rebuilt on demand.
+graphify-out/

@@ -78,6 +78,8 @@ struct MainWindowView: View {
             // Marking many episodes holds the window until the server has
             // processed all of them.
             .overlay { WatchedBatchOverlay() }
+            // What the app just did or could not do, below the toolbar.
+            .overlay(alignment: .top) { StatusBannerView() }
             .tint(Palette.accent)
             .toolbar {
                 ToolbarItem(placement: .navigation) {

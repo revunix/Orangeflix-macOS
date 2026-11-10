@@ -13,6 +13,13 @@ struct NewEpisodeLogicTests {
         return episode
     }
 
+    @Test("a hidden format keeps its choice but is not announced")
+    func hiddenFormatsStayQuiet() {
+        #expect(NewEpisodeLogic.announced(notified: [1, 2, 3], hidden: [2, 9]) == [1, 3])
+        #expect(NewEpisodeLogic.announced(notified: [2], hidden: [2]).isEmpty)
+        #expect(NewEpisodeLogic.announced(notified: [], hidden: [2]).isEmpty)
+    }
+
     @Test("the first check announces nothing")
     func firstCheckIsQuiet() {
         let feed = [episode("a", pid: 1, at: 200)]

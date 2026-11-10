@@ -101,6 +101,10 @@ struct SettingsFormatRow: View {
     /// The main switch of the notifications; off mutes every format.
     let notificationsOn: Bool
 
+    /// Whether a new episode of the format is announced right now: it is
+    /// chosen, it shows in the Mediathek and the main switch is on.
+    private var announces: Bool { notify && notificationsOn && visible }
+
     var body: some View {
         HStack(spacing: Space.m) {
             FormatCover(format: format)
@@ -139,11 +143,15 @@ struct SettingsFormatRow: View {
             .searchAnchor("formats.visible.\(format.pid)")
             SettingsFormatChip(
                 title: "Melden",
-                symbol: notify && notificationsOn ? "bell.fill" : "bell.slash",
-                on: notify && notificationsOn,
+                symbol: announces ? "bell.fill" : "bell.slash",
+                on: announces,
                 help: !visible ? "Ausgeblendete Formate werden nicht gemeldet"
-                    : notify ? "Nicht mehr melden" : "Neue Folgen melden"
-            ) { notify.toggle() }
+                    : announces ? "Nicht mehr melden" : "Neue Folgen melden"
+                // The chip switches what it shows. A chosen format that is
+                // muted by the main switch looks off, so the click turns it
+                // on (which turns the main switch on) instead of dropping
+                // the choice.
+            ) { notify = !announces }
             .disabled(!visible)
             .searchAnchor("formats.notify.\(format.pid)")
         }

@@ -16,6 +16,20 @@ import Observation
     private(set) var isLoading = false
     /// The error of the last attempt.
     private(set) var error: String?
+    /// The account the state belongs to; a new account clears it.
+    @ObservationIgnored private var loadedGeneration: Int?
+    /// Whether a load for `loadedGeneration` has succeeded. An account with
+    /// no links still counts, so opening the page does not ask again.
+    private(set) var hasLoaded = false
+    /// The newest `load`. An older reply is ignored, so a reload that starts
+    /// while one is still running — after a new link, for example — still
+    /// replaces the list.
+    @ObservationIgnored private var loadSerial = 0
+
+    /// Whether the links are missing or belong to another account.
+    var needsLoad: Bool {
+        !hasLoaded || loadedGeneration != app.accountGeneration
+    }
 
     init(app: AppModel) {
         self.app = app
@@ -47,19 +61,37 @@ import Observation
 
     /// Loads the quota and the links of the account.
     func load() async {
-        guard !isLoading else { return }
+        loadSerial += 1
+        let serial = loadSerial
+        // A new account clears the old state first.
+        let generation = app.accountGeneration
+        if loadedGeneration != generation {
+            loadedGeneration = generation
+            hasLoaded = false
+            limit = nil
+            links = []
+            freshLink = nil
+        }
         isLoading = true
         error = nil
-        defer { isLoading = false }
+        defer {
+            if loadSerial == serial { isLoading = false }
+        }
         do {
             try await app.ensureSession()
             async let quota = app.services.api.sharingLimit()
             async let list = app.services.api.sharingLinks()
-            limit = try await quota
-            links = try await list
+            let nextLimit = try await quota
+            let nextLinks = try await list
+            guard serial == loadSerial, generation == app.accountGeneration else { return }
+            limit = nextLimit
+            links = nextLinks
+            hasLoaded = true
+            loadedGeneration = generation
         } catch is CancellationError {
             return
         } catch {
+            guard serial == loadSerial else { return }
             self.error = error.localizedDescription
             app.record("Die Sharing-Links konnten nicht geladen werden: \(error.localizedDescription)", error: true)
         }
@@ -103,7 +135,8 @@ import Observation
     }
 
     /// Checks a sharing code without an account: it names the episode and
-    /// says how many views are left.
+    /// says how many views are left. A check that could not run says so
+    /// too; nil only for an empty code.
     func inspect(code: String) async -> String? {
         let trimmed = code.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
@@ -121,8 +154,7 @@ import Observation
         } catch is CancellationError {
             return nil
         } catch {
-            self.error = error.localizedDescription
-            return nil
+            return "Der Code konnte nicht geprüft werden: \(error.localizedDescription)"
         }
     }
 

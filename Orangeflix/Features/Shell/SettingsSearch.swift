@@ -127,9 +127,9 @@ enum SettingsSearch {
               keywords: "code prüfen link testen"),
 
         // Mitteilungen
-        .init(id: "notifications.test", pane: .general, title: "Testmitteilung senden",
-              section: "Kanäle", keywords: "benachrichtigung test"),
-        .init(id: "notifications.resubscribe", pane: .general,
+        .init(id: "notifications.test", pane: .notifications, title: "Testmitteilung vom Server",
+              section: "Kanäle", keywords: "benachrichtigung test server push"),
+        .init(id: "notifications.resubscribe", pane: .notifications,
               title: "E-Mail-Versand wieder einschalten", section: "Kanäle",
               keywords: "email abmelden wieder anmelden"),
 
@@ -156,6 +156,8 @@ enum SettingsSearch {
               keywords: "auflösung beste hd sd mobil audio"),
         .init(id: "downloads.layout", pane: .downloads, title: "Ablage", section: "Dateien",
               keywords: "layout ordner struktur kompatibel flach"),
+        .init(id: "downloads.submodule", pane: .downloads, title: "Feed-Variante", section: "Dateien",
+              keywords: "rss feed submodule variante"),
         .init(id: "downloads.parallel", pane: .downloads, title: "Gleichzeitig", section: "Tempo",
               keywords: "parallel anzahl"),
         .init(id: "downloads.delay", pane: .downloads, title: "Pause", section: "Tempo",
@@ -186,18 +188,21 @@ enum SettingsSearch {
               keywords: "umfrage abstimmung voting einklappen ausblenden"),
 
         // Formate
-        .init(id: "general.newEpisodes", pane: .general, title: "Neue Folgen melden", section: "Mitteilungen",
-              keywords: "benachrichtigung hinweis"),
-        .init(id: "general.liveNotifications", pane: .general, title: "Livestreams melden", section: "Mitteilungen",
+        .init(id: "general.newEpisodes", pane: .notifications, title: "Neue Folgen melden", section: "Dieser Mac",
+              keywords: "benachrichtigung hinweis mitteilung"),
+        .init(id: "general.liveNotifications", pane: .notifications, title: "Livestreams melden", section: "Dieser Mac",
               keywords: "live stream benachrichtigung mitteilung"),
+        .init(id: "general.chatNotifications", pane: .notifications,
+              title: "Bei Erwähnungen und Reaktionen melden", section: "Dieser Mac",
+              keywords: "chat erwähnung mention reaktion benachrichtigung mitteilung live"),
         .init(id: "formats.background", pane: .general, title: "Im Hintergrund weiterlaufen", section: "Im Hintergrund",
               keywords: "menüleiste dock hintergrund geschlossen mitteilung"),
         .init(id: "formats.login", pane: .general, title: "Bei der Anmeldung starten", section: "Im Hintergrund",
               keywords: "autostart anmeldeobjekt login start"),
-        .init(id: "general.testNotifications", pane: .general, title: "Testmitteilung senden", section: "Mitteilungen",
-              keywords: "benachrichtigung test"),
-        .init(id: "general.allowNotifications", pane: .general, title: "In den Systemeinstellungen erlauben",
-              section: "Mitteilungen", keywords: "benachrichtigung erlaubnis"),
+        .init(id: "general.testNotifications", pane: .notifications, title: "Testmitteilung dieses Macs",
+              section: "Dieser Mac", keywords: "benachrichtigung test lokal"),
+        .init(id: "general.allowNotifications", pane: .notifications, title: "In den Systemeinstellungen erlauben",
+              section: "Dieser Mac", keywords: "benachrichtigung erlaubnis"),
         .init(id: "formats.showAll", pane: .formats, title: "Alle Formate anzeigen", section: "Formate",
               keywords: "formate einblenden"),
         .init(id: "formats.hideAll", pane: .formats, title: "Alle Formate ausblenden", section: "Formate",
@@ -243,7 +248,11 @@ enum SettingsSearch {
         .init(id: "about.independence", pane: .about, title: "Keine Verbindung zur Plattform",
               section: "Unabhängigkeit", keywords: "unabhängig inoffiziell disclaimer keine verbindung orangeflix.de plattform rechtliches"),
         .init(id: "about.license", pane: .about, title: "Lizenz", section: "Lizenz",
-              keywords: "mit quelltext urheberrecht copyright bedingungen"),
+              keywords: "mit quelltext urheberrecht copyright bedingungen freigabe"),
+        .init(id: "about.sparkle", pane: .about, title: "Updates", section: "Bestandteile",
+              keywords: "sparkle updater aktualisierung"),
+        .init(id: "about.libmpv", pane: .about, title: "Wiedergabe", section: "Bestandteile",
+              keywords: "libmpv mpv player bibliothek"),
     ]
 }
 

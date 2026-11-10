@@ -320,7 +320,7 @@ import Observation
             }
             summary?.failed += 1
             if summary?.firstFailure == nil { summary?.firstFailure = message }
-            app.banner = Banner(text: message, isError: true)
+            app.flash(message, error: true)
         case .cancelled(let id, _, let label):
             update(id) {
                 if $0.file == nil { $0.label = label }
