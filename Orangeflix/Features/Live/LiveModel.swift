@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Observation
 
@@ -40,6 +41,10 @@ import Observation
     /// The name the server gives the own messages.
     private(set) var selfName = ""
 
+    /// Announces a mention or a reaction of the chat; the container wires it
+    /// to the notification center of the app.
+    @ObservationIgnored var notify: (@MainActor (_ title: String, _ body: String) -> Void)?
+
     @ObservationIgnored private var session: ChatSession?
     @ObservationIgnored private var sessionTask: Task<Void, Never>?
     @ObservationIgnored private let avatarLoader = LiveAvatarLoader()
@@ -53,9 +58,6 @@ import Observation
     /// Increases with every chat start and close; a stale start closes its
     /// connection instead of publishing it.
     @ObservationIgnored private var chatGeneration = 0
-    /// Whether the open Live screen wants the chat: a show with chat runs.
-    /// A lost chat comes back on its own while it is true.
-    @ObservationIgnored private var wantsChat = false
     /// The pending new attempt to connect the chat.
     @ObservationIgnored private var retryTask: Task<Void, Never>?
     /// The attempts since the chat last connected; the wait grows with them.
@@ -72,24 +74,68 @@ import Observation
         self.app = app
     }
 
+    // MARK: The chat of the moment
+
+    /// Whether the app watches the chat for mentions and reactions even
+    /// while the Live page is not showing. The setting is on by default.
+    private var watchesChat: Bool { app.settings.chatNotificationsOn && app.hasCredentials }
+
+    /// Whether the chat of the moment can be shown: during a show only when
+    /// the show has one; without a show the room stays open, as on the web
+    /// page.
+    private var chatAvailable: Bool {
+        guard let info else { return true }
+        if info.isLive { return info.show?.chat == true }
+        return true
+    }
+
+    /// Whether the chat should be connected right now: a Live screen wants
+    /// it, or the app watches it for notifications.
+    private var chatWanted: Bool {
+        if watchesChat { return true }
+        return screens > 0 && chatAvailable
+    }
+
+    /// Starts the background chat: with the setting on, the chat stays open
+    /// so mentions and reactions reach the Mac even when the Live page is
+    /// closed. Called once at launch, after the credentials are read.
+    func start() {
+        guard chatWanted else { return }
+        Task { await syncChat() }
+    }
+
+    /// The chat notifications were switched: connect or drop the background
+    /// chat.
+    func settingsChanged() async {
+        if chatWanted {
+            await syncChat()
+        } else if screens == 0 || !chatAvailable {
+            await close()
+        }
+    }
+
+    /// Opens the chat when it should be connected and is not.
+    private func syncChat() async {
+        guard chatWanted, !isChatConnected, session == nil,
+              startsInFlight == 0, retryTask == nil else { return }
+        await startChat()
+    }
+
     // MARK: Loading
 
-    /// Reads the live state and opens the chat when a show runs (Go
-    /// `loadLive` and `LiveMsg`).
+    /// Reads the live state and opens the chat the page wants (Go `loadLive`
+    /// and `LiveMsg`).
     /// - Parameter force: asks the API even when the state is fresh (the
     ///   toolbar's refresh).
     func load(force: Bool = false) async {
         loadToken += 1
         let token = loadToken
         // A section switch inside the TTL keeps the state and the chat.
-        if !force, let info, let lastLoadedAt,
+        if !force, info != nil, let lastLoadedAt,
            Date().timeIntervalSince(lastLoadedAt) <= CacheTTL.live {
             // The state is fresh, but the screen closed the chat when it
-            // was left: open it again.
-            if info.isLive, info.show?.chat == true {
-                wantsChat = true
-                if session == nil { await startChat() }
-            }
+            // was left: open it again, or keep it for the background.
+            if chatWanted, session == nil { await startChat() }
             return
         }
         isLoading = true
@@ -99,10 +145,9 @@ import Observation
             guard token == loadToken else { return }
             info = state
             lastLoadedAt = Date()
-            if state.isLive, let show = state.show, show.chat {
-                wantsChat = true
+            if chatWanted {
                 if !isChatConnected {
-                    lines.removeAll()
+                    if chatAvailable { lines.removeAll() }
                     await startChat()
                     // A newer load owns the state now; the chat opened here
                     // belongs to nobody.
@@ -111,7 +156,6 @@ import Observation
                     }
                 }
             } else {
-                wantsChat = false
                 await closeChat()
             }
         } catch {
@@ -139,8 +183,9 @@ import Observation
         }
     }
 
-    /// Reads only whether a show runs, for the dot in the navigation. It
-    /// opens no chat and stays quiet on errors; the Live screen does both.
+    /// Reads only whether a show runs, for the dot in the navigation, and
+    /// keeps the background chat going; it stays quiet on errors, the Live
+    /// screen reports them.
     func checkStatus() async {
         guard !isLoading else { return }
         do {
@@ -149,6 +194,7 @@ import Observation
         } catch {
             // The next round tries again.
         }
+        await syncChat()
     }
 
     /// A Live screen shows. A close that waits for the last screen is off.
@@ -159,7 +205,8 @@ import Observation
     }
 
     /// A Live screen went. The chat closes a moment later when no screen
-    /// came back; a screen that is only rebuilt keeps its chat.
+    /// came back; a screen that is only rebuilt keeps its chat. With the
+    /// chat notifications on it stays for the background.
     func screenDisappeared() {
         screens = max(0, screens - 1)
         guard screens == 0 else { return }
@@ -168,23 +215,22 @@ import Observation
             try? await Task.sleep(for: .seconds(1))
             guard let self, !Task.isCancelled, self.screens == 0 else { return }
             self.closeTask = nil
+            guard !self.chatWanted else { return }
             await self.close()
         }
     }
 
-    /// Opens the chat when a show with chat runs, a screen shows and no
-    /// connect runs or waits. The screen calls it every few seconds, so a
-    /// connect that was cut off on its way never leaves the chat hanging.
+    /// Opens the chat when the page wants it and no connect runs or waits.
+    /// The screen calls it every few seconds, so a connect that was cut off
+    /// on its way never leaves the chat hanging.
     func ensureChat() async {
-        guard screens > 0, wantsChat, !isChatConnected, session == nil,
-              startsInFlight == 0, retryTask == nil else { return }
-        await startChat()
+        guard screens > 0 else { return }
+        await syncChat()
     }
 
     /// Closes the chat; the screen calls it when it is left (Go
     /// `closeChat`).
     func close() async {
-        wantsChat = false
         retryTask?.cancel()
         retryTask = nil
         await closeChat()
@@ -247,14 +293,14 @@ import Observation
     /// Connects the chat again after a wait that grows with every failure
     /// (2, 4, 8 … up to 30 seconds), while the screen wants it.
     private func scheduleReconnect() {
-        guard wantsChat, retryTask == nil else { return }
+        guard chatWanted, retryTask == nil else { return }
         let delay = min(pow(2, Double(retryCount + 1)), 30)
         retryCount += 1
         retryTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(delay))
             guard let self, !Task.isCancelled else { return }
             self.retryTask = nil
-            guard self.wantsChat, !self.isChatConnected else { return }
+            guard self.chatWanted, !self.isChatConnected else { return }
             await self.startChat()
         }
     }
@@ -265,7 +311,7 @@ import Observation
         let token = chatGeneration
         Task { [weak self] in
             try? await Task.sleep(for: .seconds(10))
-            guard let self, token == self.chatGeneration, self.wantsChat, !self.isChatConnected else { return }
+            guard let self, token == self.chatGeneration, self.chatWanted, !self.isChatConnected else { return }
             await self.startChat()
         }
     }
@@ -292,6 +338,9 @@ import Observation
         switch event {
         case .message(let message):
             append(message)
+            if shouldNotify(mention: message) { notifyMention(message) }
+        case .history(let messages):
+            for message in messages { append(message) }
         case .status(let text):
             chatStatus = text
             if text.hasSuffix(" im Chat") { chatPeople = text }
@@ -359,6 +408,35 @@ import Observation
         loadAvatar(for: chat)
     }
 
+    // MARK: Notifications
+
+    /// Whether a chat notification may pop up: only with the setting on, and
+    /// not while the reader has the Live page in front, where the chat is
+    /// on screen anyway.
+    private var shouldNotifyChat: Bool {
+        guard app.settings.chatNotificationsOn else { return false }
+        return !(screens > 0 && NSApp.isActive)
+    }
+
+    /// Whether a live message mentions the account.
+    private func shouldNotify(mention message: ChatMessage) -> Bool {
+        guard shouldNotifyChat, !message.isSelf, !message.isPinned, !selfName.isEmpty else { return false }
+        return ChatNotifications.mentions(message.text, name: selfName)
+    }
+
+    /// Announces a mention of the account.
+    private func notifyMention(_ message: ChatMessage) {
+        notify?("Im Chat erwähnt", ChatNotifications.mentionBody(from: message.from, text: message.text))
+    }
+
+    /// Announces a reaction of someone else on an own message.
+    private func notifyReaction(_ update: ChatReactionUpdate, line: LiveChatLine) {
+        notify?("Reaktion auf deine Nachricht",
+                ChatNotifications.reactionBody(actor: update.actor,
+                                               emoji: reactionEmoji(update.emoji),
+                                               text: line.text))
+    }
+
     // MARK: The composer
 
     /// Sends the text of the composer (Go `sendChat`).
@@ -416,8 +494,8 @@ import Observation
 
     /// Answers a message of the chat (Go `ReplyChat`).
     func startReply(to line: LiveChatLine) {
-        guard isChatConnected, info?.isLive == true else {
-            app.show("Antworten geht nur im verbundenen Live-Chat.", error: true)
+        guard isChatConnected else {
+            app.show("Antworten geht nur im verbundenen Chat.", error: true)
             return
         }
         replyTarget = line
@@ -456,7 +534,7 @@ import Observation
             return
         }
         guard isChatConnected, let session else {
-            app.show("Reagieren geht nur im verbundenen Live-Chat.", error: true)
+            app.show("Reagieren geht nur im verbundenen Chat.", error: true)
             return
         }
         let active = !lines[index].mine.contains(key)
@@ -511,10 +589,16 @@ import Observation
 
     /// Takes over one change of the reactions (Go `applyReactionChange`).
     private func applyReactionChange(_ update: ChatReactionUpdate) {
-        LiveChatLogic.applyReactionChange(
+        let before = lines.first { $0.id == update.messageID }
+        let applied = LiveChatLogic.applyReactionChange(
             LiveReactionChange(messageID: update.messageID, cursor: update.cursor, emoji: update.emoji,
                                count: update.count, active: update.active, isSelf: update.isSelf),
             to: &lines)
+        // Someone else reacted to an own message while the chat is not in
+        // front: tell the reader.
+        if applied, update.active, !update.isSelf, let before, before.isSelf, shouldNotifyChat {
+            notifyReaction(update, line: before)
+        }
     }
 
     /// The emoji of a reaction key (Go `reactionEmoji`).

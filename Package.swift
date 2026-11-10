@@ -31,6 +31,7 @@ let package = Package(
                 "Core/Download/MediaNaming.swift",
                 "Core/Live/LiveHTML.swift",
                 "Core/Live/LiveHTMLEntities.swift",
+                "Core/Live/ChatNotifications.swift",
                 "Core/Persistence/MainWindowFrameLogic.swift",
                 "Features/Browse/RecentsDismissal.swift",
                 "Features/Browse/SearchPointerLogic.swift",

@@ -161,7 +161,7 @@ struct LiveChatBubble: View {
     /// The menu of a message (Go `chatMenu`).
     @ViewBuilder
     private func menu(for line: LiveChatLine) -> some View {
-        if model.isChatConnected, model.info?.isLive == true, !line.isReplay, !line.id.isEmpty {
+        if model.isChatConnected, !line.isReplay, !line.id.isEmpty {
             Button("Antworten") { model.startReply(to: line) }
             if !line.isSelf {
                 ForEach(ChatReactions.keys, id: \.self) { key in
@@ -312,9 +312,9 @@ struct LiveChatActionBar: View {
     @Bindable var model: LiveModel
     let line: LiveChatLine
 
-    /// Answers and reactions need a connected live chat and a server id.
+    /// Answers and reactions need a connected chat and a server id.
     private var interactive: Bool {
-        model.isChatConnected && model.info?.isLive == true && !line.isReplay && !line.id.isEmpty && !line.isSystem
+        model.isChatConnected && !line.isReplay && !line.id.isEmpty && !line.isSystem
     }
 
     var body: some View {

@@ -153,6 +153,10 @@ struct AppSettings: Codable, Sendable, Hashable {
     var announcedEpisodes: [String: Double] = [:]
     /// Whether a starting livestream sends a notification.
     var liveNotificationsOn = false
+    /// Whether a mention or a reaction in the live chat sends a notification.
+    /// With this on the chat stays connected in the background, so the
+    /// mentions arrive while the Live page is closed.
+    var chatNotificationsOn = true
     /// The show of the last livestream announced, so it pops up only once.
     var announcedLiveShow = ""
     /// Whether the app keeps running in the menu bar after its window
@@ -236,7 +240,7 @@ struct AppSettings: Codable, Sendable, Hashable {
     // MARK: Codable
 
     private enum CodingKeys: String, CodingKey {
-        case quality, streamQuality, layout, submodule, parallel, delay, limitKiB, thumb, meta, theme, lightThemeID, darkThemeID, lightExtendedPalette, darkExtendedPalette, importedThemes, subtitlesOn, hiddenMagazines, notifiedMagazines, notificationsOn, announcedEpisodes, liveNotificationsOn, announcedLiveShow, runsInBackground, dismissedRecents, liveChatOpen, liveChatStart, liveChatPosition = "liveChatPlacement", livePolls, liveChatTextSize, liveChatAvatars, liveChatTimes, interfaceStyle, tintWithTheme, glassPanels, appIcon
+        case quality, streamQuality, layout, submodule, parallel, delay, limitKiB, thumb, meta, theme, lightThemeID, darkThemeID, lightExtendedPalette, darkExtendedPalette, importedThemes, subtitlesOn, hiddenMagazines, notifiedMagazines, notificationsOn, announcedEpisodes, liveNotificationsOn, chatNotificationsOn, announcedLiveShow, runsInBackground, dismissedRecents, liveChatOpen, liveChatStart, liveChatPosition = "liveChatPlacement", livePolls, liveChatTextSize, liveChatAvatars, liveChatTimes, interfaceStyle, tintWithTheme, glassPanels, appIcon
     }
 
     /// Decodes leniently: a missing or invalid field keeps its default, so a
@@ -290,6 +294,7 @@ struct AppSettings: Codable, Sendable, Hashable {
         if let value = try? container.decode(Bool.self, forKey: .notificationsOn) { notificationsOn = value }
         if let value = try? container.decode([String: Double].self, forKey: .announcedEpisodes) { announcedEpisodes = value }
         if let value = try? container.decode(Bool.self, forKey: .liveNotificationsOn) { liveNotificationsOn = value }
+        if let value = try? container.decode(Bool.self, forKey: .chatNotificationsOn) { chatNotificationsOn = value }
         if let value = try? container.decode(String.self, forKey: .announcedLiveShow) { announcedLiveShow = value }
         if let value = try? container.decode(Bool.self, forKey: .runsInBackground) { runsInBackground = value }
         if let value = try? container.decode([String: Double].self, forKey: .dismissedRecents) { dismissedRecents = value }
@@ -333,6 +338,7 @@ struct AppSettings: Codable, Sendable, Hashable {
         try container.encode(notificationsOn, forKey: .notificationsOn)
         try container.encode(announcedEpisodes, forKey: .announcedEpisodes)
         try container.encode(liveNotificationsOn, forKey: .liveNotificationsOn)
+        try container.encode(chatNotificationsOn, forKey: .chatNotificationsOn)
         try container.encode(announcedLiveShow, forKey: .announcedLiveShow)
         try container.encode(runsInBackground, forKey: .runsInBackground)
         try container.encode(dismissedRecents, forKey: .dismissedRecents)

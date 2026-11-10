@@ -16,6 +16,8 @@ struct ChatMessage: Sendable, Hashable {
     var isAdmin: Bool = false
     /// Written by the logged-in account.
     var isSelf: Bool = false
+    /// The pinned message of the room, not a message of a reader.
+    var isPinned: Bool = false
 }
 
 /// The reactions of one message at a cursor of the server.
@@ -38,6 +40,9 @@ struct ChatReactionUpdate: Sendable, Hashable {
     var active: Bool
     /// The account made the change.
     var isSelf: Bool
+    /// The name of the account that made the change; empty when the server
+    /// did not name it.
+    var actor: String = ""
 }
 
 /// A voting of the live show.
@@ -77,8 +82,11 @@ struct ChatPoll: Sendable, Hashable {
 
 /// One event of a chat session.
 enum ChatEvent: Sendable, Hashable {
-    /// A chat message (live, from the history, or the pinned one).
+    /// A live chat message, or the pinned one.
     case message(ChatMessage)
+    /// The messages of the history that came with the connect. They are not
+    /// new and never a notification.
+    case history([ChatMessage])
     /// A connection state in German ("Chat verbunden", "12 im Chat", …).
     case status(String)
     /// A chat failure.

@@ -16,7 +16,7 @@
     "„it should work“ · Deutschland" : {
 
     },
-    "„Mediathek“ zeigt ein Format in der Mediathek; die Bibliothek bleibt. „Melden“ schickt eine Mitteilung, sobald eine neue Folge erscheint. Ausgeblendete Formate werden nicht gemeldet." : {
+    "„Mediathek“ zeigt ein Format in der Mediathek; die Bibliothek bleibt. „Melden“ schickt eine Mitteilung, sobald eine neue Folge erscheint. Ausgeblendete Formate werden nicht gemeldet; ihre Auswahl gilt wieder, sobald sie angezeigt werden." : {
 
     },
     "„Zu Ende gesehen“ zählt Folgen ab 90 Prozent. Bibliothek und neue Folgen stammen aus der Bibliothek der App." : {
@@ -274,6 +274,12 @@
     "Alle anzeigen: %@" : {
 
     },
+    "Alle Einstellungen werden durch die der Sicherung ersetzt." : {
+
+    },
+    "Alle Emojis (⌃⌘Leertaste)" : {
+
+    },
     "Alle Folgen herunterladen?" : {
 
     },
@@ -361,6 +367,9 @@
     "Auf ~/Downloads/Orangeflix zurücksetzen" : {
 
     },
+    "Auf der Live-Seite wählen" : {
+
+    },
     "Auf der Merkliste" : {
 
     },
@@ -400,9 +409,6 @@
     "Automatisch nach Updates suchen" : {
 
     },
-    "Automatisch: Der Chat steht dort, wo du ihn auf der Live-Seite unter „Chat rechts“ oder „Chat unten“ wählst. Das Fenster wächst mit dem Bild wie ein Videoplayer." : {
-
-    },
     "Automatische Suchen erfolgen im gewählten Intervall, solange Orangeflix läuft. Vor der Installation prüft der Updater die Signatur des Downloads; die Versionshinweise erscheinen im Update-Fenster." : {
 
     },
@@ -418,6 +424,9 @@
     "Bei der Anmeldung starten" : {
 
     },
+    "Bei Erwähnungen und Reaktionen melden" : {
+
+    },
     "Beim Öffnen zeigen" : {
 
     },
@@ -428,6 +437,9 @@
 
     },
     "Beschreibung" : {
+
+    },
+    "Bestandteile" : {
 
     },
     "Bibliothek" : {
@@ -449,6 +461,12 @@
 
     },
     "Chat pausiert, zur neuesten Nachricht" : {
+
+    },
+    "Chat rechts" : {
+
+    },
+    "Chat unten" : {
 
     },
     "Chatname" : {
@@ -491,6 +509,9 @@
 
     },
     "Dateien" : {
+
+    },
+    "Dazu gehören die Themes und die Auswahl der Formate. Anmeldung und Speicherort bleiben. Die jetzigen Einstellungen lassen sich nur mit einer eigenen Sicherung zurückholen." : {
 
     },
     "Dein Vorschlag wartet auf die Entscheidung." : {
@@ -556,10 +577,16 @@
     "Die Anmeldung erfolgt im Hauptfenster." : {
 
     },
+    "Die Anmeldung erfolgt im Hauptfenster. Die Mitteilungen dieses Macs oben gelten auch ohne Konto." : {
+
+    },
+    "Die Anmeldung erfolgt im Hauptfenster. Ein Code lässt sich auch ohne Anmeldung prüfen." : {
+
+    },
     "Die App greift auf die Schnittstellen von Orangeflix.de zu und braucht dafür ein Konto dort. Für Inhalte, Zugänge und Bedingungen ist der Anbieter verantwortlich, nicht dieses Programm." : {
 
     },
-    "Die App prüft alle 15 Minuten die neuesten Folgen und alle 2 Minuten, ob ein Livestream läuft. Ein Klick auf eine Mitteilung öffnet das Format oder die Live-Seite." : {
+    "Die App prüft alle 15 Minuten die neuesten Folgen und alle 2 Minuten, ob ein Livestream läuft. Mit den Chat-Mitteilungen bleibt der Live-Chat verbunden, auch wenn die Live-Seite geschlossen ist. Ein Klick auf eine Mitteilung öffnet das Format oder die Live-Seite." : {
 
     },
     "Die ausgeschalteten Kategorien bleiben im Haupt-Feed aus." : {
@@ -578,6 +605,9 @@
 
     },
     "Die Datei von „%@“ wird gelöscht." : {
+
+    },
+    "Die Ereignisse konnten nicht geladen werden." : {
 
     },
     "Die Folgen konnten nicht geladen werden." : {
@@ -604,6 +634,9 @@
     "Die Lieferadresse des Kontos für den Versand." : {
 
     },
+    "Die Links konnten nicht geladen werden." : {
+
+    },
     "Die Links werden geladen …" : {
 
     },
@@ -611,9 +644,6 @@
 
     },
     "Die Liste konnte nicht gelesen werden." : {
-
-    },
-    "Die Qualität der Datei, die auf die Platte geht. Die Ablage legt einen Ordner je Folge an." : {
 
     },
     "Die Sitzungen konnten nicht gelesen werden." : {
@@ -625,7 +655,7 @@
     "Die Suche ist fehlgeschlagen." : {
 
     },
-    "Die Version der Texte bestimmt der Server; die App bestätigt die aktuelle." : {
+    "Die Version der Texte bestimmt der Server; die App bestätigt die aktuelle. Der Wortlaut steht auf orangeflix.de." : {
 
     },
     "Die Werte selbst bleiben auf dem Server; die App erfährt nur, ob welche hinterlegt sind." : {
@@ -638,6 +668,9 @@
 
     },
     "diese Sitzung" : {
+
+    },
+    "Dieser Mac" : {
 
     },
     "Du kannst eigene Kapitel für diese Folge vorschlagen. Über die Aufnahme entscheidet der Server." : {
@@ -664,10 +697,16 @@
     "Eingeklappt" : {
 
     },
+    "Eingeschaltet verschwindet Orangeflix beim Schließen des Fensters aus dem Dock und bleibt als Symbol in der Menüleiste. Ausgeschaltet bleibt die App im Dock und meldet von dort weiter. Mit ⌘Q beendet, meldet sie nichts mehr." : {
+
+    },
     "Einstellungen" : {
 
     },
     "Einstellungen …" : {
+
+    },
+    "Einstellungen ersetzen" : {
 
     },
     "Eintrag ändern …" : {
@@ -679,13 +718,10 @@
     "Einzeln erhältlich für %@" : {
 
     },
-    "Alle Emojis (⌃⌘Leertaste)" : {
-
-        },
-        "Schnell-Emojis" : {
+    "Ende" : {
 
     },
-    "Ende" : {
+    "Entfernen" : {
 
     },
     "Entwickelt von" : {
@@ -733,6 +769,15 @@
     "Feed-Filter" : {
 
     },
+    "Feed-Variante" : {
+
+    },
+    "Fenster" : {
+
+    },
+    "Fenster und Platz des Chats" : {
+
+    },
     "Fenstergröße" : {
 
     },
@@ -766,7 +811,7 @@
     "Formate suchen" : {
 
     },
-    "Freigabe" : {
+    "Formate wählen …" : {
 
     },
     "Für diese Folge fehlt der Zugang" : {
@@ -800,6 +845,9 @@
 
     },
     "Geladen" : {
+
+    },
+    "Gemeldete Formate" : {
 
     },
     "Gemerkt" : {
@@ -859,16 +907,13 @@
     "Herunterladen" : {
 
     },
-    "Hier stehen Geräte, die für Push-Mitteilungen des Servers registriert sind – nicht alle angemeldeten Sitzungen. Die Mitteilungen dieser Mac-App werden separat unter „Mitteilungen“ eingerichtet." : {
+    "Hier stehen Geräte, die für Push-Mitteilungen des Servers registriert sind, nicht die Mitteilungen, die diese App selbst anzeigt." : {
 
     },
     "Im Finder zeigen" : {
 
     },
     "Im Forum besprechen" : {
-
-    },
-    "Auf der Live-Seite wählen" : {
 
     },
     "Im Hintergrund" : {
@@ -902,9 +947,6 @@
 
     },
     "Inhalte und Zugang" : {
-
-    },
-    "Integriert" : {
 
     },
     "Jahr angeben" : {
@@ -991,6 +1033,9 @@
     "Kennung kopieren" : {
 
     },
+    "KiB/s" : {
+
+    },
     "Klassisch füllt Leisten und Panels mit einer ruhigen Fläche, Glas zeichnet sie durchscheinend. Ohne „Mit Theme einfärben“ bleiben die Flächen des Themes, der Akzent bleibt das Orangeflix-Orange." : {
 
     },
@@ -1037,6 +1082,9 @@
 
     },
     "Lautstärke" : {
+
+    },
+    "libmpv" : {
 
     },
     "Lieferadresse" : {
@@ -1096,6 +1144,9 @@
     "Melde dich mit deinem Orangeflix-Konto an." : {
 
     },
+    "Meldung schließen" : {
+
+    },
     "Merken" : {
 
     },
@@ -1105,13 +1156,13 @@
     "MIT" : {
 
     },
+    "Mit „Auf der Live-Seite wählen“ steht der Chat dort, wo du ihn auf der Live-Seite unter „Chat rechts“ oder „Chat unten“ hinstellst. Das Fenster wächst mit dem Bild wie ein Videoplayer." : {
+
+    },
     "Mit „Qualität wählen“ werden die Qualitäten geladen." : {
 
     },
     "Mit Theme einfärben" : {
-
-    },
-    "Mitteilungen" : {
 
     },
     "Monatlich" : {
@@ -1165,6 +1216,9 @@
     "Neue Versionen mit Änderungen und Fehlerbehebungen abrufen." : {
 
     },
+    "Neue Versionen sucht und installiert Sparkle; vor der Installation wird die Signatur geprüft. Folgen und Livestreams spielt die mitgelieferte Bibliothek libmpv." : {
+
+    },
     "Neuer Link" : {
 
     },
@@ -1216,6 +1270,12 @@
     "Oberflächenstil" : {
 
     },
+    "Öffnet die Allgemeinen Geschäftsbedingungen im Browser" : {
+
+    },
+    "Öffnet die Datenschutzerklärung im Browser" : {
+
+    },
     "Ohne" : {
 
     },
@@ -1265,9 +1325,6 @@
 
     },
     "Pfad kopieren" : {
-
-    },
-    "Fenster und Platz des Chats" : {
 
     },
     "PLZ" : {
@@ -1330,15 +1387,6 @@
     "Rechtliches" : {
 
     },
-    "Chat rechts" : {
-
-        },
-        "Fenster" : {
-
-        },
-        "Standardgröße" : {
-
-    },
     "Rechts neben dem Bild" : {
 
     },
@@ -1360,16 +1408,25 @@
     "Schließt du das Fenster, verschwindet Orangeflix aus dem Dock und bleibt als Symbol in der Menüleiste, damit Mitteilungen weiter ankommen. Beim Start nach der Anmeldung öffnet sich kein Fenster. Mit ⌘Q beendet, meldet die App nichts mehr." : {
 
     },
+    "Schnell-Emojis" : {
+
+    },
     "Schriftgröße" : {
 
     },
     "Sehr groß" : {
 
     },
+    "Sekunden" : {
+
+    },
     "Senden" : {
 
     },
     "Senden (↩)" : {
+
+    },
+    "Server" : {
 
     },
     "sichtbar" : {
@@ -1387,6 +1444,9 @@
     "Softwareupdate" : {
 
     },
+    "Sparkle" : {
+
+    },
     "Speichern" : {
 
     },
@@ -1397,6 +1457,9 @@
 
     },
     "Standard" : {
+
+    },
+    "Standardgröße" : {
 
     },
     "Start" : {
@@ -1435,13 +1498,16 @@
     "Tempolimit" : {
 
     },
-    "Testmitteilung senden" : {
+    "Testmitteilung dieses Macs" : {
+
+    },
+    "Testmitteilung vom Server" : {
 
     },
     "Text kopieren" : {
 
     },
-    "Theme entfernen" : {
+    "Text lesen" : {
 
     },
     "Theme importieren" : {
@@ -1480,13 +1546,13 @@
     "Unbenutzter Link" : {
 
     },
-    "Chat unten" : {
-
-    },
     "Unter dem Bild" : {
 
     },
     "Unter den geladenen Treffern ist keiner dieser Art." : {
+
+    },
+    "Updates" : {
 
     },
     "Updates für Orangeflix for Mac" : {

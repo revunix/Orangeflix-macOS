@@ -129,11 +129,14 @@ final class NewEpisodeWatcher {
         }
     }
 
-    /// Reads the permission and asks for it when the app may still ask.
-    func refreshPermission() async {
+    /// Reads the permission. With `ask` the app also asks for it when it
+    /// may still ask; without, an open question stays open (the settings
+    /// page reads the state when the app comes back to the front).
+    func refreshPermission(ask: Bool = true) async {
         let settings = await center.notificationSettings()
         switch settings.authorizationStatus {
         case .notDetermined:
+            guard ask else { return }
             do {
                 isAllowed = try await center.requestAuthorization(options: [.alert, .sound])
             } catch {
@@ -144,6 +147,8 @@ final class NewEpisodeWatcher {
         case .denied:
             isAllowed = false
         default:
+            // The refusal is over; what it left on the settings page goes.
+            if !isAllowed { lastError = nil }
             isAllowed = true
         }
     }
@@ -161,7 +166,27 @@ final class NewEpisodeWatcher {
             lastError = "Mitteilungen sind in den Systemeinstellungen für Orangeflix nicht erlaubt."
             return
         }
+        // An older error does not outlive a test that works; `post` names
+        // a new one.
+        lastError = nil
         await post(title: "Orangeflix", body: "Mitteilungen sind eingeschaltet.")
+    }
+
+    /// Announces a mention or a reaction of the live chat. A click opens the
+    /// Live page, like the livestream notification.
+    func notifyChat(title: String, body: String) {
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.sound = .default
+        content.threadIdentifier = "chat"
+        content.userInfo = ["live": true]
+        let request = UNNotificationRequest(identifier: "chat-" + UUID().uuidString, content: content, trigger: nil)
+        center.add(request) { [weak self] error in
+            guard let error else { return }
+            let text = error.localizedDescription
+            Task { @MainActor in self?.lastError = text }
+        }
     }
 
     /// The key in `announcedEpisodes` that holds the publication time of
@@ -175,7 +200,7 @@ final class NewEpisodeWatcher {
     /// after the last check. The first check only notes the time, so
     /// nothing old pops up.
     func check() async {
-        guard app.settings.notificationsOn, !app.settings.notifiedMagazines.isEmpty else { return }
+        guard app.settings.notificationsOn, !announcedFormats.isEmpty else { return }
         do {
             try await app.ensureSession()
         } catch {
@@ -197,7 +222,7 @@ final class NewEpisodeWatcher {
         let newest = episodes.compactMap { $0.date?.timeIntervalSince1970 }.max()
         guard let newest else { return }
         let since = app.settings.announcedEpisodes[Self.watermarkKey]
-        let fresh = NewEpisodeLogic.fresh(episodes, since: since, formats: Set(app.settings.notifiedMagazines))
+        let fresh = NewEpisodeLogic.fresh(episodes, since: since, formats: announcedFormats)
         for group in fresh {
             logger.notice("Neue Folgen: \(group.formatName, privacy: .public) (\(group.episodes.count, privacy: .public))")
             await post(group)
@@ -206,6 +231,11 @@ final class NewEpisodeWatcher {
             // Only the watermark stays; the keys of the old catalog check go.
             try? app.updateSettings { $0.announcedEpisodes = [Self.watermarkKey: max(newest, since ?? 0)] }
         }
+    }
+
+    /// The chosen formats the Mediathek shows; see `NewEpisodeLogic.announced`.
+    private var announcedFormats: Set<Int> {
+        NewEpisodeLogic.announced(notified: app.settings.notifiedMagazines, hidden: app.settings.hiddenMagazines)
     }
 
     private func post(_ group: NewEpisodeLogic.Group) async {

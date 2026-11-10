@@ -327,7 +327,7 @@ enum ChatWire {
             let whole = count < 9.2e18 && count > -9.2e18 ? Int(count) : (count > 0 ? Int.max : 0)
             return ChatReactionUpdate(
                 messageID: messageID, cursor: id, emoji: emoji, count: max(0, whole),
-                active: active, isSelf: !username.isEmpty && actor == username
+                active: active, isSelf: !username.isEmpty && actor == username, actor: actor
             )
         } catch {
             return nil

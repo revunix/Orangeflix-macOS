@@ -224,11 +224,10 @@ actor ChatSession {
             }
         case "shorthistory":
             guard let messages = ChatWire.history(data, username: username) else { return }
+            let visible = messages.filter { $0.to != "HOST" }
             var ids: [String] = []
-            for message in messages where message.to != "HOST" {
-                push(.message(message))
-                if !message.id.isEmpty { ids.append(message.id) }
-            }
+            for message in visible where !message.id.isEmpty { ids.append(message.id) }
+            if !visible.isEmpty { push(.history(visible)) }
             // The reactions of the history are not part of the messages.
             Task { await self.fetchReactions(ids) }
         case "newVoting":
@@ -245,7 +244,8 @@ actor ChatSession {
         case "pinnedmsg":
             let text = ChatWire.pinnedText(data)
             if !text.isEmpty {
-                push(.message(ChatMessage(from: "Angeheftet", text: text, time: Date(), isAdmin: true)))
+                push(.message(ChatMessage(from: "Angeheftet", text: text, time: Date(),
+                                         isAdmin: true, isPinned: true)))
             }
         case "userlist":
             if let count = ChatWire.userCount(data) {

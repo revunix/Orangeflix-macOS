@@ -1134,11 +1134,11 @@ struct LiveScreen: View {
             }
             return "Der Chat-Mitschnitt läuft mit dem Video mit; die Nachrichten erscheinen an ihrer Stelle."
         }
-        guard model.info?.isLive == true else { return "Den Chat gibt es während einer Livesendung." }
-        if model.info?.show?.chat == true {
-            return model.isChatConnected ? "Noch keine Nachrichten." : "Verbinde mit dem Chat …"
+        if model.info?.isLive == true, model.info?.show?.chat == false {
+            return "Für diese Sendung ist kein Chat eingeschaltet."
         }
-        return "Für diese Sendung ist kein Chat eingeschaltet."
+        // Without a show the room stays open, as on the web page.
+        return model.isChatConnected ? "Noch keine Nachrichten." : "Verbinde mit dem Chat …"
     }
 
     /// The messages of the chat, grouped as in a messenger: the messages of

@@ -66,5 +66,10 @@ import Observation
             app?.selection = .live
             background?.showMainWindow()
         }
+        // A mention or a reaction of the chat is announced by the watcher;
+        // a click on it opens the Live page too.
+        live.notify = { [weak watcher] title, body in
+            watcher?.notifyChat(title: title, body: body)
+        }
     }
 }

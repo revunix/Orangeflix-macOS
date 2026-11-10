@@ -285,11 +285,13 @@ enum LiveChatLogic {
 
     /// Takes over one change of the server (Go `applyReactionChange`). The
     /// count of the server is the total, so a change that arrives twice does
-    /// no harm.
-    static func applyReactionChange(_ change: LiveReactionChange, to lines: inout [LiveChatLine]) {
-        guard let index = lines.firstIndex(where: { $0.id == change.messageID }) else { return }
+    /// no harm. - Returns: Whether the change was newer than the state the
+    /// line had and was applied.
+    @discardableResult
+    static func applyReactionChange(_ change: LiveReactionChange, to lines: inout [LiveChatLine]) -> Bool {
+        guard let index = lines.firstIndex(where: { $0.id == change.messageID }) else { return false }
         if !lines[index].cursor.isEmpty,
-           ChatReactions.compareCursor(change.cursor, lines[index].cursor) <= 0 { return }
+           ChatReactions.compareCursor(change.cursor, lines[index].cursor) <= 0 { return false }
         if change.count > 0 {
             lines[index].reactions[change.emoji] = change.count
         } else {
@@ -303,6 +305,7 @@ enum LiveChatLogic {
             }
         }
         lines[index].cursor = change.cursor
+        return true
     }
 
     /// The reactions of a message in the order of the display (Go

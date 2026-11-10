@@ -143,7 +143,10 @@ import SwiftUI
         // The checks need no window: start them here, not in the window.
         Task {
             await container.app.start()
-            if container.app.hasCredentials { container.watcher.start() }
+            if container.app.hasCredentials {
+                container.watcher.start()
+                container.live.start()
+            }
         }
     }
 
