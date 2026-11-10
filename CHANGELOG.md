@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.2.5 – 2026-11-10
+
+### Live und Chat
+- Der Chat ist auch ohne laufenden Livestream verfügbar.
+- Mitteilungen informieren über Erwähnungen und Reaktionen auf eigene Nachrichten, auch wenn die Live-Seite geschlossen ist.
+
+### Einstellungen
+- Die Einstellungen sind in übersichtliche Bereiche mit eigener Suche und Navigation aufgeteilt.
+- Mitteilungen für Folgen, Livestreams und den Live-Chat lassen sich getrennt einrichten.
+
 ## 1.2.4 – 2026-11-09
 
 ### Suche
