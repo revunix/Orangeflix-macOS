@@ -10,6 +10,9 @@
     "— Aktiv" : {
 
     },
+    "·" : {
+
+    },
     "„%@“ aus dem Verlauf entfernen" : {
 
     },
@@ -41,16 +44,6 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "%1$@ · %2$@"
-          }
-        }
-      }
-    },
-    "%@ / %@" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@ / %2$@"
           }
         }
       }
@@ -168,7 +161,7 @@
         }
       }
     },
-    "+%lld" : {
+    "+%lld weitere" : {
 
     },
     "~/" : {
@@ -246,6 +239,9 @@
     "Aktionen" : {
 
     },
+    "Aktuelle Wiedergabe in Discord anzeigen" : {
+
+    },
     "Alexander" : {
 
     },
@@ -286,6 +282,9 @@
     "Alle Folgen mit %@" : {
 
     },
+    "Alle Folgen von %@" : {
+
+    },
     "Alle Formate" : {
 
     },
@@ -320,6 +319,12 @@
 
     },
     "Angaben" : {
+
+    },
+    "Angaben ausblenden" : {
+
+    },
+    "Angaben einblenden" : {
 
     },
     "Angelegt am %@" : {
@@ -430,7 +435,7 @@
     "Beim Öffnen zeigen" : {
 
     },
-    "Beliebteste Stellen" : {
+    "Beliebteste Stellen:" : {
 
     },
     "Benutzer" : {
@@ -442,6 +447,9 @@
     "Bestandteile" : {
 
     },
+    "Bestätigungscode" : {
+
+    },
     "Bibliothek" : {
 
     },
@@ -449,6 +457,9 @@
 
     },
     "Bibliothek prüfen" : {
+
+    },
+    "Bild-in-Bild beenden und zurück zur Wiedergabe wechseln" : {
 
     },
     "Chat" : {
@@ -514,7 +525,7 @@
     "Dazu gehören die Themes und die Auswahl der Formate. Anmeldung und Speicherort bleiben. Die jetzigen Einstellungen lassen sich nur mit einer eigenen Sicherung zurückholen." : {
 
     },
-    "Dein Vorschlag wartet auf die Entscheidung." : {
+    "Dein Kapitel-Vorschlag wartet auf die Entscheidung." : {
 
     },
     "Dein Vorschlag wurde abgelehnt." : {
@@ -673,7 +684,10 @@
     "Dieser Mac" : {
 
     },
-    "Du kannst eigene Kapitel für diese Folge vorschlagen. Über die Aufnahme entscheidet der Server." : {
+    "Discord Rich Presence" : {
+
+    },
+    "Download läuft" : {
 
     },
     "Durchsuchen" : {
@@ -682,10 +696,13 @@
     "E-Mail" : {
 
     },
-    "E-Mail und Passwort bleiben nur auf diesem Mac." : {
+    "E-Mail-Adresse" : {
 
     },
     "E-Mail-Versand wieder einschalten" : {
+
+    },
+    "Eigene Kapitel für diese Folge vorschlagen" : {
 
     },
     "Ein inoffizielles Zusatzprogramm für macOS, um die Mediathek eines Orangeflix.de-Kontos am Schreibtisch zu nutzen." : {
@@ -787,10 +804,16 @@
     "Filter leeren" : {
 
     },
+    "Filtertext leeren" : {
+
+    },
     "Folge öffnen" : {
 
     },
     "Folgen als gesehen oder ungesehen markieren" : {
+
+    },
+    "Folgen filtern …" : {
 
     },
     "Folgen öffnen" : {
@@ -800,6 +823,9 @@
 
     },
     "Format" : {
+
+    },
+    "Format „%@“ öffnen" : {
 
     },
     "Format, zum Beispiel „Mediathek“" : {
@@ -820,7 +846,7 @@
     "Für diese Folge fehlt der Zugang." : {
 
     },
-    "Für diese Folge kannst du keine Kapitel vorschlagen." : {
+    "Für diese Folge liegen noch keine Kapitel vor. Du kannst eigene Kapitel vorschlagen." : {
 
     },
     "Für diese Folge sind keine Dateien bekannt." : {
@@ -857,6 +883,9 @@
 
     },
     "Geräte aktualisieren" : {
+
+    },
+    "Gesamtlänge zeigen" : {
 
     },
     "gesehen" : {
@@ -940,10 +969,16 @@
     "In den Systemeinstellungen erlauben" : {
 
     },
+    "In der Bibliothek" : {
+
+    },
     "In der eingestellten Qualität laden" : {
 
     },
     "In diesem Format gibt es nichts dazu." : {
+
+    },
+    "In Standard-App öffnen" : {
 
     },
     "Inhalte und Zugang" : {
@@ -976,9 +1011,6 @@
     "Kapitel · %@" : {
 
     },
-    "Kapitel bearbeiten" : {
-
-    },
     "Kapitel hinzufügen" : {
 
     },
@@ -992,9 +1024,6 @@
 
     },
     "Kein Format passt zu „%@“." : {
-
-    },
-    "Keine Ankündigungen." : {
 
     },
     "Keine Einstellungen" : {
@@ -1013,9 +1042,6 @@
 
     },
     "Keine offene Folge." : {
-
-    },
-    "Keine Termine in der nächsten Zeit." : {
 
     },
     "Keine Treffer" : {
@@ -1078,6 +1104,9 @@
     "Läuft ab" : {
 
     },
+    "Läuft im Bild-in-Bild" : {
+
+    },
     "Läuft im Player-Fenster" : {
 
     },
@@ -1103,6 +1132,9 @@
 
     },
     "Link zum Teilen erstellen" : {
+
+    },
+    "Link-Button zur Folge oder zum Livestream zeigen" : {
 
     },
     "Links" : {
@@ -1268,6 +1300,9 @@
 
     },
     "Oberflächenstil" : {
+
+    },
+    "Öffnen" : {
 
     },
     "Öffnet die Allgemeinen Geschäftsbedingungen im Browser" : {
@@ -1567,9 +1602,6 @@
     "Version %@" : {
 
     },
-    "Verstrichene Zeit zeigen" : {
-
-    },
     "Versuche einen anderen oder kürzeren Begriff." : {
 
     },
@@ -1601,16 +1633,10 @@
         }
       }
     },
-    "Vorschaubild" : {
-
-    },
     "Vorschaubild speichern" : {
 
     },
     "Vorschaubild und Angaben als JSON landen neben dem Video." : {
-
-    },
-    "Wähle eine Ankündigung." : {
 
     },
     "Weitere Aktionen" : {
@@ -1640,10 +1666,13 @@
     "Wiedergabe" : {
 
     },
-    "Wiedergabe öffnen" : {
+    "Wiedergabetempo" : {
 
     },
     "Wiederherstellen …" : {
+
+    },
+    "Willkommen zurück" : {
 
     },
     "Wird angemeldet …" : {
@@ -1655,7 +1684,13 @@
     "Wohin die Downloads geschrieben werden." : {
 
     },
+    "Zeigt wie bei Spotify an, was du gerade auf Orangeflix ansiehst – inklusive Cover, Live-Fortschrittsbalken, aktuellem Kapitel und Direktlink zur Folge oder zum Livestream." : {
+
+    },
     "Zeitleiste" : {
+
+    },
+    "Zugangsdaten bleiben im Schlüsselbund dieses Macs." : {
 
     },
     "ZULETZT ANGEFANGEN" : {
@@ -1682,7 +1717,10 @@
     "Zurück (⌘[)" : {
 
     },
-    "Zurück zu heute" : {
+    "Zurück zum aktuellen Monat" : {
+
+    },
+    "Zurück zur laufenden Wiedergabe" : {
 
     },
     "Zusatz" : {

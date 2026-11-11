@@ -1,4 +1,14 @@
 # Changelog
+## 1.2.6 – 2026-11-11
+
+### Wiedergabe
+- Der Player erhält eine überarbeitete Oberfläche und zusätzliche Wiedergabesteuerung.
+- Bild-in-Bild lässt sich nativ starten und beenden.
+- Discord Rich Presence zeigt auf Wunsch die aktuelle Folge oder den Livestream.
+
+### Mediathek und Darstellung
+- Folgen-, Format-, Kalender- und Ankündigungsansichten wurden überarbeitet.
+- Download-Fortschritt und Status sind in der Warteschlange besser sichtbar.
 
 ## 1.2.5 – 2026-11-10
 

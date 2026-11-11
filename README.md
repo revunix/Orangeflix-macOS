@@ -21,7 +21,8 @@ Die App wird privat von [Alexander (@revunix)](https://github.com/revunix) entwi
 ### Wiedergabe und Live
 
 - Folgen mit dem integrierten, auf [mpv](https://mpv.io/) basierenden Player abspielen.
-- Kapitel, Untertitel und Vollbild nutzen, sofern die jeweiligen Inhalte verfügbar sind.
+- Kapitel, Untertitel, Vollbild und natives Bild-in-Bild nutzen, sofern verfügbar.
+- Auf Wunsch zeigt Discord Rich Presence die aktuelle Folge oder den Livestream.
 - Livestreams ansehen und den Chat unter dem Video oder daneben platzieren. Bei Sendungen mit Umfragen werden diese im Live-Bereich angezeigt.
 
 ### Downloads und Einstellungen
@@ -50,7 +51,7 @@ Die App wird privat von [Alexander (@revunix)](https://github.com/revunix) entwi
 
 Für die Nutzung benötigst du **macOS 15 oder neuer**, eine Internetverbindung und ein Orangeflix-Konto. Die bereitgestellten Release-Builds sind für Macs mit **Apple Silicon** vorgesehen.
 
-1. Lade die aktuelle Version **1.2.5** (`Orangeflix-for-Mac.zip`) von den [GitHub Releases](https://github.com/revunix/Orangeflix-macOS/releases/latest) herunter. Die Änderungen stehen im [Changelog](CHANGELOG.md).
+1. Lade die aktuelle Version **1.2.6** (`Orangeflix-for-Mac.zip`) von den [GitHub Releases](https://github.com/revunix/Orangeflix-macOS/releases/latest) herunter. Die Änderungen stehen im [Changelog](CHANGELOG.md).
 2. Entpacke das Archiv und verschiebe `Orangeflix.app` in den Ordner **Programme**.
 3. Starte die App und melde dich mit der E-Mail-Adresse und dem Passwort deines Orangeflix-Kontos an. Wenn für dein Konto die Zwei-Faktor-Anmeldung aktiviert ist, gib zusätzlich den Code aus deiner Authenticator-App ein.
 
