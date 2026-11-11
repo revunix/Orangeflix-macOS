@@ -222,6 +222,13 @@ struct AppTheme: Codable, Hashable, Sendable, Identifiable {
         swatches: ["7C766C", "F0A9A2", "F19100", "F5B04C", "7FD69E", "8FBDE8", "B79AE0", "F19100"])
 
     static let builtInLight: [AppTheme] = [
+        // Neutral grays, from near-white to concrete.
+        built("snow-white", "Schneeweiß", dark: false, "FAFAFA", "141414", "C27400"),
+        built("silver", "Silber", dark: false, "F0F0F0", "1C1C1E", "0A64D6"),
+        built("fog-gray", "Nebelgrau", dark: false, "E6E6E6", "1F1F1F", "C27400"),
+        built("pebble", "Kiesel", dark: false, "E9E6E2", "26231F", "A0522D"),
+        built("pewter", "Zinn", dark: false, "D5D9DE", "1E2329", "3A6EA5"),
+        built("concrete", "Beton", dark: false, "D9D9D9", "1A1A1A", "B85C00"),
         built("alpine-milk", "Alpenmilch", dark: false, "EEF2F6", "1E2A36", "3A7BD5"),
         built("buttercream-diner", "Butterkeks", dark: false, "FBF1D6", "3B2F20", "D9622B"),
         built("coastal-linen", "Küstenleinen", dark: false, "E7F0EF", "1D3335", "2A8C9E"),
@@ -233,6 +240,13 @@ struct AppTheme: Codable, Hashable, Sendable, Identifiable {
     ]
 
     static let builtInDark: [AppTheme] = [
+        // Neutral blacks and grays, from pure black to ash.
+        built("obsidian", "Obsidian", dark: true, "000000", "EDEDED", "F19100"),
+        built("carbon", "Karbon", dark: true, "121212", "E0E0E0", "0A84FF"),
+        built("graphite", "Graphit", dark: true, "1C1C1E", "E5E5EA", "F19100"),
+        built("smoky-quartz", "Rauchquarz", dark: true, "1F1D1C", "E6E1DC", "E0A458"),
+        built("slate", "Schiefer", dark: true, "22262B", "D8DDE3", "5AC8FA"),
+        built("ash", "Asche", dark: true, "2A2A2A", "ECECEC", "FF9F0A"),
         built("abyssal-trench", "Tiefseegraben", dark: true, "0B1622", "D6E4F0", "2BD4B4"),
         built("basalt-shore", "Basaltküste", dark: true, "1A1D1E", "D5D9D6", "8FBF8F"),
         built("cathode-amber", "Kathodenbernstein", dark: true, "14100A", "F2D9A6", "FFB000"),
