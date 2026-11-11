@@ -145,7 +145,7 @@ struct SettingsScreen: View {
     @State private var previousLibrary: Date?
 
     /// Default frame of the redesigned Settings window.
-    static let windowSize = CGSize(width: 840, height: 700)
+    static let windowSize = CGSize(width: 1000, height: 720)
 
     var body: some View {
         NavigationSplitView {
@@ -195,7 +195,7 @@ struct SettingsScreen: View {
                 select(group.pane)
             }
         }
-        .frame(minWidth: 760, idealWidth: Self.windowSize.width,
+        .frame(minWidth: 920, idealWidth: Self.windowSize.width,
                minHeight: 540, idealHeight: Self.windowSize.height)
         .tint(themeColor(.accent))
         .environment(\.interfaceStyle, app.settings.interfaceStyle)
@@ -498,7 +498,7 @@ struct SettingsScreen: View {
                 .padding(.horizontal, Space.page)
                 .padding(.top, Space.l)
                 .padding(.bottom, Space.xxl)
-                .frame(maxWidth: 680, alignment: .leading)
+                .frame(maxWidth: 760, alignment: .leading)
                 .frame(maxWidth: .infinity, alignment: .top)
             }
             .id("\(pane.rawValue)-\(pane == .account ? accountTab.rawValue : "")")
