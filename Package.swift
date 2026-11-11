@@ -36,6 +36,7 @@ let package = Package(
                 "Features/Browse/RecentsDismissal.swift",
                 "Features/Browse/SearchPointerLogic.swift",
                 "Features/Live/LiveChatScroll.swift",
+                "Features/Playback/DiscordPresenceLogic.swift",
                 "Features/Playback/PlaybackLogic.swift",
             ]
         ),

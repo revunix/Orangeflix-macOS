@@ -9,19 +9,21 @@ struct RemoteArt: View {
     let url: String
     var symbol = "film"
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var image: NSImage?
     @State private var failed = false
 
     var body: some View {
         ZStack {
+            Palette.surfaceMuted
             if let image {
                 Image(nsImage: image)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
+                    .transition(.opacity)
             } else if failed {
                 placeholder
-            } else {
-                Palette.surfaceMuted
+                    .transition(.opacity)
             }
         }
         .task(id: url) {
@@ -31,10 +33,19 @@ struct RemoteArt: View {
                 failed = true
                 return
             }
+            let started = ContinuousClock.now
             let loaded = await ImageCache.shared.image(for: address)
             guard !Task.isCancelled else { return }
-            image = loaded
-            failed = loaded == nil
+            let waited = ContinuousClock.now - started > .milliseconds(25)
+            if waited && !reduceMotion {
+                withAnimation(.easeOut(duration: 0.22)) {
+                    image = loaded
+                    failed = loaded == nil
+                }
+            } else {
+                image = loaded
+                failed = loaded == nil
+            }
         }
     }
 
@@ -289,9 +300,14 @@ struct EpisodeRowCard: View {
     let badge: BrowseEpisodeBadge
     let percent: Int
     var downloaded = false
+    var bookmarked = false
     /// Search hits come from every series, so the series name belongs on the row.
     var showsFormat = false
+    var onBookmark: (() -> Void)? = nil
+    var onDownload: (() -> Void)? = nil
     var onPlay: () -> Void
+
+    @State private var hovering = false
 
     var body: some View {
         HStack(alignment: .top, spacing: Space.l) {
@@ -316,13 +332,55 @@ struct EpisodeRowCard: View {
                     Text(episode.description)
                         .font(AppFont.bodySmall)
                         .foregroundStyle(Palette.textSecondary)
-                        .lineLimit(3)
+                        .lineLimit(2)
                 }
-                BrowseBadgeView(badge: badge)
+                HStack(spacing: Space.xs) {
+                    BrowseBadgeView(badge: badge)
+                    if bookmarked {
+                        BrandPill(text: "Gemerkt", color: Palette.accentText, background: Palette.accentSoft)
+                    }
+                }
             }
             Spacer(minLength: 0)
+            if onBookmark != nil || onDownload != nil {
+                HStack(spacing: Space.xs) {
+                    if let onBookmark {
+                        rowAction(
+                            symbol: bookmarked ? "bookmark.fill" : "bookmark",
+                            help: bookmarked ? "Von der Merkliste nehmen" : "Auf die Merkliste setzen",
+                            tinted: bookmarked,
+                            action: onBookmark)
+                    }
+                    if let onDownload {
+                        rowAction(
+                            symbol: downloaded ? "arrow.down.circle.fill" : "arrow.down.circle",
+                            help: downloaded ? "Bereits geladen" : "Herunterladen",
+                            tinted: downloaded,
+                            action: onDownload)
+                    }
+                }
+                .opacity(hovering || bookmarked ? 1 : 0)
+                .frame(maxHeight: .infinity, alignment: .center)
+            }
         }
-        .padding(.vertical, Space.s)
+        .padding(Space.m)
+        .onHover { hovering = $0 }
+        .animation(.easeOut(duration: 0.14), value: hovering)
+    }
+
+    private func rowAction(symbol: String, help: String, tinted: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(tinted ? Palette.accentText : Palette.textSecondary)
+                .frame(width: 32, height: 32)
+                .background(Palette.surfaceRaised, in: Circle())
+                .overlay { Circle().strokeBorder(Palette.border, lineWidth: 1) }
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .help(help)
+        .accessibilityLabel(help)
     }
 
     private var meta: String {
@@ -577,7 +635,8 @@ struct HeroBanner<Actions: View>: View {
                     HStack(spacing: Space.m) { actions }
                         .padding(.top, Space.xs)
                 }
-                .padding(Space.xl)
+                .padding(.horizontal, Space.page)
+                .padding(.vertical, Space.xl)
             }
             .overlay(alignment: .bottom) {
                 if backdrop == nil {
@@ -598,6 +657,7 @@ struct HeroBanner<Actions: View>: View {
 struct FormatTile: View {
     let format: Format
     let count: String
+    var inLibrary = false
 
     @State private var hovering = false
 
@@ -610,9 +670,22 @@ struct FormatTile: View {
                 }
                 .clipShape(RoundedRectangle(cornerRadius: Radius.m))
                 .overlay(alignment: .topLeading) {
-                    if format.newEpisode {
-                        BrandPill(text: "NEU", color: .white, background: Palette.accent)
-                            .padding(Space.s)
+                    if format.newEpisode || inLibrary {
+                        HStack(spacing: Space.xs) {
+                            if format.newEpisode {
+                                BrandPill(text: "NEU", color: .white, background: Palette.accent)
+                            }
+                            if inLibrary {
+                                Image(systemName: "books.vertical.fill")
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundStyle(.white)
+                                    .frame(width: 22, height: 22)
+                                    .background(.black.opacity(0.58), in: Circle())
+                                    .overlay { Circle().strokeBorder(.white.opacity(0.18), lineWidth: 1) }
+                                    .help("In der Bibliothek")
+                            }
+                        }
+                        .padding(Space.s)
                     }
                 }
                 .overlay {

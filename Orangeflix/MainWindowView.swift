@@ -10,6 +10,8 @@ struct MainWindowView: View {
     @Environment(BrowseModel.self) private var browse
     @Environment(AccountModel.self) private var account
     @Environment(LiveModel.self) private var live
+    @Environment(DownloadCenter.self) private var downloads
+    @Environment(PlaybackCenter.self) private var playback
     @Environment(NewEpisodeWatcher.self) private var watcher
     @Environment(AnnouncementsModel.self) private var announcements
     @Environment(CalendarModel.self) private var calendar
@@ -25,6 +27,8 @@ struct MainWindowView: View {
     /// True while content runs under the toolbar after scrolling, so a
     /// fading scrim keeps the bar and the logo readable.
     @State private var titlebarScrolled = false
+    /// True while an inline video stage is visible on the open page.
+    @State private var inlineStageVisible = false
     /// True while the reload runs, so the button shows it.
     @State private var reloading = false
     /// The width of the navigation pill in the middle of the toolbar.
@@ -90,7 +94,10 @@ struct MainWindowView: View {
                     NavPill(items: sections,
                             current: app.selection,
                             motion: pillMotion,
+                            ink: titlebarInk,
+                            lightOnDarkGlass: heroUnderTitlebar || colorScheme == .dark,
                             showsLiveDot: { $0 == .live && live.info?.isLive == true },
+                            downloadProgress: { $0 == .downloads ? downloads.overallProgress : nil },
                             onSelect: { app.selection = $0 })
                     // The pill keeps the width its words need. Otherwise the
                     // toolbar squeezes it, the measured width shrinks with
@@ -101,6 +108,11 @@ struct MainWindowView: View {
                     .padding(.horizontal, 2)
                     .modifier(ToolbarPill())
                     .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { pillWidth = $0 }
+                }
+                if playback.isInPiP {
+                    ToolbarItem(placement: .primaryAction) {
+                        NowPlayingView(ink: titlebarInk)
+                    }
                 }
                 // No flat item here: from macOS 26 on the pill sits in the
                 // same glass of the toolbar as the buttons on the right, so
@@ -151,10 +163,17 @@ struct MainWindowView: View {
             .onPreferenceChange(TitlebarScrimKey.self) { titlebarScrolled = $0 }
             .onPreferenceChange(TrailingColumnKey.self) { trailingColumn = $0 }
             .onPreferenceChange(LivePageGeometryKey.self) { livePage = $0 }
+            .onPreferenceChange(InlineStageVisibleKey.self) { visible in
+                inlineStageVisible = visible
+                playback.updateInlineStageVisibility(visible)
+            }
 
             .task {
                 // Notifications reopen the window through this after it closed.
                 app.openMainWindow = { [openWindow] in openWindow(id: MainWindowSize.sceneID) }
+                playback.onReturnFromPiP = { [app, browse] entry in
+                    navigateToPlaybackSource(entry, app: app, browse: browse)
+                }
                 await app.start()
                 started = true
             }
@@ -187,13 +206,33 @@ struct MainWindowView: View {
     private var windowFloor: CGFloat {
         guard pillWidth > 0 else { return 0 }
         // The pill stands in the middle of the toolbar; the brand button and
-        // the three buttons on the right need their room beside it. Without
-        // it the toolbar squeezes the pill and its words break apart.
-        let toolbar = pillWidth + 260
+        // the buttons on the right need their room beside it.
+        let toolbar = pillWidth + (playback.isInPiP ? 430 : 260)
         guard app.selection == .live, trailingColumn > 0 else { return toolbar }
         let needed = max(toolbar, (2 * (trailingColumn + Space.l) + pillWidth).rounded(.up))
         let screen = NSScreen.main?.visibleFrame.width ?? needed
         return min(needed, screen)
+    }
+
+    private func navigateToPlaybackSource(_ entry: PlaybackEntry, app: AppModel, browse: BrowseModel) {
+        switch entry.kind {
+        case .live, .replay:
+            app.selection = .live
+        case .episode:
+            guard let episode = entry.episode else { return }
+            let route = BrowseRoute.episode(episode, autoplay: false)
+            switch app.selection {
+            case .formats, .search, .recents, .bookmarks:
+                if browse.navigationPath.last != route {
+                    browse.navigationPath.append(route)
+                }
+            default:
+                app.selection = .formats
+                if browse.formatsPath.last != route {
+                    browse.formatsPath.append(route)
+                }
+            }
+        }
     }
 
     /// The smallest window of the open page.
@@ -372,8 +411,14 @@ private struct NavPill: View {
     let current: SidebarItem
     /// The widths and the slide; they outlive this view.
     let motion: PillMotion
+    /// Ink color matching the right-hand toolbar items.
+    let ink: Color
+    /// True when sitting on dark appearance or over a dark hero banner.
+    let lightOnDarkGlass: Bool
     /// Whether a section shows the red dot of a running show.
     let showsLiveDot: (SidebarItem) -> Bool
+    /// Active download progress (0…1) for the Downloads item.
+    var downloadProgress: (SidebarItem) -> Double? = { _ in nil }
     /// Called with the section that was clicked.
     let onSelect: (SidebarItem) -> Void
 
@@ -396,7 +441,10 @@ private struct NavPill: View {
             HStack(spacing: 0) {
                 ForEach(items, id: \.0) { item, title in
                     ToolbarSection(title: title, isCurrent: item == current,
-                                   showsLiveDot: showsLiveDot(item)) {
+                                   ink: ink,
+                                   lightOnDarkGlass: lightOnDarkGlass,
+                                   showsLiveDot: showsLiveDot(item),
+                                   downloadProgress: downloadProgress(item)) {
                         select(item)
                     }
                     .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width in
@@ -429,15 +477,15 @@ private struct NavPill: View {
         onSelect(item)
     }
 
-    /// The chosen section as a capsule.
+    /// The chosen section as a luminous glass-matched capsule.
     private func capsule(at place: PillPlace) -> some View {
         Capsule()
-            .fill(Palette.surface)
+            .fill(lightOnDarkGlass ? Color.white.opacity(0.14) : Palette.surface.opacity(0.86))
             .overlay {
-                // A soft edge: in the light theme the surface and the glass
-                // are the same white, and without the edge the chosen
-                // section would vanish.
-                Capsule().strokeBorder(Palette.textPrimary.opacity(0.14), lineWidth: 1)
+                Capsule().strokeBorder(
+                    lightOnDarkGlass ? Color.white.opacity(0.20) : Palette.textPrimary.opacity(0.12),
+                    lineWidth: 1
+                )
             }
             .frame(width: place.width, height: Self.capsuleHeight)
             .offset(x: place.x)
@@ -464,7 +512,10 @@ private struct NavPill: View {
 private struct ToolbarSection: View {
     let title: String
     let isCurrent: Bool
+    let ink: Color
+    let lightOnDarkGlass: Bool
     var showsLiveDot = false
+    var downloadProgress: Double? = nil
     let action: () -> Void
 
     @State private var hovering = false
@@ -476,6 +527,18 @@ private struct ToolbarSection: View {
                     BlinkingLiveDot()
                         .transition(.scale.combined(with: .opacity))
                 }
+                if let downloadProgress {
+                    ZStack {
+                        Circle()
+                            .stroke(ink.opacity(0.22), lineWidth: 2)
+                        Circle()
+                            .trim(from: 0, to: max(downloadProgress, 0.08))
+                            .stroke(Palette.accent, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                            .rotationEffect(.degrees(-90))
+                    }
+                    .frame(width: 11, height: 11)
+                    .transition(.scale.combined(with: .opacity))
+                }
                 // The bold word holds the room, so a section is as wide
                 // chosen as not; otherwise the words beside it would jump
                 // while the capsule slides.
@@ -485,7 +548,7 @@ private struct ToolbarSection: View {
                     .overlay {
                         Text(title)
                             .font(isCurrent ? AppFont.subheading : AppFont.body)
-                            .foregroundStyle(Palette.textPrimary.opacity(isCurrent ? 1 : 0.85))
+                            .foregroundStyle(ink.opacity(isCurrent ? 1 : 0.82))
                     }
                     // The word never breaks into two lines under a clipped
                     // title.
@@ -501,7 +564,7 @@ private struct ToolbarSection: View {
                 // already has the sliding one.
                 if hovering && !isCurrent {
                     Capsule()
-                        .fill(Palette.surface.opacity(0.5))
+                        .fill(lightOnDarkGlass ? Color.white.opacity(0.08) : Palette.textPrimary.opacity(0.06))
                         .frame(height: 30)
                         .padding(.horizontal, NavPill.capsuleInset)
                 }
@@ -511,8 +574,9 @@ private struct ToolbarSection: View {
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
         .animation(.snappy(duration: 0.2), value: showsLiveDot)
+        .animation(.snappy(duration: 0.2), value: downloadProgress != nil)
         .animation(.easeOut(duration: 0.18), value: isCurrent)
-        .help(showsLiveDot ? "Gerade live" : "")
+        .help(showsLiveDot ? "Gerade live" : (downloadProgress != nil ? "Download läuft" : ""))
     }
 }
 
@@ -537,9 +601,9 @@ private struct BlinkingLiveDot: View {
     }
 }
 
-/// The toolbar glass can sit over a bright or busy hero image, regardless of
-/// the window's appearance. A translucent theme-colored backing keeps the
-/// navigation readable without losing the glass around it.
+/// On macOS 26 the toolbar already wraps `.principal` in the exact same
+/// `Glass.regular` capsule as `.primaryAction`; omitting the opaque fill lets
+/// both toolbar pills share identical brightness and sheen.
 private struct ToolbarPill: ViewModifier {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
@@ -547,11 +611,19 @@ private struct ToolbarPill: ViewModifier {
         if #available(macOS 26, *) {
             content
                 .frame(height: 36)
-                .background(Palette.background.opacity(reduceTransparency ? 1 : 0.90), in: Capsule())
+                .background {
+                    if reduceTransparency {
+                        Capsule().fill(Palette.background)
+                    }
+                }
         } else {
             content
                 .frame(height: 36)
-                .background(Palette.background.opacity(reduceTransparency ? 1 : 0.90), in: Capsule())
+                .background {
+                    if reduceTransparency {
+                        Capsule().fill(Palette.background)
+                    }
+                }
                 .background(.ultraThinMaterial, in: Capsule())
         }
     }

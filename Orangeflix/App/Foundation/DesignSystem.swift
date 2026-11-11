@@ -151,7 +151,7 @@ enum Space {
     static let xxl: CGFloat = 32
     /// The margin of a page at the left and right edge of the window. Every
     /// screen uses it, so the content lines up from page to page.
-    static let page: CGFloat = 12
+    static let page: CGFloat = 24
     static let huge: CGFloat = 48
 }
 
@@ -488,6 +488,17 @@ extension View {
         }
     }
 
+    /// Suppresses macOS 26's top scroll-edge shadow on screens where a video
+    /// stage sits right beneath the toolbar.
+    @ViewBuilder
+    func hiddenScrollEdge(_ edges: Edge.Set = .top) -> some View {
+        if #available(macOS 26, *) {
+            self.scrollEdgeEffectHidden(true, for: edges)
+        } else {
+            self
+        }
+    }
+
     /// A card of the content: a calm surface with one hairline. The glass
     /// belongs to the chrome above it, so rows never stack glass on glass.
     @ViewBuilder
@@ -634,5 +645,15 @@ extension View {
     /// without Retina too.
     func snappedToPixels() -> some View {
         modifier(PixelSnapModifier())
+    }
+}
+
+/// True while an inline video stage (`EpisodeDetailScreen` or `LiveScreen`) is
+/// currently mounted and showing the running playback, so the floating
+/// NowPlaying mini-bar stays tucked away.
+struct InlineStageVisibleKey: PreferenceKey {
+    static var defaultValue: Bool { false }
+    static func reduce(value: inout Bool, nextValue: () -> Bool) {
+        value = value || nextValue()
     }
 }

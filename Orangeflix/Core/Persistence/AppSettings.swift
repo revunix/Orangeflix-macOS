@@ -177,6 +177,10 @@ struct AppSettings: Codable, Sendable, Hashable {
     var liveChatAvatars = true
     /// Whether the chat shows the time of the messages.
     var liveChatTimes = true
+    /// Publishes running episodes and livestreams to Discord Rich Presence.
+    var discordRPCEnabled = true
+    /// Adds a clickable web link button to the episode or livestream in Discord.
+    var discordShowLinkButton = true
 
     init() {}
 
@@ -240,7 +244,7 @@ struct AppSettings: Codable, Sendable, Hashable {
     // MARK: Codable
 
     private enum CodingKeys: String, CodingKey {
-        case quality, streamQuality, layout, submodule, parallel, delay, limitKiB, thumb, meta, theme, lightThemeID, darkThemeID, lightExtendedPalette, darkExtendedPalette, importedThemes, subtitlesOn, hiddenMagazines, notifiedMagazines, notificationsOn, announcedEpisodes, liveNotificationsOn, chatNotificationsOn, announcedLiveShow, runsInBackground, dismissedRecents, liveChatOpen, liveChatStart, liveChatPosition = "liveChatPlacement", livePolls, liveChatTextSize, liveChatAvatars, liveChatTimes, interfaceStyle, tintWithTheme, glassPanels, appIcon
+        case quality, streamQuality, layout, submodule, parallel, delay, limitKiB, thumb, meta, theme, lightThemeID, darkThemeID, lightExtendedPalette, darkExtendedPalette, importedThemes, subtitlesOn, hiddenMagazines, notifiedMagazines, notificationsOn, announcedEpisodes, liveNotificationsOn, chatNotificationsOn, announcedLiveShow, runsInBackground, dismissedRecents, liveChatOpen, liveChatStart, liveChatPosition = "liveChatPlacement", livePolls, liveChatTextSize, liveChatAvatars, liveChatTimes, interfaceStyle, tintWithTheme, glassPanels, appIcon, discordRPCEnabled, discordShowLinkButton
     }
 
     /// Decodes leniently: a missing or invalid field keeps its default, so a
@@ -309,6 +313,8 @@ struct AppSettings: Codable, Sendable, Hashable {
         if let value = try? container.decode(LiveChatTextSize.self, forKey: .liveChatTextSize) { liveChatTextSize = value }
         if let value = try? container.decode(Bool.self, forKey: .liveChatAvatars) { liveChatAvatars = value }
         if let value = try? container.decode(Bool.self, forKey: .liveChatTimes) { liveChatTimes = value }
+        if let value = try? container.decode(Bool.self, forKey: .discordRPCEnabled) { discordRPCEnabled = value }
+        if let value = try? container.decode(Bool.self, forKey: .discordShowLinkButton) { discordShowLinkButton = value }
     }
 
     func encode(to encoder: any Encoder) throws {
@@ -348,6 +354,8 @@ struct AppSettings: Codable, Sendable, Hashable {
         try container.encode(liveChatTextSize, forKey: .liveChatTextSize)
         try container.encode(liveChatAvatars, forKey: .liveChatAvatars)
         try container.encode(liveChatTimes, forKey: .liveChatTimes)
+        try container.encode(discordRPCEnabled, forKey: .discordRPCEnabled)
+        try container.encode(discordShowLinkButton, forKey: .discordShowLinkButton)
     }
 
     // MARK: Import

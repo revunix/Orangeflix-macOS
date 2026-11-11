@@ -1,11 +1,9 @@
 import AppKit
 import SwiftUI
 
-/// The player window. The picture of mpv fills it; the title floats at the
-/// top and the controls in a glass panel at the bottom. Both fade out after
-/// a moment without the pointer and leave a thin orange line behind.
-/// `inline` shows the same player inside the page of an episode: without
-/// the title, and the way to full size leads into the player window.
+/// The player window and inline video stage. `mpv` fills the frame while a
+/// floating dark-glass control deck sits along the bottom edge, fading out
+/// when idle and leaving a thin orange progress hairline behind.
 struct PlayerScreen: View {
     /// The playback that runs.
     let playback: PlaybackCenter
@@ -28,43 +26,43 @@ struct PlayerScreen: View {
 
     var body: some View {
         stack
-        .ignoresSafeArea(edges: safeAreaEdges)
-        .environment(\.colorScheme, .dark)
-        .animation(.easeOut(duration: 0.22), value: chromeVisible)
-        .animation(.easeOut(duration: 0.18), value: flash)
-        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: upNext?.id)
-        .onContinuousHover { phase in
-            if case .active = phase { wake() }
-        }
-        .focusable()
-        .focused($focused)
-        .focusEffectDisabled()
-        .onKeyPress(phases: .down) { press in handle(press) }
-        .onAppear {
-            focused = true
-            wake()
-        }
-        .onAppear { thumbnails.load(track: playback.current?.thumbnailTrack) }
-        .onChange(of: playback.current?.thumbnailTrack) { _, track in
-            thumbnails.load(track: track)
-        }
-        .task { await hideWhenIdle() }
-        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didEnterFullScreenNotification)) { note in
-            if note.object as? NSWindow === PlayerWindows.current { isFullScreen = true }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didExitFullScreenNotification)) { note in
-            if note.object as? NSWindow === PlayerWindows.current { isFullScreen = false }
-        }
-        .onChange(of: chromeVisible, initial: true) { _, visible in
-            engine.setSubtitleMargin(visible ? 150 : 48)
-        }
-        .background {
-            if !inline {
-                PlayerWindowBridge(playback: playback, chromeVisible: chromeVisible || !playback.isPlaying,
-                                   videoSize: engine.videoSize)
+            .ignoresSafeArea(edges: safeAreaEdges)
+            .environment(\.colorScheme, .dark)
+            .animation(.easeOut(duration: 0.22), value: chromeVisible)
+            .animation(.easeOut(duration: 0.18), value: flash)
+            .animation(.spring(response: 0.35, dampingFraction: 0.85), value: upNext?.id)
+            .onContinuousHover { phase in
+                if case .active = phase { wake() }
             }
-        }
-        .navigationTitle("")
+            .focusable()
+            .focused($focused)
+            .focusEffectDisabled()
+            .onKeyPress(phases: .down) { press in handle(press) }
+            .onAppear {
+                focused = true
+                wake()
+            }
+            .onAppear { thumbnails.load(track: playback.current?.thumbnailTrack) }
+            .onChange(of: playback.current?.thumbnailTrack) { _, track in
+                thumbnails.load(track: track)
+            }
+            .task { await hideWhenIdle() }
+            .onReceive(NotificationCenter.default.publisher(for: NSWindow.didEnterFullScreenNotification)) { note in
+                if note.object as? NSWindow === PlayerWindows.current { isFullScreen = true }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: NSWindow.didExitFullScreenNotification)) { note in
+                if note.object as? NSWindow === PlayerWindows.current { isFullScreen = false }
+            }
+            .onChange(of: chromeVisible, initial: true) { _, visible in
+                engine.setSubtitleMargin(visible ? 160 : 48)
+            }
+            .background {
+                if !inline {
+                    PlayerWindowBridge(playback: playback, chromeVisible: chromeVisible || !playback.isPlaying,
+                                       videoSize: engine.videoSize)
+                }
+            }
+            .navigationTitle("")
     }
 
     /// The window draws under its titlebar; a page keeps its layout.
@@ -73,9 +71,13 @@ struct PlayerScreen: View {
     private var stack: some View {
         ZStack {
             Color.black
-            MPVVideoView(player: engine)
+            if playback.isInPiP {
+                pipPlaceholder
+            } else {
+                MPVVideoView(player: engine)
+            }
             inputLayer
-            if playback.isPlaying && engine.isBuffering {
+            if playback.isPlaying && engine.isBuffering && !playback.isInPiP {
                 ProgressView()
                     .controlSize(.large)
                     .allowsHitTesting(false)
@@ -83,19 +85,18 @@ struct PlayerScreen: View {
             if let flash {
                 PlayerFlashView(flash: flash)
                     .id(flash.id)
-                    .transition(.scale(scale: 0.85).combined(with: .opacity))
+                    .transition(.scale(scale: 0.88).combined(with: .opacity))
             }
             if !inline {
-                // Only a shade, so the window buttons stand out; the title
-                // sits at the bottom, above the timeline.
-                LinearGradient(colors: [.black.opacity(0.55), .black.opacity(0)], startPoint: .top, endPoint: .bottom)
-                    .frame(height: 90)
+                // Gentle top shade only for the standalone window's traffic lights.
+                LinearGradient(colors: [.black.opacity(0.5), .black.opacity(0)], startPoint: .top, endPoint: .bottom)
+                    .frame(height: 82)
                     .frame(maxHeight: .infinity, alignment: .top)
                     .opacity(chromeVisible ? 1 : 0)
                     .allowsHitTesting(false)
             }
             controls
-            if !chromeVisible && !isLive {
+            if !chromeVisible && !isLive && !playback.isInPiP {
                 PlayerHairline(fraction: fraction)
                     .frame(maxHeight: .infinity, alignment: .bottom)
                     .transition(.opacity)
@@ -103,14 +104,31 @@ struct PlayerScreen: View {
         }
     }
 
-    /// The next episode and the bar along the bottom edge.
+    private var pipPlaceholder: some View {
+        VStack(spacing: Space.m) {
+            Image(systemName: "pip")
+                .font(.system(size: 30, weight: .light))
+                .foregroundStyle(.white.opacity(0.75))
+            Text("Läuft im Bild-in-Bild")
+                .font(AppFont.heading)
+                .foregroundStyle(.white)
+            PillButton(title: "Hier weitersehen", symbol: "pip.exit", style: .onPicture) {
+                playback.exitPiP()
+            }
+        }
+    }
+
+    /// The next episode card and the floating control deck along the bottom.
     private var controls: some View {
-        VStack(alignment: .trailing, spacing: Space.m) {
+        VStack(spacing: Space.m) {
             Spacer(minLength: 0)
             if let next = upNext {
-                PlayerUpNextCard(entry: next) { playback.playNext() }
-                    .padding(.trailing, inline ? Space.m : Space.xl)
-                    .transition(.move(edge: .trailing).combined(with: .opacity))
+                HStack {
+                    Spacer(minLength: 0)
+                    PlayerUpNextCard(entry: next) { playback.playNext() }
+                }
+                .padding(.horizontal, inline ? Space.l : Space.xl)
+                .transition(.move(edge: .trailing).combined(with: .opacity))
             }
             PlayerControlPanel(playback: playback, isFullScreen: isFullScreen, inline: inline,
                                queueLabel: queueLabel, scrub: $scrub, thumbnails: thumbnails, flash: show)
@@ -120,8 +138,7 @@ struct PlayerScreen: View {
         }
     }
 
-    /// A click holds or resumes, a double click toggles the full screen; in
-    /// a page it moves the playback into the player window.
+    /// A click holds or resumes, a double click toggles full screen (or pops out inline).
     private var inputLayer: some View {
         Color.clear
             .contentShape(Rectangle())
@@ -130,7 +147,6 @@ struct PlayerScreen: View {
                     .exclusively(before: TapGesture().onEnded { togglePause() }))
     }
 
-    /// The full screen of the window, or the window itself for a page.
     private func enlarge() {
         if inline { playback.popOut() } else { PlayerWindows.toggleFullScreen() }
     }
@@ -161,13 +177,11 @@ struct PlayerScreen: View {
         if !chromeVisible { chromeVisible = true }
     }
 
-    /// Hides the controls and the pointer after 2.5 seconds without input,
-    /// unless the playback holds or the pointer rests on the panel.
     private func hideWhenIdle() async {
         while !Task.isCancelled {
             try? await Task.sleep(for: .milliseconds(400))
             let idle = Date().timeIntervalSince(activity.last) > 2.5
-            let holds = engine.isPaused || !playback.isPlaying || pointerOverPanel || scrub != nil
+            let holds = engine.isPaused || !playback.isPlaying || pointerOverPanel || scrub != nil || playback.isInPiP
             if chromeVisible && idle && !holds {
                 chromeVisible = false
                 NSCursor.setHiddenUntilMouseMoves(true)
@@ -216,6 +230,9 @@ struct PlayerScreen: View {
             case "j": skip(-10)
             case "l": skip(10)
             case "f": enlarge()
+            case "p":
+                guard playback.canUsePiP else { return .ignored }
+                playback.togglePiP()
             case "m":
                 engine.toggleMute()
                 show(engine.isMuted ? "speaker.wave.2.fill" : "speaker.slash.fill")
@@ -257,162 +274,203 @@ struct PlayerScreen: View {
     }
 }
 
-/// When the pointer or a key last moved. Kept out of the view state, so a
-/// moving pointer does not redraw the window.
 private final class PlayerActivity {
     var last = Date()
 }
 
-// MARK: - Bar
+// MARK: - Floating Control Deck
 
-/// The bar along the bottom edge, after the look of ModernZ: a black shade
-/// that fades upwards, in it the title, the timeline over the full width
-/// and one row of buttons. The tracks, the volume and the time sit on the
-/// left, the transport in the middle, chapters, speed and the window on the
-/// right. What does not fit a narrow window drops out.
+/// Modern 3-zone floating dark-glass control deck:
+/// - Row 1: Timeline flanked by elapsed and clickable remaining/total time
+/// - Row 2: Volume on the left, dead-center hero transport in the middle,
+///   grouped media & window/PiP controls on the right.
 private struct PlayerControlPanel: View {
     let playback: PlaybackCenter
     let isFullScreen: Bool
-    /// In a page the bar offers the player window instead of its size and
-    /// the full screen, and leaves the title to the page.
     let inline: Bool
-    /// "2 / 5" while a queue plays.
     let queueLabel: String?
     @Binding var scrub: Double?
     let thumbnails: TimelineThumbnailStore
     let flash: (String, String?) -> Void
 
-    @State private var width: CGFloat = 1000
-    /// The time counts down to the end instead of up from the start.
-    @State private var showsRemaining = false
+    @State private var width: CGFloat = 900
+    /// Click on the right timestamp switches between total duration and remaining time.
+    @State private var showsRemaining = true
 
     private var engine: MPVPlayer { playback.engine }
     private var isLive: Bool { playback.current?.kind == .live }
     private var chapters: [PlaybackChapter] { isLive ? [] : playback.current?.chapters ?? [] }
+    private static let deckMaxWidth: CGFloat = 940
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(spacing: Space.m) {
             if !inline {
-                title
-                    .padding(.horizontal, 25)
-                    .padding(.bottom, Space.s)
+                titleHeader
+                    .frame(maxWidth: Self.deckMaxWidth, alignment: .leading)
             }
-            if !isLive || playback.duration > 1 {
-                PlayerTimeline(position: playback.position, duration: playback.duration,
-                               bufferedAhead: engine.bufferedAhead, scrub: $scrub,
-                               seek: { seconds, exact in
-                                   playback.seek(to: seconds, exact: exact)
-                               },
-                               chapters: chapters,
-                               thumbnails: isLive ? nil : thumbnails)
-                    .padding(.horizontal, 15)
-            }
-            buttons
-                .frame(height: 56)
-                .padding(.horizontal, 15)
+            deck
+                .frame(maxWidth: Self.deckMaxWidth)
         }
-        .padding(.top, Space.xxl)
-        .background { shade }
+        .padding(.horizontal, inline ? Space.l : Space.xl)
+        .padding(.bottom, inline ? Space.l : Space.xl)
+        .frame(maxWidth: .infinity)
+        .background(alignment: .bottom) { shade }
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
     }
 
-    /// Black at the bottom edge, clear well above the title.
     private var shade: some View {
         LinearGradient(stops: [
             .init(color: .black.opacity(0), location: 0),
-            .init(color: .black.opacity(0.45), location: 0.45),
-            .init(color: .black.opacity(0.85), location: 1),
+            .init(color: .black.opacity(0.32), location: 0.48),
+            .init(color: .black.opacity(0.72), location: 1),
         ], startPoint: .top, endPoint: .bottom)
-        .padding(.top, -80)
+        .frame(height: inline ? 150 : 210)
         .allowsHitTesting(false)
     }
 
-    /// The format, the episode and below it the chapter that runs.
-    private var title: some View {
-        VStack(alignment: .leading, spacing: Space.xxs) {
+    private var deck: some View {
+        let deckShape = RoundedRectangle(cornerRadius: 18, style: .continuous)
+        return VStack(spacing: 8) {
+            if !isLive || playback.duration > 1 {
+                timelineRow
+            }
+            controlRow
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 11)
+        .background {
+            deckShape
+                .fill(.black.opacity(0.46))
+                .background(.ultraThinMaterial, in: deckShape)
+        }
+        .overlay {
+            deckShape.strokeBorder(.white.opacity(0.14), lineWidth: 1)
+        }
+        .shadow(color: .black.opacity(0.38), radius: 20, y: 8)
+    }
+
+    /// Format eyebrow, episode title and active chapter above the deck in the player window.
+    private var titleHeader: some View {
+        VStack(alignment: .leading, spacing: 3) {
             if let detail = playback.current?.detail, !detail.isEmpty {
                 Text(detail.uppercased())
                     .font(AppFont.captionMedium)
-                    .tracking(1.2)
+                    .tracking(1.1)
                     .foregroundStyle(Palette.accent)
             }
             HStack(alignment: .firstTextBaseline, spacing: Space.s) {
                 Text(playback.current?.title ?? "")
-                    .font(.system(size: 22, weight: .semibold))
+                    .font(.system(size: 20, weight: .semibold))
                     .foregroundStyle(.white)
                     .lineLimit(1)
                 if let queueLabel {
                     Text(queueLabel)
                         .font(AppFont.digitsMedium)
                         .foregroundStyle(.white.opacity(0.7))
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 2)
+                        .background(.white.opacity(0.14), in: Capsule())
                 }
             }
             if let chapter = PlaybackChapter.current(chapters, at: scrub ?? playback.position),
                !chapter.title.isEmpty {
-                Text(chapter.title)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.85))
-                    .lineLimit(1)
+                HStack(spacing: 5) {
+                    Image(systemName: "list.bullet")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Palette.accent)
+                    Text(chapter.title)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.86))
+                        .lineLimit(1)
+                }
             }
         }
         .playerOutline()
         .allowsHitTesting(false)
     }
 
-    private var buttons: some View {
-        ZStack {
-            HStack(spacing: Space.xs) {
-                leading
-                Spacer(minLength: 0)
-            }
-            HStack(spacing: Space.xs) {
-                Spacer(minLength: 0)
-                trailing
-            }
-            transport
-        }
-    }
+    // MARK: Row 1 — Timeline + Flanking Timecodes
 
-    @ViewBuilder
-    private var leading: some View {
-        if width >= 640, engine.audioTracks.count > 1 {
-            PlayerAudioMenu(engine: engine)
-        }
-        if width >= 560, !engine.subtitleTracks.isEmpty {
-            PlayerSubtitleButton(engine: engine, playback: playback)
-        }
-        PlayerVolumeControl(engine: engine, showsSlider: width >= 860)
-        if isLive {
-            PlayerGoLiveButton(playback: playback)
-                .padding(.leading, Space.s)
-        } else if width >= 480 {
-            timeButton
-                .padding(.leading, Space.xs)
-        }
-    }
-
-    /// "12:34 / 45:00"; a click shows what is left instead.
-    private var timeButton: some View {
+    private var timelineRow: some View {
         let shown = scrub ?? playback.position
-        let current = showsRemaining
+        return HStack(spacing: 10) {
+            if !isLive {
+                Text(AppFormat.position(shown))
+                    .font(.system(size: 12, weight: .medium).monospacedDigit())
+                    .foregroundStyle(.white.opacity(0.84))
+                    .frame(minWidth: 42, alignment: .leading)
+            }
+
+            PlayerTimeline(
+                position: playback.position,
+                duration: playback.duration,
+                bufferedAhead: engine.bufferedAhead,
+                scrub: $scrub,
+                seek: { seconds, exact in
+                    playback.seek(to: seconds, exact: exact)
+                },
+                chapters: chapters,
+                thumbnails: isLive ? nil : thumbnails
+            )
+
+            if isLive {
+                PlayerGoLiveButton(playback: playback)
+            } else {
+                durationButton(shown: shown)
+            }
+        }
+    }
+
+    private func durationButton(shown: Double) -> some View {
+        let label = showsRemaining
             ? "−" + AppFormat.position(max(playback.duration - shown, 0))
-            : AppFormat.position(shown)
+            : AppFormat.position(playback.duration)
         return Button {
             showsRemaining.toggle()
         } label: {
-            Text("\(current) / \(AppFormat.position(playback.duration))")
-                .font(.system(size: 14, weight: .medium).monospacedDigit())
+            Text(label)
+                .font(.system(size: 12, weight: .medium).monospacedDigit())
+                .foregroundStyle(.white.opacity(0.84))
+                .frame(minWidth: 48, alignment: .trailing)
+                .contentShape(Rectangle())
         }
-        .buttonStyle(PlayerChromeButtonStyle(isText: true))
-        .help(showsRemaining ? "Verstrichene Zeit zeigen" : "Restzeit zeigen")
+        .buttonStyle(.plain)
+        .help(showsRemaining ? "Gesamtlänge zeigen" : "Restzeit zeigen")
     }
 
-    /// Play in the exact middle, the jumps and the next episode on its sides.
-    private var transport: some View {
-        HStack(spacing: Space.m) {
-            HStack(spacing: Space.m) {
+    // MARK: Row 2 — 3-Zone Control Bar
+
+    private var controlRow: some View {
+        ZStack {
+            HStack(spacing: 6) {
+                leadingZone
+                Spacer(minLength: 0)
+            }
+            transportZone
+            HStack(spacing: 4) {
+                Spacer(minLength: 0)
+                trailingZone
+            }
+        }
+        .frame(height: 44)
+    }
+
+    /// Left zone: Audio volume (and Live badge when no timeline is shown).
+    private var leadingZone: some View {
+        HStack(spacing: 6) {
+            PlayerVolumeControl(engine: engine, showsSlider: width >= 540)
+            if isLive && playback.duration <= 1 {
+                PlayerGoLiveButton(playback: playback)
+            }
+        }
+    }
+
+    /// Center zone: Symmetrical transport anchored on the hero Play/Pause circle.
+    private var transportZone: some View {
+        HStack(spacing: 8) {
+            HStack(spacing: 4) {
                 if isLive {
-                    PlayerIconButton(symbol: "gobackward.30", help: "30 Sekunden zurückspulen", prominent: true) {
+                    PlayerIconButton(symbol: "gobackward.30", help: "30 Sekunden zurückspulen") {
                         playback.skip(by: -30)
                     }
                 }
@@ -420,75 +478,105 @@ private struct PlayerControlPanel: View {
                     playback.skip(by: -10)
                 }
             }
-            .frame(width: Self.transportSide, alignment: .trailing)
+            .frame(width: 76, alignment: .trailing)
+
             PlayerPlayButton(isPaused: engine.isPaused) {
                 flash(engine.isPaused ? "play.fill" : "pause.fill", nil)
                 playback.togglePlayPause()
             }
-            HStack(spacing: Space.m) {
+
+            HStack(spacing: 4) {
                 if !isLive {
                     PlayerIconButton(symbol: "goforward.10", help: "10 Sekunden vor (L)", prominent: true) {
                         playback.skip(by: 10)
                     }
                 }
                 if let next = playback.nextEntry {
-                    PlayerIconButton(symbol: "forward.end.fill", help: "Nächste Folge: \(next.title) (N)",
-                                     prominent: true) {
+                    PlayerIconButton(symbol: "forward.end.fill", help: "Nächste Folge: \(next.title) (N)") {
                         playback.playNext()
                     }
                 }
             }
-            .frame(width: Self.transportSide, alignment: .leading)
+            .frame(width: 76, alignment: .leading)
         }
     }
 
-    /// Room for two buttons on each side of play.
-    private static let transportSide: CGFloat = 36 * 2 + Space.m
+    /// Right zone: Chapters · Subtitles · Audio · Speed  |  PiP · Window / Fullscreen.
+    private var trailingZone: some View {
+        let hasMediaGroup = (!chapters.isEmpty && width >= 660)
+            || (!engine.subtitleTracks.isEmpty && width >= 560)
+            || (engine.audioTracks.count > 1 && width >= 620)
+            || (!isLive && width >= 600)
 
-    @ViewBuilder
-    private var trailing: some View {
-        if width >= 760, !chapters.isEmpty {
-            PlayerChapterMenu(chapters: chapters, playback: playback)
-        }
-        if width >= 680, !isLive {
-            PlayerSpeedMenu(engine: engine)
-        }
-        if inline {
-            PlayerIconButton(symbol: "macwindow.on.rectangle", help: "Im eigenen Fenster abspielen (F)") {
-                playback.popOut()
+        return HStack(spacing: 4) {
+            if width >= 660, !chapters.isEmpty {
+                PlayerChapterMenu(chapters: chapters, playback: playback)
             }
-        } else {
-            if width >= 820 {
-                PlayerSizeMenu()
+            if width >= 560, !engine.subtitleTracks.isEmpty {
+                PlayerSubtitleButton(engine: engine, playback: playback)
             }
-            PlayerIconButton(symbol: isFullScreen
-                                 ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right",
-                             help: isFullScreen ? "Vollbild beenden (F, Esc)" : "Vollbild (F)") {
-                PlayerWindows.toggleFullScreen()
+            if width >= 620, engine.audioTracks.count > 1 {
+                PlayerAudioMenu(engine: engine)
+            }
+            if width >= 600, !isLive {
+                PlayerSpeedMenu(engine: engine)
+            }
+
+            if hasMediaGroup {
+                Rectangle()
+                    .fill(.white.opacity(0.16))
+                    .frame(width: 1, height: 18)
+                    .padding(.horizontal, 4)
+            }
+
+            if playback.canUsePiP {
+                PlayerIconButton(
+                    symbol: playback.isInPiP ? "pip.exit" : "pip.enter",
+                    help: playback.isInPiP ? "Bild-in-Bild beenden (P)" : "Bild-in-Bild (P)",
+                    isActive: playback.isInPiP
+                ) {
+                    playback.togglePiP()
+                }
+            }
+
+            if inline {
+                PlayerIconButton(symbol: "macwindow.on.rectangle", help: "Im eigenen Fenster abspielen (F)") {
+                    playback.popOut()
+                }
+            } else {
+                if width >= 760 {
+                    PlayerSizeMenu()
+                }
+                PlayerIconButton(
+                    symbol: isFullScreen
+                        ? "arrow.down.right.and.arrow.up.left"
+                        : "arrow.up.left.and.arrow.down.right",
+                    help: isFullScreen ? "Vollbild beenden (F, Esc)" : "Vollbild (F)"
+                ) {
+                    PlayerWindows.toggleFullScreen()
+                }
             }
         }
     }
 }
 
-/// The timeline: a thin bar over the full width. Played in the accent, what
-/// was read ahead in a light band after it, a gap where a chapter begins and
-/// an accent ring as the handle. Over it the pointer shows the picture and
-/// the time it points at; a drag seeks.
+// MARK: - Timeline
+
+/// Scrubber timeline with chapter notches, hover height expansion and a
+/// glassmorphic thumbnail preview card.
 struct PlayerTimeline: View {
     let position: Double
     let duration: Double
     let bufferedAhead: Double
     @Binding var scrub: Double?
     let seek: (Double, Bool) -> Void
-    /// The chapters of the episode: a gap in the bar at every start.
     var chapters: [PlaybackChapter] = []
-    /// The pictures of the timeline; nil while the file has none.
     var thumbnails: TimelineThumbnailStore?
 
     @State private var hoverX: CGFloat?
 
-    private static let handle: CGFloat = 14.4
-    private static let previewWidth: CGFloat = 240
+    private static let handleSize: CGFloat = 13
+    private static let previewWidth: CGFloat = 236
 
     var body: some View {
         GeometryReader { geometry in
@@ -496,40 +584,40 @@ struct PlayerTimeline: View {
             let played = fraction(scrub ?? position)
             let buffered = fraction(position + bufferedAhead)
             let active = hoverX != nil || scrub != nil
+            let barHeight: CGFloat = active ? 6 : 4
             let accent = Palette.accent
             let gaps = chapterFractions
+
             Canvas { context, size in
                 let bar = CGRect(origin: .zero, size: size)
                 context.clip(to: Path(roundedRect: bar, cornerRadius: size.height / 2))
-                context.fill(Path(bar), with: .color(Color(white: 0.6).opacity(0.5)))
+                context.fill(Path(bar), with: .color(.white.opacity(0.22)))
                 let playedX = size.width * played
                 let bufferedX = size.width * buffered
                 if bufferedX > playedX {
-                    context.fill(Path(CGRect(x: playedX, y: 0, width: bufferedX - playedX, height: size.height)),
-                                 with: .color(Color(white: 0.69).opacity(0.41)))
+                    context.fill(
+                        Path(CGRect(x: playedX, y: 0, width: bufferedX - playedX, height: size.height)),
+                        with: .color(.white.opacity(0.34))
+                    )
                 }
                 context.fill(Path(CGRect(x: 0, y: 0, width: playedX, height: size.height)), with: .color(accent))
                 context.blendMode = .clear
                 for gap in gaps {
-                    context.fill(Path(CGRect(x: size.width * gap - 1.5, y: 0, width: 3, height: size.height)),
-                                 with: .color(.black))
+                    context.fill(
+                        Path(CGRect(x: size.width * gap - 1, y: 0, width: 2, height: size.height)),
+                        with: .color(.black)
+                    )
                 }
             }
-            .frame(height: 4)
+            .frame(height: barHeight)
             .overlay(alignment: .leading) {
-                // A ring: the accent around a darker core that widens under
-                // the pointer.
                 Circle()
-                    .fill(accent)
-                    .overlay {
-                        Circle()
-                            .fill(accent)
-                            .overlay(Circle().fill(.black.opacity(0.3)))
-                            .padding(active ? 2.2 : 3)
-                    }
-                    .frame(width: Self.handle, height: Self.handle)
-                    .shadow(color: .black.opacity(0.35), radius: 2)
-                    .offset(x: width * played - Self.handle / 2)
+                    .fill(.white)
+                    .frame(width: Self.handleSize, height: Self.handleSize)
+                    .shadow(color: .black.opacity(0.45), radius: 3, y: 1)
+                    .scaleEffect(active ? 1 : 0.01)
+                    .opacity(active ? 1 : 0)
+                    .offset(x: width * played - Self.handleSize / 2)
             }
             .frame(maxHeight: .infinity)
             .overlay(alignment: .bottomLeading) {
@@ -537,8 +625,10 @@ struct PlayerTimeline: View {
                     scrubPreview(at: Double(x / width) * duration)
                         .frame(width: Self.previewWidth)
                         .fixedSize(horizontal: false, vertical: true)
-                        .offset(x: min(max(x - Self.previewWidth / 2, -8), max(width - Self.previewWidth + 8, -8)),
-                                y: -(geometry.size.height + 5))
+                        .offset(
+                            x: min(max(x - Self.previewWidth / 2, -8), max(width - Self.previewWidth + 8, -8)),
+                            y: -(geometry.size.height + 8)
+                        )
                         .allowsHitTesting(false)
                 }
             }
@@ -558,9 +648,9 @@ struct PlayerTimeline: View {
                     seek(seconds(at: value.location.x, width: width), true)
                     scrub = nil
                 })
-            .animation(.easeOut(duration: 0.12), value: active)
+            .animation(.easeOut(duration: 0.14), value: active)
         }
-        .frame(height: 22)
+        .frame(height: 20)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Zeitleiste")
         .accessibilityValue(AppFormat.position(scrub ?? position))
@@ -583,77 +673,100 @@ struct PlayerTimeline: View {
         Double(min(max(x, 0), width) / width) * duration
     }
 
-    /// Where the chapters begin, without the one at 0.
     private var chapterFractions: [Double] {
         guard duration > 0 else { return [] }
         return chapters.filter { $0.start > 1 }.map { min(max($0.start / duration, 0), 1) }
     }
 
-    /// The chapter, the picture in a dark frame and the time, stacked over
-    /// the pointer.
     private func scrubPreview(at seconds: Double) -> some View {
-        VStack(spacing: 5) {
+        let frameShape = RoundedRectangle(cornerRadius: 10, style: .continuous)
+        return VStack(spacing: 6) {
             if let chapter = PlaybackChapter.current(chapters, at: seconds), !chapter.title.isEmpty {
-                pill(chapter.title)
+                pill(chapter.title, isAccent: false)
             }
             if let picture = thumbnails?.image(at: seconds) {
                 Image(nsImage: picture)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
                     .frame(width: 224, height: 126)
-                    .clipped()
-                    .padding(4.5)
-                    .background(Color(white: 0.067), in: RoundedRectangle(cornerRadius: 4))
-                    .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(Color(white: 0.25), lineWidth: 1))
-                    .shadow(color: .black.opacity(0.5), radius: 10, y: 3)
+                    .clipShape(frameShape)
+                    .overlay {
+                        frameShape.strokeBorder(.white.opacity(0.2), lineWidth: 1)
+                    }
+                    .shadow(color: .black.opacity(0.55), radius: 14, y: 5)
             }
-            pill(AppFormat.position(seconds))
+            pill(AppFormat.position(seconds), isAccent: true)
         }
     }
 
-    private func pill(_ text: String) -> some View {
+    private func pill(_ text: String, isAccent: Bool) -> some View {
         Text(text)
-            .font(.system(size: 13, weight: .medium).monospacedDigit())
+            .font(.system(size: 12, weight: .semibold).monospacedDigit())
             .foregroundStyle(.white)
             .lineLimit(1)
-            .padding(.horizontal, 7)
-            .padding(.vertical, 3)
-            .background(.black.opacity(0.7), in: Capsule())
+            .padding(.horizontal, 9)
+            .padding(.vertical, 4)
+            .background(.black.opacity(0.75), in: Capsule())
+            .overlay {
+                Capsule().strokeBorder(isAccent ? Palette.accent.opacity(0.45) : .white.opacity(0.16), lineWidth: 1)
+            }
             .frame(maxWidth: Self.previewWidth)
     }
 }
 
-/// Play or pause: the largest symbol of the bar, in the middle.
+// MARK: - Controls & Hover Styles
+
+/// Hero center transport button: crisp white circle with dark glyph.
 struct PlayerPlayButton: View {
     let isPaused: Bool
     let action: () -> Void
 
+    @State private var hovering = false
+
     var body: some View {
         Button(action: action) {
             Image(systemName: isPaused ? "play.fill" : "pause.fill")
-                .font(.system(size: 28, weight: .medium))
+                .font(.system(size: 17, weight: .bold))
+                .foregroundStyle(Color(white: 0.08))
+                .offset(x: isPaused ? 1.5 : 0)
                 .contentTransition(.symbolEffect(.replace))
-                .frame(width: 44, height: 40)
+                .frame(width: 42, height: 42)
+                .background(
+                    Circle()
+                        .fill(.white.opacity(hovering ? 1.0 : 0.92))
+                        .shadow(color: .black.opacity(0.28), radius: 8, y: 2)
+                )
+                .contentShape(Circle())
         }
-        .buttonStyle(PlayerChromeButtonStyle())
+        .buttonStyle(PlayerPressScaleStyle())
+        .onHover { hovering = $0 }
+        .animation(.easeOut(duration: 0.14), value: hovering)
         .help(isPaused ? "Abspielen (Leertaste)" : "Anhalten (Leertaste)")
     }
 }
 
-/// A white symbol on the bar.
+private struct PlayerPressScaleStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.92 : 1)
+            .animation(.easeOut(duration: 0.1), value: configuration.isPressed)
+    }
+}
+
+/// Round icon control with calm circular glass hover highlight.
 struct PlayerIconButton: View {
     let symbol: String
     var help = ""
     var isDisabled = false
-    /// The larger, filled symbols of the transport.
     var prominent = false
+    var isActive = false
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             PlayerGlyph(symbol: symbol, prominent: prominent)
         }
-        .buttonStyle(PlayerChromeButtonStyle())
+        .buttonStyle(PlayerChromeButtonStyle(isActive: isActive))
         .disabled(isDisabled)
         .opacity(isDisabled ? 0.35 : 1)
         .help(help)
@@ -661,112 +774,127 @@ struct PlayerIconButton: View {
     }
 }
 
-/// The face of the menus of the bar.
+/// Menu trigger label sharing the same circular/capsule hover treatment.
 struct PlayerIconLabel: View {
     let symbol: String?
     var text: String?
+    var isActive = false
 
     var body: some View {
-        PlayerChrome(isText: false) {
+        PlayerChrome(isPill: text != nil, isActive: isActive) {
             PlayerGlyph(symbol: symbol, text: text)
         }
     }
 }
 
-/// A symbol, a short text or both.
 private struct PlayerGlyph: View {
     let symbol: String?
     var text: String?
     var prominent = false
 
     var body: some View {
-        HStack(spacing: Space.xs) {
+        HStack(spacing: 4) {
             if let symbol {
                 Image(systemName: symbol)
-                    .font(.system(size: prominent ? 21 : 17, weight: prominent ? .medium : .regular))
+                    .font(.system(size: prominent ? 17 : 15, weight: .medium))
             }
             if let text {
                 Text(text)
-                    .font(.system(size: 14, weight: .medium).monospacedDigit())
+                    .font(.system(size: 12.5, weight: .semibold).monospacedDigit())
             }
         }
-        .padding(.horizontal, text == nil ? 0 : Space.s)
+        .padding(.horizontal, text == nil ? 0 : 10)
     }
 }
 
-/// The buttons of the bar: white, under the pointer in the accent, a little
-/// larger, with a glow and a faint box behind; grey while pressed. Text
-/// only changes its colour.
 private struct PlayerChromeButtonStyle: ButtonStyle {
-    var isText = false
+    var isPill = false
+    var isActive = false
 
     func makeBody(configuration: Configuration) -> some View {
-        PlayerChrome(isPressed: configuration.isPressed, isText: isText) {
+        PlayerChrome(isPressed: configuration.isPressed, isPill: isPill, isActive: isActive) {
             configuration.label
         }
     }
 }
 
+/// Clean translucent circular/capsule hover highlight — no square box, no 1.15x
+/// ballooning, no neon shadow.
 private struct PlayerChrome<Content: View>: View {
     var isPressed = false
-    var isText = false
+    var isPill = false
+    var isActive = false
     @ViewBuilder let content: Content
 
     @State private var hovering = false
 
     var body: some View {
         content
-            .foregroundStyle(isPressed ? Color(white: 0.6) : hovering ? Palette.accent : .white)
-            .scaleEffect(hovering && !isPressed && !isText ? 1.15 : 1)
-            .shadow(color: Palette.accent.opacity(hovering && !isText ? 0.55 : 0), radius: 5)
-            .playerOutline()
-            .frame(minWidth: isText ? 0 : 36, minHeight: 36)
+            .foregroundStyle(foregroundColor)
+            .frame(minWidth: isPill ? 0 : 34, minHeight: 34)
             .background {
-                if !isText {
-                    RoundedRectangle(cornerRadius: 4, style: .continuous)
-                        .fill(Palette.accent.opacity(isPressed ? 0.18 : hovering ? 0.10 : 0))
-                }
+                Capsule()
+                    .fill(backgroundFill)
             }
-            .contentShape(Rectangle())
+            .scaleEffect(isPressed ? 0.93 : 1)
+            .contentShape(Capsule())
             .onHover { hovering = $0 }
-            .animation(.easeOut(duration: 0.12), value: hovering)
+            .animation(.easeOut(duration: 0.14), value: hovering)
+            .animation(.easeOut(duration: 0.1), value: isPressed)
+    }
+
+    private var foregroundColor: Color {
+        if isActive { return Palette.accent }
+        return hovering ? .white : .white.opacity(0.86)
+    }
+
+    private var backgroundFill: Color {
+        if isPressed {
+            return isActive ? Palette.accent.opacity(0.30) : .white.opacity(0.22)
+        }
+        if hovering {
+            return isActive ? Palette.accent.opacity(0.24) : .white.opacity(0.14)
+        }
+        return isActive ? Palette.accent.opacity(0.16) : .clear
     }
 }
 
 private extension View {
-    /// A thin dark edge, so white reads on a bright picture.
     func playerOutline() -> some View {
-        shadow(color: .black.opacity(0.7), radius: 1)
+        shadow(color: .black.opacity(0.65), radius: 2, y: 1)
     }
 }
 
-/// The speaker (mute) and a short slider for the volume.
+/// Speaker mute button paired with a smooth capsule volume slider.
 struct PlayerVolumeControl: View {
     let engine: MPVPlayer
     var showsSlider = true
 
     var body: some View {
-        HStack(spacing: Space.xxs) {
-            PlayerIconButton(symbol: symbol, help: engine.isMuted ? "Ton an (M)" : "Stumm (M)") {
+        HStack(spacing: 4) {
+            PlayerIconButton(
+                symbol: symbol,
+                help: engine.isMuted ? "Ton an (M)" : "Stumm (M)",
+                isActive: engine.isMuted
+            ) {
                 engine.toggleMute()
             }
             if showsSlider {
                 PlayerMiniSlider(value: engine.isMuted ? 0 : engine.volume / 100) { engine.setVolume($0 * 100) }
-                    .frame(width: 64)
+                    .frame(width: 72)
                     .help("Lautstärke")
             }
         }
     }
 
     private var symbol: String {
-        if engine.isMuted || engine.volume == 0 { return "speaker.slash" }
-        if engine.volume < 34 { return "speaker.wave.1" }
-        if engine.volume < 67 { return "speaker.wave.2" }
-        return "speaker.wave.3"
+        if engine.isMuted || engine.volume == 0 { return "speaker.slash.fill" }
+        if engine.volume < 34 { return "speaker.wave.1.fill" }
+        if engine.volume < 67 { return "speaker.wave.2.fill" }
+        return "speaker.wave.3.fill"
     }
 }
 
-/// A thin white slider from 0 to 1.
 struct PlayerMiniSlider: View {
     let value: Double
     let change: (Double) -> Void
@@ -776,16 +904,18 @@ struct PlayerMiniSlider: View {
     var body: some View {
         GeometryReader { geometry in
             let width = max(geometry.size.width, 1)
+            let clamped = min(max(value, 0), 1)
             ZStack(alignment: .leading) {
-                Capsule().fill(Color(white: 0.6).opacity(0.5))
-                Capsule().fill(.white).frame(width: width * value)
+                Capsule().fill(.white.opacity(0.22))
+                Capsule().fill(.white.opacity(hovering ? 1 : 0.88)).frame(width: width * clamped)
             }
-            .frame(height: 4)
+            .frame(height: hovering ? 5.5 : 4)
             .overlay(alignment: .leading) {
-                Circle().fill(.white)
+                Circle()
+                    .fill(.white)
                     .frame(width: 11, height: 11)
                     .shadow(color: .black.opacity(0.35), radius: 2)
-                    .offset(x: width * value - 5.5)
+                    .offset(x: width * clamped - 5.5)
                     .opacity(hovering ? 1 : 0)
             }
             .frame(maxHeight: .infinity)
@@ -800,7 +930,6 @@ struct PlayerMiniSlider: View {
     }
 }
 
-/// The speed of the playback.
 private struct PlayerSpeedMenu: View {
     let engine: MPVPlayer
 
@@ -815,13 +944,13 @@ private struct PlayerSpeedMenu: View {
             }
             .pickerStyle(.inline)
         } label: {
-            PlayerIconLabel(symbol: nil, text: Self.label(engine.speed))
+            PlayerIconLabel(symbol: nil, text: Self.label(engine.speed), isActive: abs(engine.speed - 1) > 0.01)
         }
         .menuStyle(.button)
         .buttonStyle(.plain)
         .menuIndicator(.hidden)
         .fixedSize()
-        .help("Tempo")
+        .help("Wiedergabetempo")
     }
 
     private static func label(_ speed: Double) -> String {
@@ -829,8 +958,6 @@ private struct PlayerSpeedMenu: View {
     }
 }
 
-/// The chapters of the episode: a list with the times, the running one
-/// marked. A click jumps there.
 struct PlayerChapterMenu: View {
     let chapters: [PlaybackChapter]
     let playback: PlaybackCenter
@@ -862,22 +989,21 @@ struct PlayerChapterMenu: View {
     }
 }
 
-/// The subtitles: one click switches them on or off. The choice sticks for
-/// the next file. An episode carries a single subtitle file, so there is no
-/// list to pick from.
 struct PlayerSubtitleButton: View {
     let engine: MPVPlayer
     let playback: PlaybackCenter
 
     var body: some View {
-        PlayerIconButton(symbol: engine.showsSubtitles ? "captions.bubble.fill" : "captions.bubble",
-                         help: engine.showsSubtitles ? "Untertitel ausblenden (C)" : "Untertitel einblenden (C)") {
+        PlayerIconButton(
+            symbol: engine.showsSubtitles ? "captions.bubble.fill" : "captions.bubble",
+            help: engine.showsSubtitles ? "Untertitel ausblenden (C)" : "Untertitel einblenden (C)",
+            isActive: engine.showsSubtitles
+        ) {
             playback.setSubtitlesOn(!engine.showsSubtitles)
         }
     }
 }
 
-/// The audio track, when the file has more than one.
 struct PlayerAudioMenu: View {
     let engine: MPVPlayer
 
@@ -902,7 +1028,6 @@ struct PlayerAudioMenu: View {
     }
 }
 
-/// The red dot of a running stream.
 struct PlayerLivePill: View {
     var body: some View {
         HStack(spacing: Space.xs) {
@@ -914,12 +1039,10 @@ struct PlayerLivePill: View {
         }
         .padding(.horizontal, Space.s)
         .padding(.vertical, Space.xs)
-        .background(.white.opacity(0.12), in: Capsule())
+        .background(.white.opacity(0.14), in: Capsule())
     }
 }
 
-/// Jumps a rewound or paused live stream back to its newest moment.
-/// On the edge it is only the red mark.
 struct PlayerGoLiveButton: View {
     let playback: PlaybackCenter
 
@@ -932,7 +1055,7 @@ struct PlayerGoLiveButton: View {
             } label: {
                 HStack(spacing: Space.xs) {
                     Circle()
-                        .fill(atEdge ? Color.red : Color.white.opacity(0.9))
+                        .fill(atEdge ? Palette.live : Color.white.opacity(0.9))
                         .frame(width: 7, height: 7)
                     Text(atEdge || behind < 1 ? "LIVE" : "−" + AppFormat.position(behind))
                         .font(AppFont.captionMedium)
@@ -940,9 +1063,12 @@ struct PlayerGoLiveButton: View {
                         .foregroundStyle(.white)
                         .monospacedDigit()
                 }
-                .padding(.horizontal, Space.s)
-                .padding(.vertical, Space.xs)
-                .background(atEdge ? Color.red.opacity(0.32) : Color.white.opacity(0.14), in: Capsule())
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(atEdge ? Palette.live.opacity(0.28) : Color.white.opacity(0.16), in: Capsule())
+                .overlay {
+                    Capsule().strokeBorder(atEdge ? Palette.live.opacity(0.45) : .white.opacity(0.18), lineWidth: 1)
+                }
             }
             .buttonStyle(.plain)
             .disabled(atEdge)
@@ -951,7 +1077,6 @@ struct PlayerGoLiveButton: View {
     }
 }
 
-/// Klein, Mittel, Groß or Kino. The check mark follows the last choice.
 private struct PlayerSizeMenu: View {
     @State private var size = PlayerWindows.preferredSize
 
@@ -979,7 +1104,6 @@ private struct PlayerSizeMenu: View {
 
 // MARK: - Overlays
 
-/// The next episode in the last half minute of the running one.
 private struct PlayerUpNextCard: View {
     let entry: PlaybackEntry
     let play: () -> Void
@@ -999,7 +1123,7 @@ private struct PlayerUpNextCard: View {
             Button(action: play) {
                 Label("Ansehen", systemImage: "play.fill")
                     .font(AppFont.subheading)
-                    .foregroundStyle(.black)
+                    .foregroundStyle(Color(white: 0.08))
                     .padding(.horizontal, Space.m)
                     .padding(.vertical, Space.s)
                     .background(.white, in: Capsule())
@@ -1009,11 +1133,10 @@ private struct PlayerUpNextCard: View {
         .padding(Space.m)
         .frame(maxWidth: 380, alignment: .leading)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(.white.opacity(0.09)))
+        .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(.white.opacity(0.14)))
     }
 }
 
-/// A short sign in the middle of the picture after a key or a click.
 struct PlayerFlash: Equatable {
     let id = UUID()
     let symbol: String
@@ -1026,24 +1149,26 @@ private struct PlayerFlashView: View {
     var body: some View {
         VStack(spacing: Space.s) {
             Image(systemName: flash.symbol)
-                .font(.system(size: 28, weight: .semibold))
+                .font(.system(size: 26, weight: .semibold))
                 .foregroundStyle(.white)
-                .frame(width: 76, height: 76)
-                .background(.black.opacity(0.5), in: Circle())
+                .frame(width: 72, height: 72)
+                .background(.ultraThinMaterial, in: Circle())
+                .overlay { Circle().strokeBorder(.white.opacity(0.16), lineWidth: 1) }
             if let text = flash.text {
                 Text(text)
                     .font(AppFont.subheading)
                     .foregroundStyle(.white)
-                    .padding(.horizontal, Space.s)
-                    .padding(.vertical, Space.xs)
-                    .background(.black.opacity(0.5), in: Capsule())
+                    .padding(.horizontal, Space.m)
+                    .padding(.vertical, 5)
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .overlay { Capsule().strokeBorder(.white.opacity(0.16), lineWidth: 1) }
             }
         }
+        .shadow(color: .black.opacity(0.35), radius: 14, y: 4)
         .allowsHitTesting(false)
     }
 }
 
-/// The progress while the controls are hidden.
 private struct PlayerHairline: View {
     let fraction: Double
 

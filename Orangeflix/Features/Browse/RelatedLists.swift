@@ -13,8 +13,8 @@ struct SimilarScreen: View {
             PageChrome(
                 title: "Ähnliche Folgen",
                 subtitle: "\(model.similarEpisodes.count) ähnliche Folgen",
-                detail: BrowseLogic.title(of: episode),
-                onBack: { if !model.navigationPath.isEmpty { model.navigationPath.removeLast() } }) { EmptyView() }
+                detail: BrowseLogic.title(of: episode)
+            ) { EmptyView() }
             BrowseClipListView(
                 episodes: model.similarEpisodes,
                 isLoading: model.similarLoading,
@@ -38,9 +38,7 @@ struct GuestDirectoryScreen: View {
         let guests = model.guestDirectory
         ScrollView {
             VStack(alignment: .leading, spacing: Space.xl) {
-                PageChrome(title: "Alle Gäste", subtitle: "\(guests.count) Gäste", onBack: {
-                    if !model.navigationPath.isEmpty { model.navigationPath.removeLast() }
-                }) { EmptyView() }
+                PageChrome(title: "Alle Gäste", subtitle: "\(guests.count) Gäste") { EmptyView() }
                 if model.guestDirectoryLoading && guests.isEmpty {
                     ProgressView("Lade alle Gäste …")
                         .frame(maxWidth: .infinity)
@@ -118,8 +116,7 @@ struct HostScreen: View {
             VStack(alignment: .leading, spacing: Space.xl) {
                 PageChrome(
                     title: name,
-                    subtitle: episodeCountText,
-                    onBack: back
+                    subtitle: episodeCountText
                 ) { EmptyView() }
                 profile
                 episodes
@@ -332,10 +329,6 @@ struct HostScreen: View {
             .glassPlate(in: Capsule(), interactive: true)
     }
 
-    private func back() {
-        model.navigationPath = [.guests]
-    }
-
     private static func socialTitle(_ key: String) -> String {
         switch key.lowercased() {
         case "twitter", "x": "X"
@@ -384,8 +377,8 @@ struct PremiumListScreen: View {
         VStack(spacing: 0) {
             PageChrome(
                 title: "Premium",
-                subtitle: "\(model.premiumEpisodes.count) Folgen",
-                onBack: { if !model.navigationPath.isEmpty { model.navigationPath.removeLast() } }) {
+                subtitle: "\(model.premiumEpisodes.count) Folgen"
+            ) {
                 MoreMenu {
                     Button("Neu laden") { Task { await model.loadPremium(force: true) } }
                 }
@@ -418,8 +411,8 @@ struct NewFormatsScreen: View {
         VStack(spacing: 0) {
             PageChrome(
                 title: "Neu",
-                subtitle: fresh.count == 1 ? "1 Format mit neuer Folge" : "\(fresh.count) Formate mit neuer Folge",
-                onBack: { if !model.navigationPath.isEmpty { model.navigationPath.removeLast() } }) { EmptyView() }
+                subtitle: fresh.count == 1 ? "1 Format mit neuer Folge" : "\(fresh.count) Formate mit neuer Folge"
+            ) { EmptyView() }
             if fresh.isEmpty {
                 EmptyState(symbol: "sparkles", title: "Nichts Neues.", message: "Formate mit neuen Folgen erscheinen hier.")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -428,7 +421,8 @@ struct NewFormatsScreen: View {
                     LazyVGrid(columns: columns, alignment: .leading, spacing: Space.l) {
                         ForEach(fresh, id: \.pid) { format in
                             Button { model.navigationPath.append(.episodes(pid: format.pid)) } label: {
-                                FormatTile(format: format, count: model.episodeCountText(format))
+                                FormatTile(format: format, count: model.episodeCountText(format),
+                                           inLibrary: model.libraryEntry(format.pid) != nil)
                             }
                             .buttonStyle(.plain)
                         }

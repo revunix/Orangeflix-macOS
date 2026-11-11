@@ -74,6 +74,7 @@ struct LiveScreen: View {
         .preference(key: LivePageGeometryKey.self, value: pageGeometry)
         // The window keeps the navigation pill clear of the chat column.
         .preference(key: TrailingColumnKey.self, value: showsSideChat ? Self.chatWidth : 0)
+        .preference(key: InlineStageVisibleKey.self, value: playsHere)
         .animation(.snappy(duration: 0.25), value: showsSideChat)
         .navigationTitle("")
         .onAppear {
@@ -99,7 +100,6 @@ struct LiveScreen: View {
             }
         }
         .onDisappear {
-            if playback.isInline { playback.stop() }
             model.screenDisappeared()
         }
     }
@@ -175,7 +175,11 @@ struct LiveScreen: View {
     private var showsSideChat: Bool { showsChat && chatPlacement == .side }
     /// Whether the chat stands under the picture.
     private var showsBelowChat: Bool { showsChat && chatPlacement == .below }
-    private var playsHere: Bool { playback.isPlaying && playback.isInline }
+    private var playsHere: Bool {
+        playback.isPlaying && playback.isInline
+            && (playback.current?.kind == .live || playback.current?.kind == .replay)
+            && !playback.manualPiP
+    }
     private var hairline: CGFloat { Chrome.hairline(displayScale) }
 
     // MARK: Standard

@@ -71,10 +71,23 @@ final class MPVVideoSlot: NSView {
     /// Takes the picture into this slot.
     private func adopt() {
         let video = video
-        guard video.superview !== self else { return }
+        guard video.superview !== self else {
+            if video.frame != bounds { video.frame = bounds }
+            return
+        }
+        autoresizesSubviews = true
+        video.translatesAutoresizingMaskIntoConstraints = true
         video.frame = bounds
         video.autoresizingMask = [.width, .height]
         addSubview(video)
+    }
+
+    override func layout() {
+        super.layout()
+        let current = Self.videos[ObjectIdentifier(player)]
+        if let current, current.superview === self, current.frame != bounds {
+            current.frame = bounds
+        }
     }
 
     /// Gives the picture to the newest other slot of the player that is
@@ -86,6 +99,18 @@ final class MPVVideoSlot: NSView {
             .filter { $0 !== self && $0.player === player && $0.window != nil }
             .max { $0.serial < $1.serial }
         next?.adopt()
+    }
+
+    /// Re-attaches the player's video view to the newest visible slot after an
+    /// external container (such as native Picture-in-Picture) closes.
+    static func reclaimActive(for player: MPVPlayer) {
+        slots.removeAll { $0.slot == nil }
+        guard let target = slots.compactMap(\.slot)
+            .filter({ $0.player === player && $0.window != nil })
+            .max(by: { $0.serial < $1.serial }) else { return }
+        target.adopt()
+        target.video.needsDisplay = true
+        target.video.layer?.setNeedsDisplay()
     }
 
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
@@ -105,6 +130,7 @@ final class MPVVideoNSView: NSView {
         self.player = player
         videoLayer = MPVVideoLayer(mpv: player.handle)
         super.init(frame: .zero)
+        videoLayer.contentsScale = NSScreen.main?.backingScaleFactor ?? 2
         videoLayer.onReady = { [weak player] in player?.renderContextAttached() }
         wantsLayer = true
     }
@@ -116,7 +142,7 @@ final class MPVVideoNSView: NSView {
 
     override func viewDidChangeBackingProperties() {
         super.viewDidChangeBackingProperties()
-        videoLayer.contentsScale = window?.backingScaleFactor ?? 2
+        videoLayer.contentsScale = window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2
     }
 
     override func viewWillMove(toWindow newWindow: NSWindow?) {
@@ -127,7 +153,22 @@ final class MPVVideoNSView: NSView {
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         // A view that comes back may draw again.
-        if window != nil { videoLayer.revive() }
+        if let window {
+            videoLayer.contentsScale = window.backingScaleFactor
+            videoLayer.revive()
+            DispatchQueue.main.async { [weak self] in
+                self?.videoLayer.setNeedsDisplay()
+            }
+        }
+    }
+
+    override func layout() {
+        super.layout()
+        videoLayer.frame = bounds
+        if let scale = window?.backingScaleFactor {
+            videoLayer.contentsScale = scale
+        }
+        videoLayer.setNeedsDisplay()
     }
 
     /// Frees the render context before the view goes away and hands it to

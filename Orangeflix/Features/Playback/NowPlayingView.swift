@@ -1,41 +1,52 @@
 import SwiftUI
 
-/// The running playback for the toolbar of the main window. The TUI shows
-/// "▶ <label> mm:ss / mm:ss" in its header.
+/// Compact toolbar item shown in the main window's navbar while native
+/// Picture-in-Picture (`PIPViewController`) is active. Clicking it navigates
+/// straight back to the episode or livestream page and docks the video back in.
 struct NowPlayingView: View {
+    let ink: Color
+
     @Environment(PlaybackCenter.self) private var playback
-    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
-        if playback.isPlaying {
+        if playback.isInPiP, let entry = playback.current {
             Button {
-                openPlayer()
+                playback.returnFromPiP()
             } label: {
-                HStack(spacing: Space.s) {
-                    Image(systemName: playback.isPaused ? "circle.fill" : "pause.fill")
-                        .font(AppFont.caption)
+                HStack(spacing: 6) {
+                    Image(systemName: "pip.exit")
+                        .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(Palette.accent)
 
-                    Text(playback.nowPlayingTitle)
-                        .font(AppFont.bodySmall)
-                        .foregroundStyle(Palette.textPrimary)
+                    Text(shortLabel(for: entry))
+                        .font(AppFont.captionMedium)
+                        .foregroundStyle(ink)
                         .lineLimit(1)
+                        .frame(maxWidth: 132, alignment: .leading)
 
-                    Text("\(AppFormat.position(playback.position)) / \(AppFormat.position(playback.duration))")
-                        .font(AppFont.digits)
-                        .foregroundStyle(Palette.textSecondary)
-                        .monospacedDigit()
+                    if entry.kind != .live, playback.duration > 0 {
+                        Text(AppFormat.position(playback.position))
+                            .font(AppFont.digits)
+                            .foregroundStyle(ink.opacity(0.72))
+                    }
                 }
+                .padding(.horizontal, 6)
+                .contentShape(Capsule())
             }
             .buttonStyle(.plain)
-            .help("Wiedergabe öffnen")
+            .help("Bild-in-Bild beenden und zurück zur Wiedergabe wechseln")
+            .accessibilityLabel("Zurück zur laufenden Wiedergabe")
         }
     }
 
-    /// Brings the window of the player to the front; it opens the window
-    /// when it is not there yet.
-    private func openPlayer() {
-        if PlayerWindows.front() { return }
-        openWindow(id: "player")
+    private func shortLabel(for entry: PlaybackEntry) -> String {
+        switch entry.kind {
+        case .live:
+            return "Zur Live-Sendung"
+        case .replay:
+            return "Zum Replay"
+        case .episode:
+            return playback.nowPlayingTitle.isEmpty ? "Zur Folge" : playback.nowPlayingTitle
+        }
     }
 }

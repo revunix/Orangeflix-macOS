@@ -123,6 +123,7 @@ struct SettingsWindowScene: Scene {
                     .environment(container.app)
                     .environment(container.account)
                     .environment(container.browse)
+                    .environment(container.playback)
                     .environment(container.live)
                     .environment(container.watcher)
                     .environment(container.sharing)

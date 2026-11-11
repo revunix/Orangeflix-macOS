@@ -12,6 +12,10 @@ import os
 
     /// libmpv; it plays every entry and draws into the player window.
     let engine = MPVPlayer()
+    /// Publishes running episodes and livestreams to Discord Rich Presence.
+    let discord = DiscordPresenceService()
+    /// Native macOS Picture-in-Picture window controller (`PIP.framework`).
+    @ObservationIgnored private let pip = NativePiPController()
     /// An independent, reusable core for short search previews. It never
     /// reports watch progress or changes the main player's queue.
     @ObservationIgnored lazy var previewEngine = MPVPlayer(preview: true)
@@ -35,6 +39,14 @@ import os
     /// Whether the picture is shown inside a page (the Live screen, the page
     /// of an episode) instead of the player window.
     private(set) var isInline = false
+    /// True while the video floats in macOS's native Picture-in-Picture panel.
+    private(set) var isInPiP = false
+    /// True when the user explicitly clicked the PiP button inside a player.
+    private(set) var manualPiP = false
+    /// Navigates the main window back to the active inline episode or live page.
+    @ObservationIgnored var onReturnFromPiP: (@MainActor (PlaybackEntry) -> Void)?
+    @ObservationIgnored private var inlineStageVisible = false
+    @ObservationIgnored private var autoPiPTask: Task<Void, Never>?
     /// The episode whose files are being resolved; the page of the episode
     /// shows a spinner meanwhile.
     private(set) var preparingIdentifier: String?
@@ -75,6 +87,8 @@ import os
             })
         engine.onPosition = { [weak self] seconds in self?.handlePosition(seconds) }
         engine.onEnd = { [weak self] reason in self?.handleEnd(reason) }
+        discord.refreshIdleState(enabled: app.settings.discordRPCEnabled)
+        configurePiPCallbacks()
     }
 
     deinit {
@@ -156,6 +170,7 @@ import os
     /// Moves the running playback from its page into the player window.
     func popOut() {
         guard isPlaying, isInline else { return }
+        exitPiP()
         isInline = false
         NotificationCenter.default.post(name: .orangeflixPlaybackStarted, object: nil)
     }
@@ -164,8 +179,135 @@ import os
     /// page; the window closes without ending it.
     func pullIn() {
         guard isPlaying, !isInline else { return }
+        exitPiP()
         isInline = true
         PlayerWindows.close()
+    }
+
+    // MARK: Native Picture-in-Picture
+
+    var canUsePiP: Bool { pip.isSupported }
+
+    func togglePiP() {
+        if isInPiP {
+            exitPiP()
+        } else {
+            manualPiP = true
+            enterPiP()
+        }
+    }
+
+    func enterPiP() {
+        guard isPlaying, !isInPiP else { return }
+        let opened = pip.enter(
+            player: engine,
+            videoSize: engine.videoSize,
+            isPlaying: !engine.isPaused,
+            position: position,
+            duration: duration,
+            speed: engine.speed,
+            isLive: current?.kind == .live
+        )
+        if opened {
+            isInPiP = true
+        }
+    }
+
+    func exitPiP() {
+        autoPiPTask?.cancel()
+        autoPiPTask = nil
+        manualPiP = false
+        guard isInPiP else { return }
+        pip.exit()
+    }
+
+    /// Automatically opens native macOS PiP when the user navigates away from
+    /// an inline episode or livestream, and closes PiP as soon as the user
+    /// returns to that page.
+    func updateInlineStageVisibility(_ visible: Bool) {
+        inlineStageVisible = visible
+        autoPiPTask?.cancel()
+        autoPiPTask = nil
+
+        if visible {
+            if isInPiP && !manualPiP {
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, self.inlineStageVisible, self.isInPiP, !self.manualPiP else { return }
+                    self.exitPiP()
+                }
+            }
+            return
+        }
+
+        guard isPlaying, isInline, !isInPiP else { return }
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.isPlaying, self.isInline, !self.inlineStageVisible, !self.isInPiP else { return }
+            self.enterPiP()
+        }
+    }
+
+    /// Restores the inline page from the navbar PiP item or PiP's return button.
+    func returnFromPiP() {
+        guard let entry = current else {
+            exitPiP()
+            return
+        }
+        manualPiP = false
+        if isInline {
+            onReturnFromPiP?(entry)
+            exitPiP()
+        } else {
+            exitPiP()
+            _ = PlayerWindows.front()
+        }
+    }
+
+    private func configurePiPCallbacks() {
+        pip.onPlay = { [weak self] in
+            guard let self, self.isPlaying, self.engine.isPaused else { return }
+            self.togglePlayPause()
+        }
+        pip.onPause = { [weak self] in
+            guard let self, self.isPlaying, !self.engine.isPaused else { return }
+            self.togglePlayPause()
+        }
+        pip.onSkip = { [weak self] interval in
+            self?.skip(by: interval)
+        }
+        pip.onReturnToSource = { [weak self] in
+            guard let self else { return }
+            self.manualPiP = false
+            if let entry = self.current, self.isInline {
+                self.onReturnFromPiP?(entry)
+            } else {
+                _ = PlayerWindows.front()
+            }
+        }
+        pip.onCloseStop = { [weak self] in
+            guard let self else { return }
+            self.manualPiP = false
+            self.isInPiP = false
+            self.stop()
+        }
+        pip.onDidExit = { [weak self] in
+            guard let self else { return }
+            self.isInPiP = false
+            self.manualPiP = false
+            MPVVideoSlot.reclaimActive(for: self.engine)
+        }
+    }
+
+    private func syncPiP(pausedOverride: Bool? = nil) {
+        guard isInPiP else { return }
+        let playing = !(pausedOverride ?? engine.isPaused)
+        pip.updateAspectRatio(engine.videoSize)
+        pip.syncState(
+            isPlaying: playing,
+            position: position,
+            duration: duration,
+            speed: engine.speed,
+            isLive: current?.kind == .live
+        )
     }
 
     /// Takes over the messages of the chat of a replay, so that they can be
@@ -178,6 +320,11 @@ import os
 
     /// Ends the running playback; a new one may be started afterwards.
     func stop() {
+        autoPiPTask?.cancel()
+        autoPiPTask = nil
+        if isInPiP { pip.exit() }
+        isInPiP = false
+        manualPiP = false
         // The last position goes to the account, also when the player is
         // closed (Go `reportFinal`).
         reportFinal()
@@ -194,6 +341,7 @@ import os
         livePauseBegan = nil
         replayChat = []
         replayChatCursor = 0
+        discord.clear()
         NotificationCenter.default.post(name: .orangeflixPlaybackStopped, object: nil)
     }
 
@@ -209,14 +357,17 @@ import os
         guard isPlaying else { return }
         let pausing = !engine.isPaused
         engine.togglePause()
-        guard current?.kind == .live else { return }
-        if pausing {
-            if livePauseBegan == nil { livePauseBegan = Date() }
-            isAtLiveEdge = false
-        } else if let began = livePauseBegan {
-            behindLive += Date().timeIntervalSince(began)
-            livePauseBegan = nil
+        if current?.kind == .live {
+            if pausing {
+                if livePauseBegan == nil { livePauseBegan = Date() }
+                isAtLiveEdge = false
+            } else if let began = livePauseBegan {
+                behindLive += Date().timeIntervalSince(began)
+                livePauseBegan = nil
+            }
         }
+        syncPiP(pausedOverride: pausing)
+        syncDiscordPresence(force: true, pausedOverride: pausing)
     }
 
     /// Moves the playback to a place in seconds. A rough seek follows the
@@ -226,6 +377,10 @@ import os
         guard isPlaying else { return }
         engine.seek(to: seconds, exact: exact)
         position = max(0, seconds)
+        if exact {
+            syncPiP()
+            syncDiscordPresence(force: true)
+        }
         guard current?.kind == .live, duration > 0 else { return }
         let gap = max(0, duration - seconds)
         if gap < 4 {
@@ -241,6 +396,9 @@ import os
     func skip(by seconds: Double) {
         guard isPlaying else { return }
         engine.seek(by: seconds)
+        position = max(0, position + seconds)
+        syncPiP()
+        syncDiscordPresence(force: true)
         guard current?.kind == .live else { return }
         if seconds < 0 {
             behindLive += -seconds
@@ -354,7 +512,9 @@ import os
                     headers: resolved.headers,
                     kind: .episode,
                     chapters: resolved.chapters,
-                    thumbnailTrack: URL(string: resolved.thumbnailTrack)))
+                    thumbnailTrack: URL(string: resolved.thumbnailTrack),
+                    thumbURL: episode.thumb,
+                    episode: episode))
             }
             guard token == generation else { return }
             queue = entries
@@ -472,8 +632,14 @@ import os
         switch mode {
         case .live:
             let title = info.show?.title ?? "Live"
+            let pid = info.show?.pid ?? 0
+            let art = pid > 0 ? (browseModel?.format(pid: pid).map { $0.banner.isEmpty ? $0.cover : $0.banner } ?? "") : ""
+            let beginDate = (info.show?.begin ?? 0) > 0
+                ? Date(timeIntervalSince1970: TimeInterval(info.show?.begin ?? 0))
+                : Date()
             app.record("Starte live für \(title).")
-            return PlaybackEntry(identifier: "live", title: title, detail: "Live", url: url, kind: .live)
+            return PlaybackEntry(identifier: "live", title: title, detail: "Live", url: url,
+                                 kind: .live, start: beginDate, thumbURL: art)
         case .replay:
             guard let replay = info.replay else { throw PlaybackError.noReplay }
             let manifestURL = PlaybackLogic.dashManifestURL(streams: streams).flatMap { URL(string: $0) }
@@ -488,8 +654,12 @@ import os
                 }
                 url = local
             }
-            var entry = PlaybackEntry(identifier: replay.clipId, title: replay.title, detail: "Replay", url: url,
-                                      durationSeconds: length, kind: .replay)
+            let art = replay.pid > 0
+                ? (browseModel?.format(pid: replay.pid).map { $0.banner.isEmpty ? $0.cover : $0.banner } ?? "")
+                : ""
+            let detail = replay.projectTitle.isEmpty ? "Replay" : replay.projectTitle
+            var entry = PlaybackEntry(identifier: replay.clipId, title: replay.title, detail: detail, url: url,
+                                      durationSeconds: length, kind: .replay, thumbURL: art)
             // The start of the replay stands in the DASH manifest; it gives
             // the place in the wall clock and the place to resume.
             if let start = manifest.flatMap(PlaybackLogic.availabilityStartTime(in:)) {
@@ -574,6 +744,7 @@ import os
         engine.load(entry.url, start: entry.resume, headers: entry.headers,
                     userAgent: APIDefaults.userAgent, subtitles: entry.subtitleURLs)
         if entry.kind == .replay { loadReplayChat(for: entry) }
+        syncDiscordPresence(force: true, pausedOverride: false)
         NotificationCenter.default.post(name: .orangeflixPlaybackStarted, object: nil)
     }
 
@@ -589,8 +760,44 @@ import os
             let percent = PlaybackLogic.progressPercent(position: position, duration: duration)
             app.episodes.setProgress(entry.identifier, percent: percent)
         }
+        syncPiP()
+        syncDiscordPresence(force: false)
         reportIfDue()
         emitReplayChat()
+    }
+
+    /// Pushes or clears Discord Rich Presence according to current settings
+    /// and playback state.
+    func syncDiscordPresence(force: Bool = false, pausedOverride: Bool? = nil) {
+        let settings = app.settings
+        guard isPlaying, let entry = current else {
+            discord.refreshIdleState(enabled: settings.discordRPCEnabled)
+            return
+        }
+        let kind: DiscordPresenceLogic.Kind = switch entry.kind {
+        case .episode: .episode
+        case .live: .live
+        case .replay: .replay
+        }
+        let chapter = PlaybackChapter.current(entry.chapters, at: position)?.title ?? ""
+        let snapshot = DiscordPresenceLogic.Snapshot(
+            kind: kind,
+            identifier: entry.identifier,
+            title: entry.title,
+            detail: entry.detail,
+            chapterTitle: chapter,
+            thumbURL: entry.thumbURL,
+            position: position,
+            duration: duration > 0 ? duration : Double(entry.durationSeconds),
+            isPaused: pausedOverride ?? engine.isPaused,
+            showsLinkButton: settings.discordShowLinkButton
+        )
+        discord.update(
+            snapshot: snapshot,
+            liveStartedAt: entry.start,
+            enabled: settings.discordRPCEnabled,
+            force: force
+        )
     }
 
     /// A file ended: the next entry follows, a failure is shown.

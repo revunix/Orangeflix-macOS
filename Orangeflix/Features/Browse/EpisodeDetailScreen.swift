@@ -40,14 +40,19 @@ struct EpisodeDetailScreen: View {
             }
         }
     }
+
     /// The width the picture gets; its height follows from it.
     @State private var stageWidth: CGFloat = 1100
+    /// Measured inner width of the page, for switching between 1 and 2 columns.
+    @State private var bodyWidth: CGFloat = 1000
 
-    /// The widest the text of the page grows; the player may be wider.
+    /// The widest the text of the page grows in single-column layout.
     private static let textWidth: CGFloat = 860
+    /// The widest the two-column editorial body grows.
+    private static let editorialMaxWidth: CGFloat = 1280
     /// The widest the picture grows; it fills the page when the window is
     /// wide enough.
-    private static let stageWidth: CGFloat = 1400
+    private static let stageWidth: CGFloat = 1280
 
     init(episode: Episode, autoplay: Bool = false, startAt: Int? = nil) {
         self.episode = episode
@@ -60,34 +65,42 @@ struct EpisodeDetailScreen: View {
         ScrollView {
             VStack(alignment: .leading, spacing: Space.xl) {
                 stage
+                    .padding(.horizontal, Space.page)
+                    .padding(.top, Space.s)
+
                 VStack(alignment: .leading, spacing: Space.xl) {
-                    heading
-                    actions
-                    if let error = page.error, page.details == nil {
-                        Label(error, systemImage: "exclamationmark.triangle")
-                            .font(AppFont.bodySmall)
-                            .foregroundStyle(Palette.danger)
+                    VStack(alignment: .leading, spacing: Space.l) {
+                        heading
+                        actions
+                        if let error = page.error, page.details == nil {
+                            Label(error, systemImage: "exclamationmark.triangle")
+                                .font(AppFont.bodySmall)
+                                .foregroundStyle(Palette.danger)
+                        }
                     }
-                    sections
+                    editorialBody
                 }
-                .frame(maxWidth: Self.textWidth, alignment: .leading)
+                .frame(maxWidth: usesTwoColumns ? Self.editorialMaxWidth : Self.textWidth, alignment: .leading)
                 .frame(maxWidth: .infinity)
+                .padding(.horizontal, Space.page)
+
+                if let similar = details?.similar, !similar.isEmpty {
+                    similarShelf(similar)
+                }
             }
-            .padding(.horizontal, Space.page)
-            .padding(.bottom, Space.xl)
+            .padding(.bottom, Space.xxl)
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { bodyWidth = $0 }
         }
+        .hiddenScrollEdge()
         .background(Palette.background)
         .navigationTitle("")
+        .preference(key: InlineStageVisibleKey.self, value: hostsInlineStage)
         .task {
             await page.load(app: app)
             if autoplay, !didAutoplay, !Task.isCancelled {
                 didAutoplay = true
                 play(from: startAt)
             }
-        }
-        .onDisappear {
-            // Leaving the page ends its picture; the position is kept.
-            if playback.isInline, playback.current?.identifier == episode.identifier { playback.stop() }
         }
         .sheet(item: $sheet) { item in
             switch item {
@@ -116,9 +129,19 @@ struct EpisodeDetailScreen: View {
 
     private var details: EpisodeDetails? { page.details }
 
-    /// Whether the picture of this episode plays in the page.
+    /// True when this page wants to own the inline video slot (unless manual PiP is active).
+    private var hostsInlineStage: Bool {
+        playback.isInline && playback.isPlaying && playback.current?.identifier == episode.identifier && !playback.manualPiP
+    }
+
+    /// Whether the picture of this episode currently renders inside this page's stage.
     private var playsHere: Bool {
-        playback.isInline && playback.isPlaying && playback.current?.identifier == episode.identifier
+        hostsInlineStage && !playback.isInPiP
+    }
+
+    /// Whether this episode is currently floating in native Picture-in-Picture.
+    private var playsInPiP: Bool {
+        playback.isInPiP && playback.current?.identifier == episode.identifier
     }
 
     /// Whether this episode plays in the player window.
@@ -138,6 +161,30 @@ struct EpisodeDetailScreen: View {
 
     private var canWatch: Bool { details?.clip.canAccess ?? true }
 
+    private var hasHeatmap: Bool {
+        guard let heatmap = page.insights?.heatmap else { return false }
+        return heatmap.count > 1 && shown.durationSeconds > 0
+    }
+
+    private var nonEmptyChapterSections: [EpisodeDetails.ChapterSection] {
+        (details?.chapterSections ?? []).filter { !$0.chapters.isEmpty }
+    }
+
+    private var hasChapters: Bool { !nonEmptyChapterSections.isEmpty }
+
+    private var hasTimelineColumn: Bool {
+        hasHeatmap || hasChapters || showsStandaloneChapterPrompt
+    }
+
+    private var showsStandaloneChapterPrompt: Bool {
+        guard !hasChapters, let context = page.chapterContext else { return false }
+        return context.canSubmit || context.openSuggestion != nil || context.lastDecision != nil
+    }
+
+    private var usesTwoColumns: Bool {
+        bodyWidth >= 940 && hasTimelineColumn
+    }
+
     private func play(from seconds: Int?) {
         playback.playInline(shown, from: seconds)
     }
@@ -148,6 +195,23 @@ struct EpisodeDetailScreen: View {
             playback.seek(to: seconds, exact: true)
         } else {
             play(from: Int(seconds))
+        }
+    }
+
+    // MARK: Navigation
+
+    private var canOpenFormat: Bool {
+        shown.pid > 0 && browse.format(pid: shown.pid) != nil
+    }
+
+    private func openSeries() {
+        guard shown.pid > 0 else { return }
+        if browse.navigationPath.count >= 2,
+           case .episodes(let pid) = browse.navigationPath[browse.navigationPath.count - 2],
+           pid == shown.pid {
+            browse.navigationPath.removeLast()
+        } else {
+            browse.navigationPath.append(.episodes(pid: shown.pid))
         }
     }
 
@@ -214,6 +278,15 @@ struct EpisodeDetailScreen: View {
     @ViewBuilder private var posterCenter: some View {
         if isStarting {
             ProgressView().controlSize(.large)
+        } else if playsInPiP {
+            VStack(spacing: Space.m) {
+                Label("Läuft im Bild-in-Bild", systemImage: "pip")
+                    .font(AppFont.heading)
+                    .foregroundStyle(.white)
+                PillButton(title: "Hier weitersehen", symbol: "pip.exit", style: .onPicture) {
+                    playback.exitPiP()
+                }
+            }
         } else if playsInWindow {
             VStack(spacing: Space.m) {
                 Label("Läuft im Player-Fenster", systemImage: "macwindow")
@@ -238,7 +311,7 @@ struct EpisodeDetailScreen: View {
                 }
             }
         } else {
-            Button { play(from: nil) } label: {
+            Button { play(from: resumeSeconds) } label: {
                 VStack(spacing: Space.m) {
                     Image(systemName: "play.fill")
                         .font(.system(size: 30, weight: .semibold))
@@ -267,9 +340,7 @@ struct EpisodeDetailScreen: View {
 
     private var heading: some View {
         VStack(alignment: .leading, spacing: Space.s) {
-            Text(metaLine)
-                .font(AppFont.subheading)
-                .foregroundStyle(Palette.accentText)
+            metaHeader
             Text(BrowseLogic.title(of: shown))
                 .font(AppFont.hero)
                 .foregroundStyle(Palette.textPrimary)
@@ -286,9 +357,44 @@ struct EpisodeDetailScreen: View {
         }
     }
 
-    /// "Pantoffelkino · Folge 321 · 08.07.2022 · 1:28:41"
-    private var metaLine: String {
-        var parts = [shown.formatName]
+    /// Clickable series link followed by episode number, date and duration.
+    private var metaHeader: some View {
+        HStack(alignment: .firstTextBaseline, spacing: Space.xs) {
+            if !shown.formatName.isEmpty {
+                if canOpenFormat {
+                    Button(action: openSeries) {
+                        HStack(spacing: 3) {
+                            Text(shown.formatName)
+                            Image(systemName: "arrow.up.right")
+                                .font(.system(size: 10, weight: .semibold))
+                        }
+                        .font(AppFont.subheading)
+                        .foregroundStyle(Palette.accentText)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Alle Folgen von \(shown.formatName)")
+                } else {
+                    Text(shown.formatName)
+                        .font(AppFont.subheading)
+                        .foregroundStyle(Palette.accentText)
+                }
+            }
+            if !metaRest.isEmpty {
+                if !shown.formatName.isEmpty {
+                    Text("·")
+                        .font(AppFont.subheading)
+                        .foregroundStyle(Palette.textTertiary)
+                }
+                Text(metaRest)
+                    .font(AppFont.subheading)
+                    .foregroundStyle(Palette.textSecondary)
+                    .monospacedDigit()
+            }
+        }
+    }
+
+    private var metaRest: String {
+        var parts: [String] = []
         if shown.number > 0 { parts.append("Folge \(shown.number)") }
         parts.append(BrowseEpisodeRow.dateText(shown.date))
         parts.append(shown.duration)
@@ -394,47 +500,90 @@ struct EpisodeDetailScreen: View {
         sheet = .share(link)
     }
 
-    // MARK: Sections
+    // MARK: Editorial body
 
-    @ViewBuilder private var sections: some View {
-        if let text = details?.clip.description, !text.isEmpty {
-            section("Inhalt") {
-                Text(text)
-                    .font(AppFont.body)
+    @ViewBuilder private var editorialBody: some View {
+        if usesTwoColumns {
+            HStack(alignment: .top, spacing: Space.xxl) {
+                leftColumn
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                timelineColumn
+                    .frame(width: min(440, max(340, bodyWidth * 0.38)), alignment: .leading)
+            }
+        } else {
+            VStack(alignment: .leading, spacing: Space.xl) {
+                leftColumn
+                if hasTimelineColumn {
+                    timelineColumn
+                }
+            }
+        }
+    }
+
+    @ViewBuilder private var leftColumn: some View {
+        VStack(alignment: .leading, spacing: Space.xl) {
+            if let text = details?.clip.description, !text.isEmpty {
+                section("Inhalt") {
+                    Text(text)
+                        .font(AppFont.body)
+                        .foregroundStyle(Palette.textPrimary)
+                        .lineSpacing(3)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .textSelection(.enabled)
+                }
+            }
+            if !shown.participants.isEmpty {
+                section("Gäste", detail: "\(shown.participants.count)") { guests }
+            }
+            if let words = details?.keywords, !words.isEmpty {
+                section("Schlagworte") { keywords(words) }
+            }
+            if let next = details?.nextIdentifier, !next.isEmpty {
+                section("Weiter in \(shown.formatName.isEmpty ? "der Serie" : shown.formatName)") {
+                    nextCard(next)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder private var timelineColumn: some View {
+        VStack(alignment: .leading, spacing: Space.m) {
+            HStack(alignment: .firstTextBaseline, spacing: Space.s) {
+                Text(timelineHeading)
+                    .font(AppFont.displaySmall)
                     .foregroundStyle(Palette.textPrimary)
-                    .lineSpacing(3)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .textSelection(.enabled)
+                if hasChapters {
+                    Text("\(details?.chapters.count ?? 0)")
+                        .font(AppFont.digits)
+                        .foregroundStyle(Palette.textTertiary)
+                }
+                Spacer(minLength: 0)
+                chapterHeaderAccessory
             }
-        }
-        if let heatmap = page.insights?.heatmap, heatmap.count > 1, shown.durationSeconds > 0 {
-            section("Meistgesehen") {
-                EpisodeHeatmap(heatmap: heatmap, duration: shown.durationSeconds,
-                               position: playsHere ? playback.position : nil, onJump: jump)
+
+            VStack(alignment: .leading, spacing: Space.l) {
+                if let heatmap = page.insights?.heatmap, heatmap.count > 1, shown.durationSeconds > 0 {
+                    EpisodeHeatmap(heatmap: heatmap, duration: shown.durationSeconds,
+                                   position: playsHere ? playback.position : nil, onJump: jump)
+                }
+                if hasHeatmap && hasChapters {
+                    Hairline()
+                }
+                if hasChapters {
+                    chapterList(nonEmptyChapterSections)
+                } else if showsStandaloneChapterPrompt {
+                    chapterSuggestionBanner
+                }
             }
+            .padding(Space.l)
+            .contentCard()
         }
-        if let sections = details?.chapterSections, sections.contains(where: { !$0.chapters.isEmpty }) {
-            section("Kapitel", detail: "\(details?.chapters.count ?? 0)") {
-                chapterList(sections)
-            }
-        }
-        if page.chapterContext != nil {
-            section("Kapitel vorschlagen") {
-                chapterSuggestion
-            }
-        }
-        if !shown.participants.isEmpty {
-            section("Gäste", detail: "\(shown.participants.count)") { guests }
-        }
-        if let words = details?.keywords, !words.isEmpty {
-            section("Schlagworte") { keywords(words) }
-        }
-        if let next = details?.nextIdentifier, !next.isEmpty {
-            section("Weiter in \(shown.formatName.isEmpty ? "der Serie" : shown.formatName)") { nextCard(next) }
-        }
-        if let similar = details?.similar, !similar.isEmpty {
-            section("Ähnliche Folgen", detail: "\(similar.count)") { similarRow(similar) }
-        }
+    }
+
+    private var timelineHeading: String {
+        if hasHeatmap && hasChapters { return "Zeitverlauf & Kapitel" }
+        if hasChapters { return "Kapitel" }
+        return "Meistgesehen"
     }
 
     private func section<Content: View>(_ title: String, detail: String? = nil,
@@ -447,20 +596,45 @@ struct EpisodeDetailScreen: View {
 
     // MARK: Chapters
 
-    /// The state of the chapter suggestions of this episode: whether the
-    /// account may write one and what happened to the last one.
-    @ViewBuilder private var chapterSuggestion: some View {
+    /// Subtle header control for suggesting or viewing the status of chapter suggestions.
+    @ViewBuilder private var chapterHeaderAccessory: some View {
+        if let context = page.chapterContext {
+            if context.canSubmit {
+                Button {
+                    sheet = .chapters
+                } label: {
+                    Label("Kapitel vorschlagen", systemImage: "square.and.pencil")
+                        .font(AppFont.captionMedium)
+                        .foregroundStyle(Palette.textSecondary)
+                        .padding(.horizontal, Space.s)
+                        .padding(.vertical, 4)
+                        .glassPlate(in: Capsule(), interactive: true)
+                }
+                .buttonStyle(.plain)
+                .help("Eigene Kapitel für diese Folge vorschlagen")
+            } else if context.openSuggestion != nil {
+                BrandPill(text: "Vorschlag offen", color: Palette.accentText, background: Palette.accentSoft)
+            } else if let decision = context.lastDecision {
+                BrandPill(
+                    text: decision.isAccepted ? "Angenommen" : "Abgelehnt",
+                    color: decision.isAccepted ? Palette.success : Palette.textSecondary,
+                    background: decision.isAccepted ? Palette.successSoft : Palette.surfaceMuted)
+            }
+        }
+    }
+
+    @ViewBuilder private var chapterSuggestionBanner: some View {
         if let context = page.chapterContext {
             VStack(alignment: .leading, spacing: Space.s) {
                 if context.canSubmit {
-                    Text("Du kannst eigene Kapitel für diese Folge vorschlagen. Über die Aufnahme entscheidet der Server.")
+                    Text("Für diese Folge liegen noch keine Kapitel vor. Du kannst eigene Kapitel vorschlagen.")
                         .font(AppFont.bodySmall)
                         .foregroundStyle(Palette.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
-                    Button("Kapitel bearbeiten") { sheet = .chapters }
+                    Button("Kapitel vorschlagen") { sheet = .chapters }
                         .glassButtonStyle()
                 } else if context.openSuggestion != nil {
-                    Label("Dein Vorschlag wartet auf die Entscheidung.", systemImage: "clock")
+                    Label("Dein Kapitel-Vorschlag wartet auf die Entscheidung.", systemImage: "clock")
                         .font(AppFont.bodySmall)
                         .foregroundStyle(Palette.textSecondary)
                 } else if let decision = context.lastDecision {
@@ -468,14 +642,8 @@ struct EpisodeDetailScreen: View {
                           systemImage: decision.isAccepted ? "checkmark.circle" : "xmark.circle")
                         .font(AppFont.bodySmall)
                         .foregroundStyle(Palette.textSecondary)
-                } else {
-                    Text("Für diese Folge kannst du keine Kapitel vorschlagen.")
-                        .font(AppFont.bodySmall)
-                        .foregroundStyle(Palette.textSecondary)
                 }
             }
-            .padding(Space.s)
-            .contentCard()
         }
     }
 
@@ -496,8 +664,6 @@ struct EpisodeDetailScreen: View {
                 }
             }
         }
-        .padding(Space.s)
-        .contentCard()
     }
 
     // MARK: Guests and words
@@ -510,14 +676,14 @@ struct EpisodeDetailScreen: View {
                         browse.navigationPath.append(.host(guest))
                     } label: {
                         VStack(spacing: Space.s) {
-                            GuestPortrait(image: guest.image, size: 84)
+                            GuestPortrait(image: guest.image, size: 80)
                             Text(guest.name)
                                 .font(AppFont.subheading)
                                 .foregroundStyle(Palette.textPrimary)
                                 .multilineTextAlignment(.center)
                                 .lineLimit(2)
                         }
-                        .frame(width: 104)
+                        .frame(width: 98)
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
@@ -550,38 +716,107 @@ struct EpisodeDetailScreen: View {
 
     // MARK: Related
 
-    private func nextCard(_ identifier: String) -> some View {
-        var next = Episode()
-        next.identifier = identifier
-        next.pid = shown.pid
-        next.formatName = shown.formatName
-        return Button("Nächste Folge öffnen", systemImage: "arrow.right.circle") {
-            browse.navigationPath.append(.episode(next, autoplay: false))
+    /// Resolves the richest metadata known for `nextIdentifier` and presents a
+    /// real media preview card instead of a bare button.
+    private func resolvedNextEpisode(_ identifier: String) -> Episode {
+        if let loaded = page.nextEpisode, loaded.identifier == identifier {
+            return browse.current(loaded)
         }
-        .glassButtonStyle()
-        .controlSize(.large)
+        if let inFormat = browse.episodes.first(where: { $0.identifier == identifier }) {
+            return browse.current(inFormat)
+        }
+        if let inSimilar = details?.similar.first(where: { $0.id == identifier })?.episode {
+            return browse.current(inSimilar)
+        }
+        var fallback = Episode()
+        fallback.identifier = identifier
+        fallback.pid = shown.pid
+        fallback.formatName = shown.formatName
+        return fallback
     }
 
-    private func similarRow(_ hits: [SearchResult]) -> some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(alignment: .top, spacing: Space.l) {
-                ForEach(hits, id: \.id) { hit in
-                    let other = browse.current(hit.episode)
-                    Button {
-                        browse.navigationPath.append(.episode(hit.episode, autoplay: false))
-                    } label: {
-                        EpisodeCard(episode: other, percent: other.progressPercent,
-                                    downloaded: browse.isDownloaded(other.identifier)) {
-                            browse.navigationPath.append(.episode(hit.episode, autoplay: true))
+    private func nextCard(_ identifier: String) -> some View {
+        let next = resolvedNextEpisode(identifier)
+        let hasDetails = !next.title.isEmpty || !next.thumb.isEmpty
+        return Group {
+            if hasDetails {
+                HStack(alignment: .center, spacing: Space.l) {
+                    EpisodeThumb(
+                        episode: next,
+                        percent: next.progressPercent,
+                        downloaded: browse.isDownloaded(next.identifier)
+                    ) {
+                        browse.navigationPath.append(.episode(next, autoplay: true))
+                    }
+                    .frame(width: 176)
+
+                    VStack(alignment: .leading, spacing: Space.xxs) {
+                        Text(nextMeta(next))
+                            .font(AppFont.captionMedium)
+                            .tracking(0.6)
+                            .foregroundStyle(Palette.accentText)
+                        Text(BrowseLogic.title(of: next))
+                            .font(AppFont.heading)
+                            .foregroundStyle(Palette.textPrimary)
+                            .lineLimit(2)
+                        if !next.description.isEmpty {
+                            Text(next.description)
+                                .font(AppFont.bodySmall)
+                                .foregroundStyle(Palette.textSecondary)
+                                .lineLimit(2)
                         }
                     }
-                    .buttonStyle(.plain)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Palette.textTertiary)
                 }
+                .padding(Space.m)
+                .contentCard()
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    browse.navigationPath.append(.episode(next, autoplay: false))
+                }
+            } else {
+                Button("Nächste Folge öffnen", systemImage: "arrow.right.circle") {
+                    browse.navigationPath.append(.episode(next, autoplay: false))
+                }
+                .glassButtonStyle()
+                .controlSize(.large)
             }
-            .padding(.bottom, Space.xs)
         }
     }
 
+    private func nextMeta(_ episode: Episode) -> String {
+        var parts: [String] = []
+        if episode.number > 0 { parts.append("FOLGE \(episode.number)") }
+        let day = BrowseEpisodeRow.dateText(episode.date)
+        if day != "-" { parts.append(day) }
+        if !episode.duration.isEmpty { parts.append(episode.duration) }
+        return parts.isEmpty ? "NÄCHSTE FOLGE" : parts.joined(separator: " · ")
+    }
+
+    private func similarShelf(_ hits: [SearchResult]) -> some View {
+        Shelf(
+            title: "Ähnliche Folgen",
+            trailing: "\(hits.count)",
+            onShowAll: { browse.navigationPath.append(.similar(shown)) }
+        ) {
+            ForEach(hits, id: \.id) { hit in
+                let other = browse.current(hit.episode)
+                Button {
+                    browse.navigationPath.append(.episode(hit.episode, autoplay: false))
+                } label: {
+                    EpisodeCard(episode: other, percent: other.progressPercent,
+                                downloaded: browse.isDownloaded(other.identifier)) {
+                        browse.navigationPath.append(.episode(hit.episode, autoplay: true))
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
 }
 
 // MARK: - Pieces
@@ -783,12 +1018,13 @@ private struct ChapterRow: View {
                 Text(AppFormat.position(chapter.start))
                     .font(AppFont.digitsMedium)
                     .foregroundStyle(Palette.accentText)
-                    .frame(minWidth: 56, alignment: .leading)
+                    .frame(minWidth: 52, alignment: .leading)
                 Text(chapter.title)
                     .font(isRunning ? AppFont.subheading : AppFont.body)
                     .foregroundStyle(Palette.textPrimary)
                     .lineLimit(2)
-                Spacer(minLength: Space.m)
+                    .multilineTextAlignment(.leading)
+                Spacer(minLength: Space.s)
                 Text(EpisodeDetailLogic.length(chapter))
                     .font(AppFont.digits)
                     .foregroundStyle(Palette.textTertiary)
@@ -820,22 +1056,34 @@ private struct EpisodeHeatmap: View {
     @State private var hover: Double?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Space.m) {
+        VStack(alignment: .leading, spacing: Space.s) {
+            SectionLabel(text: "Meistgesehen", symbol: "chart.bar.xaxis")
             bars
+            HStack {
+                Text("0:00")
+                Spacer()
+                Text(AppFormat.position(Double(duration)))
+            }
+            .font(AppFont.digits)
+            .foregroundStyle(Palette.textTertiary)
+
             let peaks = EpisodeDetailLogic.peaks(heatmap, duration: duration)
             if !peaks.isEmpty {
-                HStack(spacing: Space.s) {
-                    Text("Beliebteste Stellen")
+                FlowLayout(spacing: Space.xs) {
+                    Text("Beliebteste Stellen:")
                         .font(AppFont.caption)
                         .foregroundStyle(Palette.textSecondary)
+                        .padding(.vertical, 4)
                     ForEach(peaks, id: \.self) { seconds in
                         Button(AppFormat.position(Double(seconds)), systemImage: "play.fill") {
                             onJump(Double(seconds))
                         }
                         .font(AppFont.digitsMedium)
+                        .controlSize(.small)
                     }
                 }
                 .glassButtonStyle()
+                .padding(.top, Space.xxs)
             }
         }
     }
@@ -847,12 +1095,17 @@ private struct EpisodeHeatmap: View {
             ZStack(alignment: .bottomLeading) {
                 HStack(alignment: .bottom, spacing: 0) {
                     ForEach(Array(heatmap.enumerated()), id: \.offset) { _, value in
-                        Rectangle()
-                            .fill(Palette.accent.opacity(0.25 + 0.75 * value / peak))
-                            .frame(width: max(width - 0.5, 0.5), height: max(geo.size.height * value / peak, 1))
+                        let ratio = max(0, min(1, value / peak))
+                        UnevenRoundedRectangle(
+                            topLeadingRadius: 2, bottomLeadingRadius: 0,
+                            bottomTrailingRadius: 0, topTrailingRadius: 2,
+                            style: .continuous)
+                            .fill(Palette.accent.opacity(0.22 + 0.78 * ratio))
+                            .frame(width: max(width - 1, 1), height: max(geo.size.height * ratio, 2))
                             .frame(width: width, alignment: .bottom)
                     }
                 }
+                Hairline()
                 if let position, duration > 0 {
                     Rectangle()
                         .fill(Palette.textPrimary)
@@ -861,15 +1114,17 @@ private struct EpisodeHeatmap: View {
                 }
                 if let hover {
                     Rectangle()
-                        .fill(Palette.textPrimary.opacity(0.5))
+                        .fill(Palette.textPrimary.opacity(0.55))
                         .frame(width: 1)
                         .offset(x: geo.size.width * hover)
                     Text(AppFormat.position(hover * Double(duration)))
                         .font(AppFont.digitsMedium)
                         .foregroundStyle(Palette.textPrimary)
                         .padding(.horizontal, Space.xs)
+                        .padding(.vertical, 2)
                         .background(Palette.surfaceRaised, in: Capsule())
-                        .offset(x: min(max(geo.size.width * hover - 24, 0), geo.size.width - 56), y: -geo.size.height - 4)
+                        .overlay { Capsule().strokeBorder(Palette.border, lineWidth: 1) }
+                        .offset(x: min(max(geo.size.width * hover - 24, 0), geo.size.width - 56), y: -geo.size.height - 6)
                 }
             }
             .contentShape(Rectangle())
@@ -884,8 +1139,8 @@ private struct EpisodeHeatmap: View {
                 onJump(Double(min(max(point.x / geo.size.width, 0), 1)) * Double(duration))
             }
         }
-        .frame(height: 56)
-        .padding(.top, Space.l)
+        .frame(height: 52)
+        .padding(.top, Space.m)
         .help("Wie oft welche Stelle gesehen wurde; ein Klick spielt ab dort")
     }
 }

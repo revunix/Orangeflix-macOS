@@ -7,6 +7,7 @@ import Observation
     let identifier: String
     private(set) var details: EpisodeDetails?
     private(set) var insights: PlaybackInsights?
+    private(set) var nextEpisode: Episode?
     private(set) var isLoading = false
     private(set) var error: String?
 
@@ -50,6 +51,14 @@ import Observation
         chapterContext = try? await chapters
         if chapterContext != nil {
             chapterCategories = (try? await api.chapterCategories()) ?? []
+        }
+        if let nextID = details?.nextIdentifier, !nextID.isEmpty {
+            if let nextDetails = try? await api.episodeDetails(nextID, refresh: false),
+               !nextDetails.clip.id.isEmpty {
+                nextEpisode = nextDetails.clip.episode
+            }
+        } else {
+            nextEpisode = nil
         }
     }
 

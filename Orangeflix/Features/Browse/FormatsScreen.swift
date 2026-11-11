@@ -24,7 +24,7 @@ struct FormatsScreen: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
 
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: Space.l, alignment: .top), count: 3)
+    private let columns = [GridItem(.adaptive(minimum: 264, maximum: 360), spacing: Space.l, alignment: .top)]
 
     var body: some View {
         @Bindable var model = model
@@ -100,9 +100,15 @@ struct FormatsScreen: View {
                 heroCovers = distance < 320
                 scrolledUnderTitlebar = distance > 12
             }
-            .preference(key: TitlebarBackdropKey.self, value: showsShelves && heroCovers)
-            .preference(key: TitlebarScrimKey.self, value: showsShelves && scrolledUnderTitlebar)
+            .preference(key: TitlebarBackdropKey.self, value: isTopScreen && showsShelves && heroCovers)
+            .preference(key: TitlebarScrimKey.self, value: isTopScreen && showsShelves && scrolledUnderTitlebar)
         }
+    }
+
+    /// Pushed destinations sit in the same `NavigationStack`; while one is
+    /// open, the root catalog must not project its scrim onto the toolbar.
+    private var isTopScreen: Bool {
+        app.selection == .formats && model.formatsPath.isEmpty
     }
 
     /// The banner and the shelves only make sense for the whole catalog.
@@ -275,10 +281,12 @@ struct FormatsScreen: View {
                   onShowAll: { model.formatsPath.append(.newFormats) }) {
                 ForEach(fresh, id: \.pid) { format in
                     Button { open(format) } label: {
-                        FormatTile(format: format, count: model.episodeCountText(format))
+                        FormatTile(format: format, count: model.episodeCountText(format),
+                                   inLibrary: model.libraryEntry(format.pid) != nil)
                     }
                     .buttonStyle(.plain)
                     .frame(width: 260)
+                    .contextMenu { actions(for: format) }
                 }
             }
         }
@@ -375,9 +383,11 @@ struct FormatsScreen: View {
                     LazyVGrid(columns: columns, alignment: .leading, spacing: Space.l) {
                         ForEach(group.formats, id: \.pid) { format in
                             Button { open(format) } label: {
-                                FormatTile(format: format, count: model.episodeCountText(format))
+                                FormatTile(format: format, count: model.episodeCountText(format),
+                                           inLibrary: model.libraryEntry(format.pid) != nil)
                             }
                             .buttonStyle(.plain)
+                            .contextMenu { actions(for: format) }
                         }
                     }
                 }

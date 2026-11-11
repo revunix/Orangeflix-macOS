@@ -11,11 +11,21 @@ struct LiveStage: View {
     let playback: PlaybackCenter
     let banner: String
 
-    private var playsHere: Bool { playback.isPlaying && playback.isInline }
-    private var starting: Bool { playback.isInline && !playback.isPlaying }
+    private var isLiveOrReplay: Bool {
+        playback.current?.kind == .live || playback.current?.kind == .replay
+    }
+
+    private var playsHere: Bool {
+        playback.isPlaying && playback.isInline && isLiveOrReplay && !playback.isInPiP
+    }
+
+    private var starting: Bool {
+        playback.isInline && !playback.isPlaying && playback.preparingIdentifier == "live"
+    }
+
     /// The stream or the replay runs in the player window.
     private var playsInWindow: Bool {
-        playback.isPlaying && !playback.isInline && playback.current?.kind != .episode
+        playback.isPlaying && !playback.isInline && isLiveOrReplay
     }
 
     var body: some View {
@@ -52,6 +62,9 @@ struct LiveStage: View {
         if starting {
             ProgressView()
                 .controlSize(.large)
+        } else if playback.isInPiP && isLiveOrReplay {
+            stagePrompt(symbol: "pip", title: "Läuft im Bild-in-Bild",
+                        button: "Hier weitersehen", buttonSymbol: "pip.exit") { playback.exitPiP() }
         } else if playsInWindow {
             stagePrompt(symbol: "macwindow", title: "Läuft im Player-Fenster",
                         button: "Hier ansehen", buttonSymbol: "rectangle.inset.filled") { playback.pullIn() }
@@ -223,19 +236,34 @@ struct LiveStageControls: View {
                 if !engine.subtitleTracks.isEmpty {
                     PlayerSubtitleButton(engine: engine, playback: playback)
                 }
+                if playback.canUsePiP {
+                    PlayerIconButton(
+                        symbol: playback.isInPiP ? "pip.exit" : "pip.enter",
+                        help: playback.isInPiP ? "Bild-in-Bild beenden" : "Bild-in-Bild",
+                        isActive: playback.isInPiP
+                    ) {
+                        playback.togglePiP()
+                    }
+                }
                 PlayerIconButton(symbol: "macwindow.on.rectangle", help: "Im Player-Fenster öffnen") {
                     playback.popOut()
                 }
                 PlayerIconButton(symbol: "stop.fill", help: "Beenden") { playback.stop() }
             }
         }
-        .padding(.horizontal, Space.l)
-        .padding(.top, Space.xxl)
-        .padding(.bottom, Space.m)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 11)
         .background {
-            LinearGradient(colors: [.clear, .black.opacity(0.8)], startPoint: .top, endPoint: .bottom)
-                .allowsHitTesting(false)
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(.black.opacity(0.46))
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         }
+        .overlay {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(.white.opacity(0.14), lineWidth: 1)
+        }
+        .shadow(color: .black.opacity(0.38), radius: 18, y: 6)
+        .padding(Space.m)
     }
 }
 

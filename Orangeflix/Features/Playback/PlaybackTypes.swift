@@ -36,6 +36,11 @@ struct PlaybackEntry: Identifiable, Hashable, Sendable {
     var chapters: [PlaybackChapter] = []
     /// The WebVTT file with the pictures of the timeline.
     var thumbnailTrack: URL?
+    /// Artwork address for the NowPlaying mini-player.
+    var thumbURL: String = ""
+    /// Source episode when playing from the catalog, so the mini-player can
+    /// jump back to its detail page.
+    var episode: Episode? = nil
 
     var id: String { identifier }
 }

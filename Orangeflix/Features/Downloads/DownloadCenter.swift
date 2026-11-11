@@ -25,6 +25,17 @@ import Observation
     /// The jobs the queue still works on (sidebar badge).
     var activeCount: Int { jobs.reduce(0) { $0 + ($1.state.isActive ? 1 : 0) } }
 
+    /// Overall progress (0…1) of active jobs for toolbar and header indicators.
+    var overallProgress: Double? {
+        guard isRunning else { return nil }
+        let relevant = jobs.filter { $0.state.isActive || $0.state == .done || $0.state == .skipped }
+        guard !relevant.isEmpty else { return nil }
+        let totalSum = relevant.reduce(0.0) { sum, job in
+            sum + (job.fraction ?? 0)
+        }
+        return min(max(totalSum / Double(relevant.count), 0), 1)
+    }
+
     /// Where the files come from; the Orangeflix APIs unless replaced.
     @ObservationIgnored var sources: DownloadSources
 
@@ -217,7 +228,14 @@ import Observation
         }
         guard let queue = run?.queue else { return }
         for request in wanted {
-            let job = DownloadJob(id: request.id, pid: request.pid, label: request.naming.episodePrefix)
+            let job = DownloadJob(
+                id: request.id,
+                pid: request.pid,
+                label: request.naming.episodePrefix,
+                title: request.metadata.title,
+                formatName: request.metadata.formatName,
+                number: request.metadata.number,
+                thumbnailURL: request.metadata.thumbnailURL)
             if let index = jobs.firstIndex(where: { $0.id == request.id }) {
                 jobs.remove(at: index)
             }

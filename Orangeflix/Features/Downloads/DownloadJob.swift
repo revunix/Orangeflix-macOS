@@ -52,6 +52,24 @@ enum DownloadJobState: Sendable, Hashable {
         }
     }
 
+    var pillColor: Color {
+        switch self {
+        case .done: return Palette.success
+        case .failed: return Palette.danger
+        case .loading: return Palette.accentText
+        case .waiting, .skipped, .cancelled: return Palette.textSecondary
+        }
+    }
+
+    var pillBackground: Color {
+        switch self {
+        case .done: return Palette.successSoft
+        case .failed: return Palette.dangerSoft
+        case .loading: return Palette.accentSoft
+        case .waiting, .skipped, .cancelled: return Palette.surfaceMuted
+        }
+    }
+
     /// Whether the queue still works on the job.
     var isActive: Bool { self == .waiting || self == .loading }
 }
@@ -64,6 +82,11 @@ struct DownloadJob: Identifiable, Sendable, Hashable {
     let pid: Int
     /// The episode name ("Titel.S2026E012.1080p…" once the file is known).
     var label: String
+    /// Human-readable episode metadata for rich cards.
+    var title: String = ""
+    var formatName: String = ""
+    var number: Int = 0
+    var thumbnailURL: String = ""
     /// The target or existing file; nil until the file is known.
     var file: URL?
     var state: DownloadJobState = .waiting
@@ -83,6 +106,18 @@ struct DownloadJob: Identifiable, Sendable, Hashable {
         case .done, .skipped: return 1
         default: return total > 0 ? min(1, Double(done) / Double(total)) : nil
         }
+    }
+
+    var displayTitle: String {
+        if !title.isEmpty { return title }
+        return label
+    }
+
+    var displaySubtitle: String {
+        var parts: [String] = []
+        if !formatName.isEmpty { parts.append(formatName) }
+        if number > 0 { parts.append("Folge \(number)") }
+        return parts.joined(separator: " · ")
     }
 }
 

@@ -1,9 +1,8 @@
+import AppKit
 import SwiftUI
 
-/// The downloads of the session (Go queue screen): one row per job with its
-/// state, the progress, the speed and the target file; the actions of the
-/// TUI (`o` Ordner öffnen, `y` Pfad kopieren, `x` Datei löschen) are the
-/// context menu of the row.
+/// The downloads of the session (Go queue screen): one card per job with its
+/// thumbnail, state, progress, speed, target file and direct inline actions.
 struct DownloadsScreen: View {
     @Environment(DownloadCenter.self) private var center
 
@@ -15,24 +14,35 @@ struct DownloadsScreen: View {
     var body: some View {
         VStack(spacing: 0) {
             PageChrome(title: "Downloads", subtitle: subtitle) {
-                    MoreMenu {
-                        if let job = focusedJob {
-                            Button("Im Finder zeigen") { center.reveal(job) }
-                                .disabled(job.file == nil)
-                            Button("Pfad kopieren") { center.copyPath(job) }
-                                .disabled(job.file == nil)
-                            Button("Abbrechen") { center.cancel(job.id) }
-                                .disabled(!job.state.isActive)
-                            Divider()
-                            Button("Datei löschen …", role: .destructive) { deletedJob = job }
-                                .disabled(job.file == nil)
-                            Divider()
-                        }
-                        Button("Alle abbrechen") { center.cancelAll() }
-                            .disabled(!center.isRunning)
-                        Button("Liste leeren") { center.clearFinished() }
-                            .disabled(!center.jobs.contains { !$0.state.isActive })
+                if center.isRunning {
+                    PillButton(title: "Alle abbrechen", symbol: "xmark", style: .glass) {
+                        center.cancelAll()
                     }
+                } else if hasFinishedJobs {
+                    PillButton(title: "Fertige leeren", symbol: "trash", style: .glass) {
+                        center.clearFinished()
+                    }
+                }
+                MoreMenu {
+                    if let job = focusedJob {
+                        Button("Im Finder zeigen") { center.reveal(job) }
+                            .disabled(job.file == nil)
+                        Button("In Standard-App öffnen") { openFile(of: job) }
+                            .disabled(job.file == nil || job.state.isActive)
+                        Button("Pfad kopieren") { center.copyPath(job) }
+                            .disabled(job.file == nil)
+                        Button("Abbrechen") { center.cancel(job.id) }
+                            .disabled(!job.state.isActive)
+                        Divider()
+                        Button("Datei löschen …", role: .destructive) { deletedJob = job }
+                            .disabled(job.file == nil)
+                        Divider()
+                    }
+                    Button("Alle abbrechen") { center.cancelAll() }
+                        .disabled(!center.isRunning)
+                    Button("Liste leeren") { center.clearFinished() }
+                        .disabled(!hasFinishedJobs)
+                }
             }
             content
         }
@@ -48,14 +58,25 @@ struct DownloadsScreen: View {
             }
             Button("Abbrechen", role: .cancel) {}
         } message: { job in
-            Text(job.file?.path(percentEncoded: false) ?? job.label)
+            Text(job.file?.path(percentEncoded: false) ?? job.displayTitle)
         }
+    }
+
+    private var hasFinishedJobs: Bool {
+        center.jobs.contains { !$0.state.isActive }
     }
 
     /// The line under the title: the counts of the run, or the note that the
     /// download is going on.
     private var subtitle: String {
-        if center.isRunning { return "Der Download läuft …" }
+        if center.isRunning {
+            let active = center.activeCount
+            let speed = center.jobs.filter { $0.state == .loading }.reduce(0.0) { $0 + $1.bytesPerSecond }
+            if speed > 0 {
+                return "\(active) aktiv · \(DownloadFormat.bytes(Int64(speed)))/s"
+            }
+            return active == 1 ? "1 Download läuft …" : "\(active) Downloads laufen …"
+        }
         if let summary = center.summary { return summary.countsLine }
         return "\(center.jobs.count) Downloads"
     }
@@ -85,17 +106,16 @@ struct DownloadsScreen: View {
                     jobSection("Läuft", jobs: activeJobs)
                 }
                 if !finishedJobs.isEmpty {
-                    jobSection(activeJobs.isEmpty ? "Downloads" : "Fertig", jobs: finishedJobs)
+                    jobSection(activeJobs.isEmpty ? "Downloads" : "Abgeschlossen", jobs: finishedJobs)
                 }
             }
             .padding(.horizontal, Space.page)
             .padding(.top, Space.s)
-            .padding(.bottom, Space.xl)
+            .padding(.bottom, Space.xxl)
         }
     }
 
     private var activeJobs: [DownloadJob] { center.jobs.filter(\.state.isActive) }
-
     private var finishedJobs: [DownloadJob] { center.jobs.filter { !$0.state.isActive } }
 
     private func jobSection(_ title: String, jobs: [DownloadJob]) -> some View {
@@ -103,17 +123,30 @@ struct DownloadsScreen: View {
             SectionHeader(title: title, detail: "\(jobs.count)")
             LazyVStack(spacing: Space.s) {
                 ForEach(jobs) { job in
-                    DownloadJobRow(job: job, isSelected: job.id == selection)
-                        .onTapGesture { selection = job.id }
-                        .contextMenu { menu(for: job) }
+                    DownloadJobRow(
+                        job: job,
+                        isSelected: job.id == selection,
+                        onCancel: { center.cancel(job.id) },
+                        onReveal: { center.reveal(job) },
+                        onOpen: { openFile(of: job) }
+                    )
+                    .onTapGesture { selection = job.id }
+                    .contextMenu { menu(for: job) }
                 }
             }
         }
     }
 
+    private func openFile(of job: DownloadJob) {
+        guard let file = job.file else { return }
+        NSWorkspace.shared.open(file)
+    }
+
     // MARK: Menu
 
     @ViewBuilder private func menu(for job: DownloadJob) -> some View {
+        Button("In Standard-App öffnen") { openFile(of: job) }
+            .disabled(job.file == nil || job.state.isActive)
         Button("Im Finder zeigen") { center.reveal(job) }
             .disabled(job.file == nil)
         Button("Pfad kopieren") { center.copyPath(job) }
@@ -125,44 +158,47 @@ struct DownloadsScreen: View {
             .disabled(job.file == nil)
     }
 
-    /// The job the toolbar works on: the selected one, else the last job
-    /// (the TUI works on the last job).
+    /// The job the toolbar works on: the selected one, else the last job.
     private var focusedJob: DownloadJob? {
         if let selection, let job = center.jobs.first(where: { $0.id == selection }) { return job }
         return center.jobs.last
     }
 }
 
-/// One download of the list: the state, the label, the progress and the
-/// target file.
+/// One download of the list: 16:9 thumbnail, title, state pill, progress bar,
+/// target file and direct inline buttons.
 private struct DownloadJobRow: View {
     let job: DownloadJob
     var isSelected = false
+    let onCancel: () -> Void
+    let onReveal: () -> Void
+    let onOpen: () -> Void
 
     var body: some View {
-        HStack(alignment: .top, spacing: Space.m) {
-            Image(systemName: job.state.symbolName)
-                .font(.system(size: 14, weight: .medium))
-                .foregroundStyle(job.state.symbolColor)
-                .frame(width: 16)
+        HStack(alignment: .center, spacing: Space.l) {
+            thumbnail
             VStack(alignment: .leading, spacing: Space.xs) {
                 HStack(alignment: .firstTextBaseline, spacing: Space.s) {
-                    Text(job.label)
-                        .font(AppFont.subheading)
-                        .foregroundStyle(Palette.textPrimary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
+                    VStack(alignment: .leading, spacing: 2) {
+                        if !job.displaySubtitle.isEmpty {
+                            Text(job.displaySubtitle)
+                                .font(AppFont.captionMedium)
+                                .foregroundStyle(Palette.accentText)
+                                .lineLimit(1)
+                        }
+                        Text(job.displayTitle)
+                            .font(AppFont.heading)
+                            .foregroundStyle(Palette.textPrimary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
                     Spacer(minLength: 0)
-                    BrandPill(text: job.state.label)
+                    BrandPill(
+                        text: statusBadgeText,
+                        color: job.state.pillColor,
+                        background: job.state.pillBackground)
                 }
-                if let file = job.file {
-                    Text(AppFormat.displayPath(file))
-                        .font(AppFont.caption)
-                        .foregroundStyle(Palette.textTertiary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .help(file.path(percentEncoded: false))
-                }
+
                 if job.state == .loading {
                     Capsule()
                         .fill(Palette.surfaceMuted)
@@ -173,7 +209,19 @@ private struct DownloadJobRow: View {
                                 .scaleEffect(x: max(job.fraction ?? 0, 0.02), anchor: .leading)
                         }
                 }
-                metrics
+
+                HStack(spacing: Space.m) {
+                    metrics
+                    if let file = job.file {
+                        Text(AppFormat.displayPath(file))
+                            .font(AppFont.caption)
+                            .foregroundStyle(Palette.textTertiary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .help(file.path(percentEncoded: false))
+                    }
+                }
+
                 if let message = job.message {
                     Text(message)
                         .font(AppFont.caption)
@@ -181,17 +229,56 @@ private struct DownloadJobRow: View {
                         .lineLimit(2)
                 }
             }
+            inlineActions
         }
-        .padding(Space.l)
+        .padding(Space.m)
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentCard(selected: isSelected)
+    }
+
+    private var statusBadgeText: String {
+        if job.state == .loading, let fraction = job.fraction {
+            return "\(Int((fraction * 100).rounded())) %"
+        }
+        return job.state.label
+    }
+
+    private var thumbnail: some View {
+        Color.clear
+            .aspectRatio(16.0 / 9.0, contentMode: .fit)
+            .frame(width: 132)
+            .overlay {
+                RemoteArt(url: job.thumbnailURL, symbol: "arrow.down.circle")
+            }
+            .overlay(alignment: .bottomTrailing) {
+                Image(systemName: job.state.symbolName)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.white, job.state.symbolColor)
+                    .padding(6)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: Radius.inner, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: Radius.inner, style: .continuous)
+                    .strokeBorder(Palette.divider, lineWidth: 1)
+            }
+    }
+
+    @ViewBuilder private var inlineActions: some View {
+        HStack(spacing: Space.xs) {
+            if job.state.isActive {
+                IconAction(icon: "xmark", help: "Download abbrechen", action: onCancel)
+            } else if job.file != nil {
+                IconAction(icon: "play.fill", help: "Datei öffnen", action: onOpen)
+                IconAction(icon: "folder", help: "Im Finder zeigen", action: onReveal)
+            }
+        }
     }
 
     /// The numbers of the job: the size, the speed and the rest of the time.
     @ViewBuilder private var metrics: some View {
         let parts = metricParts
         if !parts.isEmpty {
-            HStack(spacing: Space.m) {
+            HStack(spacing: Space.s) {
                 ForEach(parts, id: \.self) { part in
                     Text(part)
                         .font(AppFont.digits)
@@ -201,8 +288,6 @@ private struct DownloadJobRow: View {
         }
     }
 
-    /// The numbers of the row; a finished job shows its size instead of the
-    /// progress.
     private var metricParts: [String] {
         switch job.state {
         case .done:

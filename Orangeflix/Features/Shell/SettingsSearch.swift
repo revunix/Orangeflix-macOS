@@ -253,6 +253,12 @@ enum SettingsSearch {
               keywords: "sparkle updater aktualisierung"),
         .init(id: "about.libmpv", pane: .about, title: "Wiedergabe", section: "Bestandteile",
               keywords: "libmpv mpv player bibliothek"),
+
+        // Streaming & Discord
+        .init(id: "streaming.discord", pane: .streaming, title: "Aktuelle Wiedergabe in Discord anzeigen",
+              section: "Discord Rich Presence", keywords: "discord rich presence spotify status aktivität schaut"),
+        .init(id: "streaming.discordButton", pane: .streaming, title: "Link-Button zur Folge oder zum Livestream zeigen",
+              section: "Discord Rich Presence", keywords: "discord link button folge livestream url"),
     ]
 }
 
