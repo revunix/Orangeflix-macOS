@@ -2,10 +2,16 @@ import AppKit
 import CoreGraphics
 import CryptoKit
 import Foundation
+import ImageIO
 import os
 
 /// Pictures from the network, kept in memory and on disk, so a start and a
 /// scroll back do not fetch them again.
+///
+/// The disk keeps the original file; memory keeps decoded bitmaps at the
+/// resolution a view asked for. Drawing a large picture into a small box in
+/// one step aliases (jagged logos), so pictures are downsampled with ImageIO
+/// before they reach SwiftUI.
 ///
 /// The disk copies live in `Caches/Orangeflix/images`; they are pure caches,
 /// so macOS may delete them at any time.
@@ -19,8 +25,8 @@ actor ImageCache {
     /// The disk layer; older files go when the folder grows past this.
     private static let diskLimit = 256 * 1024 * 1024
 
-    private let memory: NSCache<NSURL, NSImage> = {
-        let cache = NSCache<NSURL, NSImage>()
+    private let memory: NSCache<NSString, NSImage> = {
+        let cache = NSCache<NSString, NSImage>()
         cache.totalCostLimit = memoryLimit
         return cache
     }()
@@ -29,7 +35,9 @@ actor ImageCache {
     private let folder: URL?
     /// Files that are being fetched; a second reader waits instead of
     /// downloading the same picture again.
-    private var running: [URL: Task<NSImage?, Never>] = [:]
+    private var fetching: [URL: Task<Data?, Never>] = [:]
+    /// Bitmaps that are being decoded, by memory key.
+    private var decoding: [String: Task<NSImage?, Never>] = [:]
     /// The hero carousel reuses its image-derived colors on every turn.
     private var imageColors: [URL: ThemeRGB] = [:]
 
@@ -46,16 +54,41 @@ actor ImageCache {
 
     /// The picture of `url`: from memory, else from disk, else from the
     /// network. nil when it cannot be loaded; nothing is stored then.
-    func image(for url: URL) async -> NSImage? {
-        if let cached = memory.object(forKey: url as NSURL) { return cached }
-        if let fetched = running[url] { return await fetched.value }
+    ///
+    /// `pixels` is the box the picture fills (aspect fill) in device pixels;
+    /// the bitmap is decoded just large enough to cover it, never above the
+    /// source size. Without a box the full picture is decoded.
+    func image(for url: URL, filling pixels: CGSize? = nil) async -> NSImage? {
+        let box = pixels.map(Self.bucketed)
+        let key = Self.memoryKey(url, box)
+        if let cached = memory.object(forKey: key as NSString) { return cached }
+        if let running = decoding[key] { return await running.value }
         let task = Task<NSImage?, Never> { [weak self] in
-            await self?.load(url)
+            guard let data = await self?.data(for: url) else { return nil }
+            return await Task.detached(priority: .userInitiated) {
+                Self.decode(data, filling: box)
+            }.value
         }
-        running[url] = task
+        decoding[key] = task
         let image = await task.value
-        running[url] = nil
+        decoding[key] = nil
+        if let image {
+            let cost = Int(image.size.width * image.size.height * 4)
+            memory.setObject(image, forKey: key as NSString, cost: max(cost, 1))
+        } else {
+            Self.logger.debug("Bild nicht lesbar: \(url.absoluteString, privacy: .public)")
+        }
         return image
+    }
+
+    /// Rounds a pixel box up to coarse steps, so resizing a window by a few
+    /// points reuses the decoded bitmap instead of decoding again.
+    static func bucketed(_ size: CGSize) -> CGSize {
+        func step(_ value: CGFloat) -> CGFloat {
+            let unit: CGFloat = value > 1024 ? 256 : 64
+            return (max(value, 1) / unit).rounded(.up) * unit
+        }
+        return CGSize(width: step(size.width), height: step(size.height))
     }
 
     /// Drops the memory layer; the files stay for the next start.
@@ -68,7 +101,7 @@ actor ImageCache {
     /// stays on this actor, not in the view's layout or on the main actor.
     func representativeColor(for url: URL) async -> ThemeRGB? {
         if let color = imageColors[url] { return color }
-        guard let image = await image(for: url),
+        guard let image = await image(for: url, filling: CGSize(width: 64, height: 64)),
               let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil),
               let space = CGColorSpace(name: CGColorSpace.sRGB) else { return nil }
         let side = 24
@@ -106,35 +139,89 @@ actor ImageCache {
         return color
     }
 
+    // MARK: Decoding
+
+    private static func memoryKey(_ url: URL, _ box: CGSize?) -> String {
+        guard let box else { return url.absoluteString + "#full" }
+        return url.absoluteString + "#\(Int(box.width))x\(Int(box.height))"
+    }
+
+    /// Decodes `data` just large enough to cover `box` (aspect fill). ImageIO
+    /// downsamples with proper filtering and decodes right away, so drawing
+    /// neither aliases nor decodes on the main thread.
+    private static func decode(_ data: Data, filling box: CGSize?) -> NSImage? {
+        let sourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
+        guard let source = CGImageSourceCreateWithData(data as CFData, sourceOptions),
+              CGImageSourceGetCount(source) > 0,
+              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+              var width = (properties[kCGImagePropertyPixelWidth] as? NSNumber)?.doubleValue,
+              var height = (properties[kCGImagePropertyPixelHeight] as? NSNumber)?.doubleValue,
+              width > 0, height > 0 else {
+            // Vector files (SVG, PDF) are not bitmaps; NSImage renders them
+            // sharp at any size.
+            return NSImage(data: data)
+        }
+        // EXIF orientations 5–8 swap the sides once the transform is applied.
+        if let orientation = (properties[kCGImagePropertyOrientation] as? NSNumber)?.intValue, orientation >= 5 {
+            swap(&width, &height)
+        }
+        var longest = max(width, height)
+        if let box {
+            let scale = max(box.width / width, box.height / height)
+            longest = min(longest, (max(width, height) * scale).rounded(.up))
+        }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceThumbnailMaxPixelSize: Int(longest),
+        ]
+        guard let image = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else {
+            return nil
+        }
+        return NSImage(cgImage: image, size: NSSize(width: image.width, height: image.height))
+    }
+
     // MARK: Loading
 
-    private func load(_ url: URL) async -> NSImage? {
-        if let image = readFromDisk(url) {
-            remember(image, for: url)
-            return image
+    /// The file of `url`, read once even when several sizes ask at once.
+    private func data(for url: URL) async -> Data? {
+        if let running = fetching[url] { return await running.value }
+        let task = Task<Data?, Never> { [weak self] in
+            await self?.fetch(url)
         }
+        fetching[url] = task
+        let data = await task.value
+        fetching[url] = nil
+        return data
+    }
+
+    private func fetch(_ url: URL) async -> Data? {
+        if let data = readFromDisk(url) { return data }
         do {
             let (data, response) = try await session.data(from: url)
             if let http = response as? HTTPURLResponse, http.statusCode != 200 {
                 Self.logger.debug("Bild nicht geladen (HTTP \(http.statusCode)): \(url.absoluteString, privacy: .public)")
                 return nil
             }
-            guard let image = NSImage(data: data) else {
+            guard Self.isImage(data) else {
                 Self.logger.debug("Bild nicht lesbar: \(url.absoluteString, privacy: .public)")
                 return nil
             }
-            remember(image, for: url)
             writeToDisk(data, for: url)
-            return image
+            return data
         } catch {
             Self.logger.debug("Bild nicht geladen: \(error.localizedDescription, privacy: .public)")
             return nil
         }
     }
 
-    private func remember(_ image: NSImage, for url: URL) {
-        let pixels = Int(image.size.width * image.size.height * 4)
-        memory.setObject(image, forKey: url as NSURL, cost: max(pixels, 1))
+    /// Whether `data` is a picture worth keeping on disk.
+    private static func isImage(_ data: Data) -> Bool {
+        if let source = CGImageSourceCreateWithData(data as CFData, nil), CGImageSourceGetCount(source) > 0 {
+            return true
+        }
+        return NSImage(data: data) != nil
     }
 
     // MARK: Disk
@@ -147,10 +234,9 @@ actor ImageCache {
         return folder.appendingPathComponent(name, isDirectory: false)
     }
 
-    private func readFromDisk(_ url: URL) -> NSImage? {
+    private func readFromDisk(_ url: URL) -> Data? {
         guard let file = file(for: url) else { return nil }
-        guard let data = try? Data(contentsOf: file) else { return nil }
-        return NSImage(data: data)
+        return try? Data(contentsOf: file)
     }
 
     private func writeToDisk(_ data: Data, for url: URL) {

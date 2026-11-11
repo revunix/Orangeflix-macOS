@@ -145,6 +145,7 @@ struct SettingsAboutPage: View {
 private struct DeveloperPortrait: View {
     private static let url = URL(string: "https://www.gravatar.com/avatar/f163b408cf74e04d857c250fb31a67a81ba22f4706ba5a7fca4eaee9b4ad8ced?s=192&d=identicon")!
 
+    @Environment(\.displayScale) private var displayScale
     @State private var image: NSImage?
 
     var body: some View {
@@ -152,6 +153,7 @@ private struct DeveloperPortrait: View {
             if let image {
                 Image(nsImage: image)
                     .resizable()
+                    .interpolation(.high)
                     .scaledToFill()
             } else {
                 Image(systemName: "person.crop.circle.fill")
@@ -163,6 +165,9 @@ private struct DeveloperPortrait: View {
         .clipShape(Circle())
         .overlay { Circle().strokeBorder(Palette.divider, lineWidth: 1) }
         .accessibilityLabel("GitHub-Profilbild von Alexander")
-        .task { image = await ImageCache.shared.image(for: Self.url) }
+        .task {
+            let side = 46 * displayScale
+            image = await ImageCache.shared.image(for: Self.url, filling: CGSize(width: side, height: side))
+        }
     }
 }

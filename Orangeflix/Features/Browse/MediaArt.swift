@@ -4,48 +4,76 @@ import SwiftUI
 
 /// A picture from the network that fills its box. While it loads and when it
 /// fails, a quiet surface with a symbol stands in. The pictures come from
-/// `ImageCache`, so a start and a scroll back show them at once.
+/// `ImageCache`, decoded at the pixel size of this box, so large sources are
+/// downsampled cleanly instead of aliasing when drawn small.
 struct RemoteArt: View {
     let url: String
     var symbol = "film"
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.displayScale) private var displayScale
     @State private var image: NSImage?
     @State private var failed = false
+    /// The address `image` belongs to; a resize keeps it until the new size is decoded.
+    @State private var shownURL: String?
+
+    /// What decides the decode: the address and the bucketed pixel box.
+    private struct Request: Hashable {
+        let url: String
+        let width: Int
+        let height: Int
+    }
 
     var body: some View {
-        ZStack {
-            Palette.surfaceMuted
-            if let image {
-                Image(nsImage: image)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .transition(.opacity)
-            } else if failed {
-                placeholder
-                    .transition(.opacity)
+        GeometryReader { proxy in
+            let pixels = ImageCache.bucketed(CGSize(width: proxy.size.width * displayScale,
+                                                    height: proxy.size.height * displayScale))
+            ZStack {
+                Palette.surfaceMuted
+                if let image {
+                    Image(nsImage: image)
+                        .resizable()
+                        .interpolation(.high)
+                        .aspectRatio(contentMode: .fill)
+                        .transition(.opacity)
+                } else if failed {
+                    placeholder
+                        .transition(.opacity)
+                }
+            }
+            .frame(width: proxy.size.width, height: proxy.size.height)
+            .task(id: Request(url: url, width: Int(pixels.width), height: Int(pixels.height))) {
+                // The first layout pass may report no size yet.
+                guard proxy.size.width >= 1, proxy.size.height >= 1 else { return }
+                await load(filling: pixels)
             }
         }
-        .task(id: url) {
+    }
+
+    private func load(filling pixels: CGSize) async {
+        let isNewPicture = shownURL != url
+        if isNewPicture {
             image = nil
             failed = false
-            guard !url.isEmpty, let address = URL(string: url) else {
-                failed = true
-                return
-            }
-            let started = ContinuousClock.now
-            let loaded = await ImageCache.shared.image(for: address)
-            guard !Task.isCancelled else { return }
-            let waited = ContinuousClock.now - started > .milliseconds(25)
-            if waited && !reduceMotion {
-                withAnimation(.easeOut(duration: 0.22)) {
-                    image = loaded
-                    failed = loaded == nil
-                }
-            } else {
+        }
+        guard !url.isEmpty, let address = URL(string: url) else {
+            shownURL = url
+            failed = true
+            return
+        }
+        let started = ContinuousClock.now
+        let loaded = await ImageCache.shared.image(for: address, filling: pixels)
+        guard !Task.isCancelled else { return }
+        let waited = ContinuousClock.now - started > .milliseconds(25)
+        shownURL = url
+        if isNewPicture && waited && !reduceMotion {
+            withAnimation(.easeOut(duration: 0.22)) {
                 image = loaded
                 failed = loaded == nil
             }
+        } else {
+            image = loaded
+            failed = loaded == nil
         }
     }
 
