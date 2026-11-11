@@ -1,11 +1,10 @@
 import SwiftUI
 
-/// What this Mac announces itself, and what the server sends to the account.
-/// The two tests are named apart, so they are not one button.
+/// Notifications settings: local macOS notifications at the top, followed by
+/// server-side channels, events & registered push devices.
 struct SettingsNotificationsPage: View {
     @Binding var settingsError: String?
     @Binding var pendingDelete: SettingsDelete?
-    /// Opens the format list, where the announced formats are chosen.
     var showFormats: () -> Void
 
     @Environment(AppModel.self) private var app
@@ -14,138 +13,197 @@ struct SettingsNotificationsPage: View {
     @Environment(LiveModel.self) private var live
 
     var body: some View {
-        Group {
-            Section {
-                Toggle("Neue Folgen melden", isOn: notificationsBinding)
-                    .searchAnchor("general.newEpisodes")
-                LabeledContent {
-                    Button("Formate wählen …") { showFormats() }
-                } label: {
-                    Text("Gemeldete Formate")
-                    Text(announcedFormatsText)
-                }
-                Toggle("Livestreams melden", isOn: liveNotificationsBinding)
-                    .searchAnchor("general.liveNotifications")
-                Toggle("Bei Erwähnungen und Reaktionen melden", isOn: chatNotificationsBinding)
-                    .searchAnchor("general.chatNotifications")
-                HStack {
-                    Button("Testmitteilung dieses Macs") {
-                        Task {
-                            await watcher.sendTestNotification()
-                            await watcher.check()
-                        }
+        VStack(alignment: .leading, spacing: Space.xl) {
+            if !watcher.isAllowed {
+                HStack(alignment: .center, spacing: Space.m) {
+                    Image(systemName: "bell.slash.fill")
+                        .foregroundStyle(Palette.warning)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("System-Mitteilungen noch nicht erlaubt")
+                            .font(AppFont.subheading)
+                            .foregroundStyle(Palette.textPrimary)
+                        Text("Erlaube Mitteilungen für Orangeflix in den macOS-Systemeinstellungen.")
+                            .font(AppFont.caption)
+                            .foregroundStyle(Palette.textSecondary)
                     }
-                    .searchAnchor("general.testNotifications")
-                    if !watcher.isAllowed {
-                        Button("In den Systemeinstellungen erlauben") {
-                            watcher.openSystemSettings()
-                        }
-                        .searchAnchor("general.allowNotifications")
+                    Spacer(minLength: Space.s)
+                    Button("Systemeinstellungen öffnen") {
+                        watcher.openSystemSettings()
                     }
+                    .controlSize(.small)
+                    .searchAnchor("general.allowNotifications")
                 }
-            } header: {
-                Text("Dieser Mac")
-            } footer: {
-                if let error = watcher.lastError {
-                    Text(error)
-                } else if watcher.isAllowed {
-                    Text("Die App prüft alle 15 Minuten die neuesten Folgen und alle 2 Minuten, ob ein Livestream läuft. Mit den Chat-Mitteilungen bleibt der Live-Chat verbunden, auch wenn die Live-Seite geschlossen ist. Ein Klick auf eine Mitteilung öffnet das Format oder die Live-Seite.")
-                } else {
-                    Text("macOS hat die Mitteilungen für Orangeflix noch nicht erlaubt.")
+                .padding(Space.m)
+                .background(Palette.warningSoft, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
+                        .strokeBorder(Palette.warning.opacity(0.35), lineWidth: 1)
                 }
             }
 
+            SettingsSection(
+                "Dieser Mac",
+                footer: watcher.lastError ?? "Prüft alle 15 Minuten auf neue Folgen und alle 2 Minuten auf laufende Livestreams. Ein Klick auf eine Mitteilung öffnet direkt das Format oder den Stream."
+            ) {
+                Button("Testmitteilung senden") {
+                    Task {
+                        await watcher.sendTestNotification()
+                        await watcher.check()
+                    }
+                }
+                .controlSize(.small)
+                .searchAnchor("general.testNotifications")
+            } content: {
+                SettingsToggleRow(
+                    title: "Neue Folgen melden",
+                    subtitle: "Schickt einen Hinweis, sobald eines deiner gewählten Formate erscheint",
+                    isOn: notificationsBinding
+                )
+                .searchAnchor("general.newEpisodes")
+
+                Hairline()
+
+                SettingsRow("Gemeldete Formate", subtitle: announcedFormatsText) {
+                    Button("Formate wählen …") { showFormats() }
+                        .controlSize(.small)
+                }
+
+                Hairline()
+
+                SettingsToggleRow(
+                    title: "Livestreams melden",
+                    subtitle: "Informiert dich, sobald auf Orangeflix ein Stream startet",
+                    isOn: liveNotificationsBinding
+                )
+                .searchAnchor("general.liveNotifications")
+
+                Hairline()
+
+                SettingsToggleRow(
+                    title: "Erwähnungen & Reaktionen im Live-Chat",
+                    subtitle: "Hält den Live-Chat verbunden, auch wenn das Live-Fenster geschlossen ist",
+                    isOn: chatNotificationsBinding
+                )
+                .searchAnchor("general.chatNotifications")
+            }
+
             if !app.hasCredentials {
-                Section {
-                    Text("Nicht angemeldet")
-                        .foregroundStyle(.secondary)
-                } header: {
-                    Text("Server")
-                } footer: {
-                    Text("Die Anmeldung erfolgt im Hauptfenster. Die Mitteilungen dieses Macs oben gelten auch ohne Konto.")
+                SettingsSection(
+                    "Server-Mitteilungen",
+                    footer: "Melde dich im Hauptfenster an, um E-Mail- und Push-Kanäle deines Kontos zu verwalten."
+                ) {
+                    EmptyView()
+                } content: {
+                    Text("Nicht angemeldet — die lokalen Mac-Mitteilungen oben funktionieren auch ohne Konto.")
+                        .font(AppFont.bodySmall)
+                        .foregroundStyle(Palette.textSecondary)
                 }
             } else {
                 if let error = notifications.error {
-                    Section {
-                        ProfileNotice(symbol: "exclamationmark.triangle.fill", text: error,
-                                      tint: Palette.danger, background: Palette.dangerSoft)
-                    }
+                    ProfileNotice(symbol: "exclamationmark.triangle.fill", text: error,
+                                  tint: Palette.danger, background: Palette.dangerSoft)
                 }
 
-                Section {
-                    ForEach(notifications.channelNames, id: \.self) { channel in
-                        Toggle(NotificationSettingsModel.channelName(channel), isOn: channelBinding(channel))
-                    }
-                    Button("Testmitteilung vom Server") {
+                SettingsSection(
+                    "Server-Kanäle",
+                    footer: "Die Kanäle gelten für alle unten aktivierten Server-Ereignisse."
+                ) {
+                    Button("Server-Test senden") {
                         Task { await notifications.sendTest() }
                     }
+                    .controlSize(.small)
                     .searchAnchor("notifications.test")
-                    Button("E-Mail-Versand wieder einschalten") {
-                        Task { await notifications.resubscribeEmail() }
+                } content: {
+                    ForEach(Array(notifications.channelNames.enumerated()), id: \.element) { index, channel in
+                        if index > 0 { Hairline() }
+                        SettingsToggleRow(
+                            title: NotificationSettingsModel.channelName(channel),
+                            isOn: channelBinding(channel)
+                        )
+                    }
+
+                    if !notifications.channelNames.isEmpty { Hairline() }
+
+                    SettingsRow("E-Mail-Abmeldung aufheben", subtitle: "Aktiviert den E-Mail-Versand nach einem Abmeldelink wieder") {
+                        Button("Wieder einschalten") {
+                            Task { await notifications.resubscribeEmail() }
+                        }
+                        .controlSize(.small)
                     }
                     .searchAnchor("notifications.resubscribe")
-                } header: {
-                    Text("Kanäle")
-                } footer: {
-                    Text("Die Kanäle gelten für alle Ereignisse. Ein Abmelden vom E-Mail-Versand lässt sich nur hier zurücknehmen.")
                 }
 
-                Section {
+                SettingsSection(
+                    "Server-Ereignisse",
+                    footer: "Der Server verschickt nur Benachrichtigungen für eingeschaltete Ereignisse."
+                ) {
+                    EmptyView()
+                } content: {
                     if notifications.catalog.isEmpty {
-                        // A failed load is not an empty catalog; the notice
-                        // above says what went wrong.
                         Text(notifications.isLoading ? "Der Katalog wird geladen …"
                              : notifications.error != nil ? "Die Ereignisse konnten nicht geladen werden."
-                             : "Der Server nennt keine Ereignisse.")
-                            .foregroundStyle(.secondary)
-                    }
-                    ForEach(notifications.catalog) { event in
-                        Toggle(event.label, isOn: eventBinding(event.key))
+                             : "Der Server nennt derzeit keine Ereignisse.")
+                            .font(AppFont.bodySmall)
+                            .foregroundStyle(Palette.textSecondary)
+                    } else {
+                        ForEach(Array(notifications.catalog.enumerated()), id: \.element.id) { index, event in
+                            if index > 0 { Hairline() }
+                            SettingsToggleRow(
+                                title: event.label,
+                                isOn: eventBinding(event.key)
+                            )
                             .disabled(!notifications.isConfigurable(event.key))
+                            .opacity(notifications.isConfigurable(event.key) ? 1 : 0.5)
+                        }
                     }
-                } header: {
-                    Text("Ereignisse")
-                } footer: {
-                    Text("Der Server schickt nur die Ereignisse, die hier eingeschaltet sind.")
                 }
 
-                Section {
+                SettingsSection(
+                    "Registrierte Push-Geräte",
+                    footer: "Geräte, die auf dem Server für mobile Push-Mitteilungen hinterlegt sind."
+                ) {
+                    Button("Aktualisieren") {
+                        Task { await notifications.load() }
+                    }
+                    .controlSize(.small)
+                    .disabled(notifications.isLoading)
+                } content: {
                     if notifications.isLoading {
                         Text("Push-Geräte werden geladen …")
-                            .foregroundStyle(.secondary)
+                            .font(AppFont.bodySmall)
+                            .foregroundStyle(Palette.textSecondary)
                     } else if let error = notifications.devicesError {
                         Text("Push-Geräte konnten nicht geladen werden: \(error)")
-                            .foregroundStyle(.secondary)
+                            .font(AppFont.bodySmall)
+                            .foregroundStyle(Palette.textSecondary)
                     } else if !notifications.devicesLoaded {
                         Text("Push-Geräte wurden noch nicht geladen.")
-                            .foregroundStyle(.secondary)
+                            .font(AppFont.bodySmall)
+                            .foregroundStyle(Palette.textSecondary)
                     } else if notifications.devices.isEmpty {
                         Text("Keine Geräte für Server-Push registriert.")
-                            .foregroundStyle(.secondary)
-                    }
-                    if !notifications.isLoading, notifications.devicesError == nil, notifications.devicesLoaded {
-                        ForEach(notifications.devices) { device in
+                            .font(AppFont.bodySmall)
+                            .foregroundStyle(Palette.textSecondary)
+                    } else {
+                        ForEach(Array(notifications.devices.enumerated()), id: \.element.id) { index, device in
+                            if index > 0 { Hairline() }
                             HStack {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(device.name.isEmpty ? device.deviceID : device.name)
-                                        .font(AppFont.body)
+                                        .font(AppFont.subheading)
+                                        .foregroundStyle(Palette.textPrimary)
                                     Text(device.platform)
                                         .font(AppFont.caption)
-                                        .foregroundStyle(.tertiary)
+                                        .foregroundStyle(Palette.textTertiary)
                                 }
-                                Spacer(minLength: 0)
-                                Button("Abmelden") { pendingDelete = .pushDevice(device.deviceID) }
+                                Spacer(minLength: Space.s)
+                                Button("Abmelden", role: .destructive) {
+                                    pendingDelete = .pushDevice(device.deviceID)
+                                }
+                                .controlSize(.small)
                             }
                         }
                     }
-                    Button("Geräte aktualisieren") {
-                        Task { await notifications.load() }
-                    }
-                    .disabled(notifications.isLoading)
-                } header: {
-                    Text("Push-Geräte")
-                } footer: {
-                    Text("Hier stehen Geräte, die für Push-Mitteilungen des Servers registriert sind, nicht die Mitteilungen, die diese App selbst anzeigt.")
                 }
             }
         }
@@ -155,16 +213,14 @@ struct SettingsNotificationsPage: View {
         }
     }
 
-    /// How many formats are announced, for the Mitteilungen section.
     private var announcedFormatsText: String {
         switch announcedFormats.count {
-        case 0: "Noch keins gewählt; ohne Auswahl meldet die App keine neuen Folgen."
-        case 1: "1 Format"
-        case let count: "\(count) Formate"
+        case 0: "Noch keins gewählt — ohne Auswahl werden keine neuen Folgen gemeldet"
+        case 1: "1 Format aktiv"
+        case let count: "\(count) Formate aktiv"
         }
     }
 
-    /// The chosen formats the Mediathek shows; only those are announced.
     private var announcedFormats: Set<Int> {
         NewEpisodeLogic.announced(notified: app.settings.notifiedMagazines, hidden: app.settings.hiddenMagazines)
     }
@@ -175,7 +231,8 @@ struct SettingsNotificationsPage: View {
             set: { value in
                 apply { $0.notificationsOn = value }
                 if value { Task { await watcher.refreshPermission() } }
-            })
+            }
+        )
     }
 
     private var liveNotificationsBinding: Binding<Bool> {
@@ -184,7 +241,8 @@ struct SettingsNotificationsPage: View {
             set: { value in
                 apply { $0.liveNotificationsOn = value }
                 if value { Task { await watcher.refreshPermission(); await watcher.checkLive() } }
-            })
+            }
+        )
     }
 
     private var chatNotificationsBinding: Binding<Bool> {
@@ -194,21 +252,22 @@ struct SettingsNotificationsPage: View {
                 apply { $0.chatNotificationsOn = value }
                 if value { Task { await watcher.refreshPermission() } }
                 Task { await live.settingsChanged() }
-            })
+            }
+        )
     }
 
-    /// The state of one channel of the notifications.
     private func channelBinding(_ channel: String) -> Binding<Bool> {
         Binding(
             get: { notifications.isChannelOn(channel) },
-            set: { value in Task { await notifications.setChannel(channel, enabled: value) } })
+            set: { value in Task { await notifications.setChannel(channel, enabled: value) } }
+        )
     }
 
-    /// The state of one event of the catalog.
     private func eventBinding(_ key: String) -> Binding<Bool> {
         Binding(
             get: { notifications.isEnabled(key) },
-            set: { value in Task { await notifications.setEvent(key, enabled: value) } })
+            set: { value in Task { await notifications.setEvent(key, enabled: value) } }
+        )
     }
 
     private func apply(_ change: (inout AppSettings) -> Void) {

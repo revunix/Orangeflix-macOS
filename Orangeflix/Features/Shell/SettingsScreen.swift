@@ -2,9 +2,9 @@ import AppKit
 import SwiftUI
 import Sparkle
 
-/// The window of the settings. It is built from the native building blocks
-/// of the Mac: a sidebar list, a grouped form and the system chrome — no
-/// own rows, cards or titlebar.
+/// The settings window: an Apple-ID-style account card at the top of the
+/// sidebar, three grouped category sections with squircle badges below, and
+/// themed card sections on the right.
 struct SettingsScreen: View {
     let updaterController: SPUStandardUpdaterController
     @Environment(AppModel.self) private var app
@@ -29,122 +29,138 @@ struct SettingsScreen: View {
         _previousLibrary = State(initialValue: SettingsTransfer.previousLibraryDate())
     }
 
-    /// The areas of the sidebar.
-    enum Pane: String, CaseIterable, Identifiable, Hashable {
-        case general, notifications, account, profile, sharing, appearance, downloads, streaming, live, formats, transfer, about
+    /// Logical groups in the sidebar below the top Account card.
+    enum SidebarGroup: String, CaseIterable, Identifiable {
+        case app
+        case media
+        case system
 
         var id: String { rawValue }
 
         var title: String {
             switch self {
+            case .app: "App"
+            case .media: "Wiedergabe & Katalog"
+            case .system: "System"
+            }
+        }
+
+        var panes: [Pane] {
+            switch self {
+            case .app: [.general, .appearance, .notifications]
+            case .media: [.playback, .downloads, .formats]
+            case .system: [.transfer, .about]
+            }
+        }
+    }
+
+    /// The areas of the sidebar (consolidated from 12 scattered tabs into 8 clear areas).
+    enum Pane: String, CaseIterable, Identifiable, Hashable {
+        case account
+        case general
+        case appearance
+        case notifications
+        case playback
+        case downloads
+        case formats
+        case transfer
+        case about
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .account: "Konto & Profil"
             case .general: "Allgemein"
-            case .notifications: "Mitteilungen"
-            case .account: "Konto"
-            case .profile: "Profil"
-            case .sharing: "Sharing"
             case .appearance: "Darstellung"
+            case .notifications: "Mitteilungen"
+            case .playback: "Wiedergabe & Live"
             case .downloads: "Downloads"
-            case .streaming: "Streaming"
-            case .live: "Live"
             case .formats: "Formate"
-            case .transfer: "Import & Export"
-            case .about: "Über"
+            case .transfer: "Sicherung & Daten"
+            case .about: "Über Orangeflix"
             }
         }
 
         var icon: String {
             switch self {
-            case .general: "gearshape"
-            case .notifications: "bell"
-            case .account: "person.crop.circle"
-            case .profile: "person.text.rectangle"
-            case .sharing: "link.circle"
-            case .appearance: "paintpalette"
-            case .downloads: "arrow.down.circle"
-            case .streaming: "play.rectangle"
-            case .live: "dot.radiowaves.left.and.right"
-            case .formats: "rectangle.stack"
-            case .transfer: "arrow.up.arrow.down.circle"
-            case .about: "info.circle"
+            case .account: "person.crop.circle.fill"
+            case .general: "gearshape.fill"
+            case .appearance: "paintpalette.fill"
+            case .notifications: "bell.badge.fill"
+            case .playback: "play.tv.fill"
+            case .downloads: "arrow.down.circle.fill"
+            case .formats: "square.stack.3d.up.fill"
+            case .transfer: "arrow.up.arrow.down.square.fill"
+            case .about: "info.circle.fill"
+            }
+        }
+
+        var badgeColors: (top: Color, bottom: Color) {
+            switch self {
+            case .account: (Color(hex: "FA9E14"), Color(hex: "D97E00"))
+            case .general: (Color(hex: "7E7970"), Color(hex: "59554E"))
+            case .appearance: (Color(hex: "FA9E14"), Color(hex: "D47600"))
+            case .notifications: (Color(hex: "F25C50"), Color(hex: "C8372D"))
+            case .playback: (Color(hex: "9A6EE2"), Color(hex: "7045BA"))
+            case .downloads: (Color(hex: "4B93E8"), Color(hex: "296CC0"))
+            case .formats: (Color(hex: "47B872"), Color(hex: "288D4E"))
+            case .transfer: (Color(hex: "3BB5B8"), Color(hex: "218689"))
+            case .about: (Color(hex: "E39B32"), Color(hex: "B67213"))
             }
         }
 
         /// Words the search finds besides the title.
         var keywords: String {
             switch self {
-            case .profile: "name chatname adresse geburtstag credits abo datenschutz legal"
-            case .sharing: "link teilen weitergeben freigabe code"
-            case .general: "updates aktualisierung updater automatisch prüfintervall softwareupdate speicherort ordner download hintergrund anmeldung starten autostart"
+            case .account: "konto profil sharing link teilen freigabe name chatname adresse geburtstag credits abo datenschutz agb sitzungen"
+            case .general: "updates aktualisierung updater automatisch prüfintervall softwareupdate hintergrund anmeldung starten autostart menüleiste"
+            case .appearance: "themes design erscheinungsbild hell dunkel automatisch farben glas liquid dock icon symbol"
             case .notifications: "benachrichtigung push email e-mail ereignis gerät testmitteilung folgen livestream formate melden erlaubnis kanäle"
-            case .appearance: "themes design erscheinungsbild hell dunkel automatisch farben"
-            case .streaming: "discord rich presence status spotify fortschritt link application id client id wiedergabe qualität"
-        case .live: "livestream chat umfrage abstimmung voting schrift schriftgröße profilbild avatar uhrzeit"
+            case .playback: "streaming discord rich presence status spotify fortschritt link wiedergabe qualität livestream chat umfrage abstimmung voting schrift schriftgröße profilbild avatar uhrzeit"
+            case .downloads: "download speicherort zielordner ordner qualität ablage tempo parallel pause tempolimit vorschaubild metadaten feed"
+            case .formats: "katalog mediathek ausblenden einblenden sichtbar"
             case .transfer: "import export sicherung backup wiederherstellen config bibliothek library datenbank"
-            case .about: "version lizenz mit lizenz text rechtliches impressum disclaimer unabhängig inoffiziell projekt danke"
-            default: ""
+            case .about: "version lizenz mit rechtliches impressum disclaimer unabhängig inoffiziell projekt entwickler"
             }
         }
     }
 
     @State private var pane: Pane = .general
-    /// The areas visited, so the arrows in the bar can walk them.
+    @State private var accountTab: AccountSubTab = .overview
+    @State private var appearancePreviewDark: Bool? = nil
+    @State private var downloadsAdvancedExpanded = false
     @State private var history: [Pane] = [.general]
     @State private var historyIndex = 0
-    /// The text of the search in the sidebar.
     @State private var search = ""
-    /// The control the search jumped to; it lights up for a moment.
     @State private var highlight: String?
-    /// Counts the jumps of the search, so a second jump to the same control
-    /// scrolls again.
     @State private var jumps = 0
-    /// Bumps when the search opens a format, so that page clears its own
-    /// search. The query lives on the page; a keystroke there does not
-    /// rebuild this sidebar.
     @State private var formatListGeneration = 0
-    /// The message of the last failed change.
     @State private var settingsError: String?
-    /// The result of the last import or export.
     @State private var transferMessage: String?
-    /// Whether the last import or export failed.
     @State private var transferFailed = false
-    /// The library that waits for the confirmation of the user.
     @State private var pendingLibrary: URL?
-    /// The settings of a backup that wait for the confirmation of the user.
     @State private var pendingBackup: AppSettings?
-    /// A delete that waits until the user confirms it.
     @State private var pendingDelete: SettingsDelete?
-    /// When the previous library was kept; nil when there is none. Read
-    /// once, then again after an import, so the search does not touch the
-    /// disk on every redraw.
     @State private var previousLibrary: Date?
 
-    /// The size the window opens with; the scene in `MyApp` names the same,
-    /// so the first frame is already this size.
-    static let windowSize = CGSize(width: 740, height: 770)
+    /// Default frame of the redesigned Settings window.
+    static let windowSize = CGSize(width: 840, height: 700)
 
     var body: some View {
-        // The native split view of macOS: a floating Liquid Glass sidebar
-        // with the search, the arrows and the title in the toolbar, like the
-        // System Settings. No titlebar tricks; macOS draws the chrome.
         NavigationSplitView {
             sidebar
-                .navigationSplitViewColumnWidth(min: 200, ideal: 215, max: 260)
-                // The sidebar of the settings always shows.
+                .navigationSplitViewColumnWidth(min: 220, ideal: 236, max: 268)
                 .toolbar(removing: .sidebarToggle)
         } detail: {
             detail
                 .navigationTitle(pane.title)
                 .toolbar {
                     if #available(macOS 26, *) {
-                        // The capsule draws its own glass, so the gap before it
-                        // can sit outside it: the toolbar's shared glass would
-                        // grow around any padding, and an empty item before it
-                        // moves it by a fixed, too large amount.
                         ToolbarItem(placement: .navigation) {
                             historyArrows
                                 .glassEffect(.regular.interactive(), in: .capsule)
                                 .padding(.leading, Self.arrowsInset)
-                                // Room between the capsule and the title.
                                 .padding(.trailing, Self.titleGap)
                         }
                         .sharedBackgroundVisibility(.hidden)
@@ -154,6 +170,18 @@ struct SettingsScreen: View {
                                 .padding(.leading, Self.arrowsInset)
                                 .padding(.trailing, Self.titleGap)
                         }
+                    }
+
+                    if pane == .account {
+                        ToolbarItem(placement: .primaryAction) {
+                            SettingsSegmentedTabs(
+                                options: AccountSubTab.allCases,
+                                selection: $accountTab,
+                                title: \.title,
+                                badgeDot: { $0 == .details && profile.needsLegalConfirmation }
+                            )
+                        }
+                        .flatInSettingsToolbar()
                     }
                 }
         }
@@ -167,8 +195,8 @@ struct SettingsScreen: View {
                 select(group.pane)
             }
         }
-        .frame(minWidth: Self.windowSize.width, idealWidth: Self.windowSize.width,
-               minHeight: 560, idealHeight: Self.windowSize.height)
+        .frame(minWidth: 760, idealWidth: Self.windowSize.width,
+               minHeight: 540, idealHeight: Self.windowSize.height)
         .tint(themeColor(.accent))
         .environment(\.interfaceStyle, app.settings.interfaceStyle)
         .environment(\.glassPanels, app.settings.glassPanels)
@@ -214,12 +242,9 @@ struct SettingsScreen: View {
         }
     }
 
-    /// The room between the edge of the sidebar and the arrows.
     private static let arrowsInset: CGFloat = 20
-    /// The room between the arrows and the title of the area.
     private static let titleGap: CGFloat = 10
 
-    /// Back and forth through the visited areas.
     private var historyArrows: some View {
         ControlGroup {
             Button { step(-1) } label: { Label("Zurück", systemImage: "chevron.left") }
@@ -234,16 +259,26 @@ struct SettingsScreen: View {
         .controlGroupStyle(.navigation)
     }
 
-    /// The areas on the left. While searching it shows the matching areas
-    /// with the controls found in them. The list selection is what the arrow
-    /// keys change. macOS would paint that selection in the system accent, so
-    /// the table draws none and the row paints the theme accent itself.
+    // MARK: - Sidebar
+
     private var sidebar: some View {
         List(selection: sidebarSelection) {
             let words = SettingsSearch.words(search)
             if words.isEmpty {
-                ForEach(Pane.allCases) { item in
-                    sidebarRow(item)
+                accountSidebarRow
+                    .padding(.bottom, 4)
+
+                ForEach(SidebarGroup.allCases) { group in
+                    Section {
+                        ForEach(group.panes) { item in
+                            sidebarRow(item)
+                        }
+                    } header: {
+                        Text(group.title)
+                            .font(.system(size: 10.5, weight: .semibold))
+                            .tracking(0.5)
+                            .foregroundStyle(Palette.textTertiary)
+                    }
                 }
             } else {
                 let groups = searchGroups(words)
@@ -262,8 +297,6 @@ struct SettingsScreen: View {
         .listStyle(.sidebar)
     }
 
-    /// The row the arrow keys move. Setting it goes through `select`, so the
-    /// history of visited areas stays in step with the keyboard.
     private var sidebarSelection: Binding<Pane?> {
         Binding(
             get: { pane },
@@ -273,40 +306,140 @@ struct SettingsScreen: View {
             })
     }
 
-    /// One area of the sidebar; the chosen one stands on the accent.
+    /// Apple-ID-style account card at the very top of the Settings sidebar.
+    private var accountSidebarRow: some View {
+        let chosen = pane == .account
+        let displayName = accountDisplayName
+        return HStack(spacing: 10) {
+            Group {
+                if app.hasCredentials, let image = account.avatarImage {
+                    Image(nsImage: image)
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    ZStack {
+                        Circle()
+                            .fill(Palette.accentSoft)
+                        Image(systemName: "person.fill")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(Palette.accentText)
+                    }
+                }
+            }
+            .frame(width: 34, height: 34)
+            .clipShape(Circle())
+            .overlay {
+                Circle().strokeBorder(chosen ? Palette.accent.opacity(0.6) : Palette.border.opacity(0.6), lineWidth: 1)
+            }
+
+            VStack(alignment: .leading, spacing: 1.5) {
+                Text(displayName)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Palette.textPrimary)
+                    .lineLimit(1)
+                HStack(spacing: 5) {
+                    Circle()
+                        .fill(accountStatusDotColor)
+                        .frame(width: 6, height: 6)
+                    Text(accountSubtitle)
+                        .font(.system(size: 11))
+                        .foregroundStyle(Palette.textSecondary)
+                        .lineLimit(1)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 5)
+        .padding(.horizontal, 4)
+        .contentShape(Rectangle())
+        .listRowBackground(
+            RoundedRectangle(cornerRadius: 11, style: .continuous)
+                .fill(chosen ? Palette.accentSoft : Color.primary.opacity(colorScheme == .dark ? 0.04 : 0.03))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 11, style: .continuous)
+                        .strokeBorder(chosen ? Palette.accent.opacity(0.45) : Color.primary.opacity(0.07), lineWidth: 1)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 2)
+        )
+        .background(SidebarSelectionChrome())
+        .accessibilityAddTraits(chosen ? .isSelected : [])
+        .tag(Pane.account)
+    }
+
+    private var accountDisplayName: String {
+        guard app.hasCredentials else { return "Nicht angemeldet" }
+        if let chatname = account.details?.chatname, !chatname.trimmingCharacters(in: .whitespaces).isEmpty {
+            return chatname
+        }
+        if let name = account.details?.name, !name.trimmingCharacters(in: .whitespaces).isEmpty {
+            return name
+        }
+        return app.username.isEmpty ? "Konto" : app.username
+    }
+
+    private var accountSubtitle: String {
+        guard app.hasCredentials else { return "Konto & Sharing" }
+        switch account.status {
+        case .active:
+            if account.profile?.lifetime == true { return "Dauerzugang" }
+            if let tier = account.profile?.tier, tier > 0 { return "Abo aktiv · Stufe \(tier)" }
+            return "Abo aktiv"
+        case .expired: return "Abo abgelaufen"
+        case .totpRequired: return "2FA erforderlich"
+        case .failed: return "Prüfung fehlgeschlagen"
+        case .loading: return "Wird geprüft …"
+        case .unknown: return "Konto & Profil"
+        }
+    }
+
+    private var accountStatusDotColor: Color {
+        guard app.hasCredentials else { return Palette.textTertiary }
+        switch account.status {
+        case .active: return Palette.success
+        case .expired, .failed, .totpRequired: return Palette.danger
+        case .loading, .unknown: return Palette.warning
+        }
+    }
+
+    /// One category row of the sidebar with a macOS squircle icon badge and soft selection capsule.
     private func sidebarRow(_ item: Pane) -> some View {
         let chosen = item == pane
-        return Label {
+        let colors = item.badgeColors
+        return HStack(spacing: 9) {
+            SettingsSquircleBadge(symbol: item.icon, top: colors.top, bottom: colors.bottom)
             Text(item.title)
-                .foregroundStyle(chosen ? onAccent : Color.primary)
-        } icon: {
-            Image(systemName: item.icon)
-                .foregroundStyle(chosen ? onAccent : themeColor(.accent))
+                .font(.system(size: 13, weight: chosen ? .semibold : .regular))
+                .foregroundStyle(chosen ? Palette.textPrimary : Palette.textPrimary.opacity(0.88))
+                .lineLimit(1)
+            Spacer(minLength: 0)
         }
+        .padding(.vertical, 2)
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
         .listRowBackground(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(chosen ? themeColor(.accent) : .clear)
-                .padding(.horizontal, 10))
+                .fill(chosen ? Color.primary.opacity(colorScheme == .dark ? 0.12 : 0.085) : .clear)
+                .overlay {
+                    if chosen {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .strokeBorder(Color.primary.opacity(colorScheme == .dark ? 0.14 : 0.08), lineWidth: 0.75)
+                    }
+                }
+                .padding(.horizontal, 8)
+        )
         .background(SidebarSelectionChrome())
         .accessibilityAddTraits(chosen ? .isSelected : [])
         .tag(item)
     }
 
-    /// The text on the accent: dark on a bright accent, white on a deep one.
-    private var onAccent: Color {
-        let accent = ThemeRGB(hex: ThemeRuntime.shared.hex(.accent, dark: colorScheme == .dark)) ?? .black
-        return accent.luminance > 0.4 ? Color.black.opacity(0.85) : .white
-    }
-
-    /// A control the search found; it opens its area and lights it up.
     private func resultRow(_ entry: SettingsSearchEntry) -> some View {
         Button {
             open(entry)
         } label: {
             VStack(alignment: .leading, spacing: 1) {
                 Text(entry.title)
+                    .font(.system(size: 12.5))
                     .lineLimit(1)
                 Text(entry.section)
                     .font(.caption)
@@ -314,75 +447,80 @@ struct SettingsScreen: View {
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.leading, 26)
+            .padding(.leading, 31)
+            .padding(.vertical, 1)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .listRowBackground(entry.id == highlight
-                           ? RoundedRectangle(cornerRadius: 6).fill(themeColor(.accentSoft)) : nil)
+        .listRowBackground(
+            entry.id == highlight
+                ? RoundedRectangle(cornerRadius: 6, style: .continuous).fill(themeColor(.accentSoft)).padding(.horizontal, 8)
+                : nil
+        )
     }
 
-    /// Shows the area of `entry`, scrolls to the control and lights it up.
     private func open(_ entry: SettingsSearchEntry) {
         if entry.id.hasPrefix("formats.visible.") || entry.id.hasPrefix("formats.notify.") {
             formatListGeneration += 1
+        }
+        if let tab = entry.accountTab {
+            accountTab = tab
+        }
+        if entry.expandsDownloadsAdvanced {
+            downloadsAdvancedExpanded = true
+        }
+        if entry.id.hasPrefix("appearance.theme.") {
+            let id = String(entry.id.dropFirst("appearance.theme.".count))
+            let allDark = [AppTheme.standard(dark: true)] + AppTheme.builtIn(dark: true) + app.settings.importedThemes.filter(\.isDark)
+            appearancePreviewDark = allDark.contains { $0.id == id }
         }
         select(entry.pane)
         highlight = entry.id
         jumps += 1
     }
 
-    /// The page of the area; the toolbar above it holds the arrows and the
-    /// name of the area.
+    // MARK: - Detail
+
     private var detail: some View {
-        VStack(spacing: 0) {
-            ScrollViewReader { proxy in
-                Form {
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: Space.xl) {
                     if let settingsError {
-                        Section {
-                            Text(settingsError)
-                                .foregroundStyle(.red)
-                        }
+                        ProfileNotice(
+                            symbol: "exclamationmark.triangle.fill",
+                            text: settingsError,
+                            tint: Palette.danger,
+                            background: Palette.dangerSoft
+                        )
                     }
                     page
-                    Section {
-                    } footer: {
-                        Text("Orangeflix for Mac · Version \(AccountModel.appVersion)")
-                            .font(.footnote)
-                    }
                 }
-                // A new page starts at the top. The reader stays outside
-                // this identity, so a search jump can still scroll once the
-                // page is on screen.
-                .id(pane)
-                .formStyle(.grouped)
-                // Every button of the pages is a Liquid Glass button; cards
-                // and rows with their own style keep it.
-                .glassButtonStyle()
-                .scrollContentBackground(.hidden)
-                .environment(\.settingsHighlight, highlight)
-                .task(id: jumps) {
-                    guard jumps > 0, let target = highlight else { return }
-                    // The page of another area needs a moment to appear.
-                    try? await Task.sleep(for: .milliseconds(80))
-                    guard !Task.isCancelled, highlight == target else { return }
-                    withAnimation(.easeInOut(duration: 0.25)) { proxy.scrollTo(target, anchor: .center) }
-                    try? await Task.sleep(for: .seconds(2))
-                    guard !Task.isCancelled else { return }
-                    highlight = nil
-                }
+                .padding(.horizontal, Space.page)
+                .padding(.top, Space.l)
+                .padding(.bottom, Space.xxl)
+                .frame(maxWidth: 680, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .top)
+            }
+            .id("\(pane.rawValue)-\(pane == .account ? accountTab.rawValue : "")")
+            .glassButtonStyle()
+            .environment(\.settingsHighlight, highlight)
+            .task(id: jumps) {
+                guard jumps > 0, let target = highlight else { return }
+                try? await Task.sleep(for: .milliseconds(90))
+                guard !Task.isCancelled, highlight == target else { return }
+                withAnimation(.easeInOut(duration: 0.25)) { proxy.scrollTo(target, anchor: .center) }
+                try? await Task.sleep(for: .seconds(2))
+                guard !Task.isCancelled else { return }
+                highlight = nil
             }
         }
         .background(themeColor(.background))
-        // What a button of the page did or could not do.
         .overlay(alignment: .top) { StatusBannerView() }
     }
 
-    /// Shows `next` and remembers the way there.
     private func select(_ next: Pane) {
         guard next != pane else { return }
         highlight = nil
-        // The error belongs to the page it happened on.
         settingsError = nil
         history = Array(history.prefix(historyIndex + 1))
         history.append(next)
@@ -390,7 +528,6 @@ struct SettingsScreen: View {
         pane = next
     }
 
-    /// Walks the visited areas.
     private func step(_ direction: Int) {
         let next = historyIndex + direction
         guard history.indices.contains(next) else { return }
@@ -400,8 +537,6 @@ struct SettingsScreen: View {
         pane = history[next]
     }
 
-    /// The areas and controls that match the search, in the order of the
-    /// sidebar. An area stays when its name matches or one of its controls.
     private func searchGroups(_ words: [String]) -> [SettingsSearchGroup] {
         let found = searchEntries.filter { $0.matches(words) }
         return Pane.allCases.compactMap { item in
@@ -412,16 +547,19 @@ struct SettingsScreen: View {
         }
     }
 
-    /// Every control the search knows: the fixed ones, the themes and the
-    /// formats of the catalog.
     private var searchEntries: [SettingsSearchEntry] {
         let settings = app.settings
         let themes = [false, true].flatMap { dark in
             ([AppTheme.standard(dark: dark)] + AppTheme.builtIn(dark: dark)
                 + settings.importedThemes.filter { $0.isDark == dark })
                 .map { theme in
-                    SettingsSearchEntry(id: "appearance.theme.\(theme.id)", pane: .appearance, title: theme.name,
-                                        section: dark ? "Dunkler Modus" : "Heller Modus", keywords: "theme farben")
+                    SettingsSearchEntry(
+                        id: "appearance.theme.\(theme.id)",
+                        pane: .appearance,
+                        title: theme.name,
+                        section: dark ? "Themes · Dunkler Modus" : "Themes · Heller Modus",
+                        keywords: "theme farben"
+                    )
                 }
         }
         let formats = browse.formats.flatMap { format in
@@ -433,50 +571,49 @@ struct SettingsScreen: View {
             ]
         }
         let all = (SettingsSearch.entries + themes + formats).filter { entry in
-            // Rows that only show in a certain state.
             switch entry.id {
             case "general.allowNotifications": !watcher.isAllowed
             case "transfer.libraryRestore": previousLibrary != nil
             default: true
             }
         }
-        // Signed out, the pages of the account have no rows to jump to, and
-        // the notifications of the account are not there either.
-        let accountPages: Set<Pane> = [.account, .profile, .sharing]
         return app.hasCredentials ? all : all.filter {
-            !accountPages.contains($0.pane) && !$0.id.hasPrefix("notifications.")
+            ($0.pane != .account || $0.id == "sharing.check") && !$0.id.hasPrefix("notifications.")
         }
     }
 
-    // MARK: Seiten
+    // MARK: - Pages
 
     @ViewBuilder private var page: some View {
         switch pane {
+        case .account:
+            SettingsAccountPage(subTab: $accountTab, pendingDelete: $pendingDelete)
         case .general:
             SettingsGeneralPage(
                 updaterController: updaterController,
                 automaticUpdateChecks: $automaticUpdateChecks,
                 updateCheckInterval: $updateCheckInterval,
-                settingsError: $settingsError)
+                settingsError: $settingsError
+            )
+        case .appearance:
+            SettingsAppearancePage(
+                settingsError: $settingsError,
+                pendingDelete: $pendingDelete,
+                previewDarkOverride: $appearancePreviewDark
+            )
         case .notifications:
             SettingsNotificationsPage(
                 settingsError: $settingsError,
                 pendingDelete: $pendingDelete,
-                showFormats: { select(.formats) })
-        case .account:
-            SettingsAccountPage()
-        case .profile:
-            SettingsProfilePage(pendingDelete: $pendingDelete)
-        case .sharing:
-            SettingsSharingPage(pendingDelete: $pendingDelete)
-        case .appearance:
-            SettingsAppearancePage(settingsError: $settingsError, pendingDelete: $pendingDelete)
+                showFormats: { select(.formats) }
+            )
+        case .playback:
+            SettingsPlaybackPage(settingsError: $settingsError)
         case .downloads:
-            SettingsDownloadsPage(settingsError: $settingsError)
-        case .streaming:
-            SettingsStreamingPage(settingsError: $settingsError)
-        case .live:
-            SettingsLivePage(settingsError: $settingsError)
+            SettingsDownloadsPage(
+                settingsError: $settingsError,
+                advancedExpanded: $downloadsAdvancedExpanded
+            )
         case .formats:
             SettingsFormatsPage(settingsError: $settingsError, formatListGeneration: formatListGeneration)
         case .transfer:
@@ -486,19 +623,18 @@ struct SettingsScreen: View {
                 settingsError: $settingsError,
                 pendingLibrary: $pendingLibrary,
                 pendingBackup: $pendingBackup,
-                previousLibrary: $previousLibrary)
+                previousLibrary: $previousLibrary
+            )
         case .about:
             SettingsAboutPage()
         }
     }
 
-    /// A color of the active theme, as a new value whenever the theme
-    /// changes, so the window repaints.
     private func themeColor(_ token: ThemeToken) -> Color {
         Color(hex: ThemeRuntime.shared.hex(token, dark: colorScheme == .dark))
     }
 
-    // MARK: Import and export
+    // MARK: - Import, export & delete confirmations
 
     private func report(_ message: String, failed: Bool = false) {
         transferMessage = message
@@ -535,7 +671,6 @@ struct SettingsScreen: View {
         previousLibrary = SettingsTransfer.previousLibraryDate()
     }
 
-    /// The question of the delete confirmation.
     private var deleteTitle: String {
         switch pendingDelete {
         case .address: "Die Lieferadresse wird gelöscht."
@@ -549,7 +684,6 @@ struct SettingsScreen: View {
         }
     }
 
-    /// The confirming button of that question.
     private var deleteConfirmTitle: String {
         switch pendingDelete {
         case .address, .birthday, .credits: "Löschen"
@@ -561,7 +695,6 @@ struct SettingsScreen: View {
         }
     }
 
-    /// The line under the question.
     private var deleteMessage: String {
         switch pendingDelete {
         case .address: "Der Server entfernt die hinterlegte Adresse."
@@ -575,7 +708,6 @@ struct SettingsScreen: View {
         }
     }
 
-    /// Carries out the delete the user just confirmed.
     private func performDelete() {
         guard let action = pendingDelete else { return }
         pendingDelete = nil
@@ -599,6 +731,17 @@ struct SettingsScreen: View {
                 if settings.lightThemeID == theme.id { settings.lightThemeID = AppTheme.orangeflixLight.id }
                 if settings.darkThemeID == theme.id { settings.darkThemeID = AppTheme.orangeflixDark.id }
             }
+        }
+    }
+}
+
+private extension ToolbarContent {
+    @ToolbarContentBuilder
+    func flatInSettingsToolbar() -> some ToolbarContent {
+        if #available(macOS 26, *) {
+            self.sharedBackgroundVisibility(.hidden)
+        } else {
+            self
         }
     }
 }

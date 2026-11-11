@@ -394,6 +394,11 @@ enum SidebarItem: String, Hashable, CaseIterable, Identifiable, Sendable {
         }
     }
 
+    /// Clears the in-memory Protokoll lines.
+    func clearLog() {
+        log.removeAll()
+    }
+
     /// Shows a status message (and logs errors).
     func show(_ text: String, error: Bool = false) {
         flash(text, error: error)

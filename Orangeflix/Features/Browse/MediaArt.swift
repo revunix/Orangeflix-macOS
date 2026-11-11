@@ -78,6 +78,7 @@ struct PosterCard: View {
     let format: Format
     let count: String
     let inLibrary: Bool
+    var onQuickPlay: (() -> Void)? = nil
 
     @State private var hovering = false
 
@@ -107,6 +108,23 @@ struct PosterCard: View {
                     }
                     .padding(Space.s)
                 }
+                .overlay(alignment: .bottomTrailing) {
+                    if let onQuickPlay, hovering {
+                        Button(action: onQuickPlay) {
+                            Image(systemName: "play.fill")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundStyle(.white)
+                                .offset(x: 1)
+                                .frame(width: 32, height: 32)
+                                .background(Palette.accent, in: Circle())
+                                .shadow(color: .black.opacity(0.35), radius: 8, y: 3)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(Space.s)
+                        .help("Neueste Folge direkt ansehen")
+                        .transition(.scale(scale: 0.85).combined(with: .opacity))
+                    }
+                }
                 .shadow(color: .black.opacity(hovering ? 0.35 : 0.15), radius: hovering ? 14 : 5, y: hovering ? 8 : 2)
                 .scaleEffect(hovering ? 1.03 : 1)
             VStack(alignment: .leading, spacing: Space.xxs) {
@@ -135,22 +153,57 @@ struct PosterCard: View {
 
 // MARK: - Episode cards
 
-/// The progress of an episode as a thin bar along the lower edge of its
-/// picture.
+/// Floating dark-glass progress capsule along the lower edge of an episode thumbnail.
 struct WatchBar: View {
     /// 0…100
     let percent: Int
+    var durationSeconds: Int = 0
+
+    private var remainingText: String? {
+        guard durationSeconds > 60, percent > 0, percent < 100 else { return nil }
+        let leftSeconds = max(60, Int((Double(durationSeconds) * Double(100 - percent) / 100.0).rounded()))
+        let minutes = max(1, Int((Double(leftSeconds) / 60.0).rounded()))
+        if minutes >= 60 {
+            let h = minutes / 60
+            let m = minutes % 60
+            return m > 0 ? "Noch \(h) Std. \(m) Min." : "Noch \(h) Std."
+        }
+        return "Noch \(minutes) Min."
+    }
 
     var body: some View {
         if percent > 0 && percent < BrowseLogic.watchedPercent {
-            Color.clear
-                .frame(height: Space.xs)
-                .overlay(alignment: .leading) {
-                    Rectangle()
-                        .fill(Palette.accent)
-                        .scaleEffect(x: Double(percent) / 100, anchor: .leading)
+            VStack(alignment: .leading, spacing: 3.5) {
+                if let remainingText {
+                    HStack(spacing: 4) {
+                        Text(remainingText)
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.92))
+                        Spacer(minLength: 4)
+                        Text("\(percent) %")
+                            .font(.system(size: 10, weight: .semibold).monospacedDigit())
+                            .foregroundStyle(Palette.accent)
+                    }
                 }
-                .background(.black.opacity(0.5))
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Capsule()
+                            .fill(.white.opacity(0.22))
+                        Capsule()
+                            .fill(Palette.accent)
+                            .frame(width: max(6, geo.size.width * CGFloat(percent) / 100))
+                    }
+                }
+                .frame(height: 3.5)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, remainingText == nil ? 4 : 5)
+            .background(.black.opacity(0.72), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .strokeBorder(.white.opacity(0.14), lineWidth: 0.75)
+            }
+            .padding(7)
         }
     }
 }
@@ -209,7 +262,19 @@ struct EpisodeThumb: View {
                 if let preview, active, preview.mode == .hover, !preview.positions.isEmpty {
                     EpisodePreviewSegments(preview: preview)
                 } else {
-                    WatchBar(percent: percent)
+                    WatchBar(percent: percent, durationSeconds: episode.durationSeconds)
+                }
+            }
+            .overlay(alignment: .bottomTrailing) {
+                if !active, !hovering, !episode.duration.isEmpty, episode.duration != "-",
+                   (percent <= 0 || percent >= BrowseLogic.watchedPercent) {
+                    Text(episode.duration)
+                        .font(.system(size: 10.5, weight: .semibold).monospacedDigit())
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(.black.opacity(0.68), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+                        .padding(7)
                 }
             }
             .overlay(alignment: .topLeading) {
@@ -559,6 +624,8 @@ struct HeroBanner<Actions: View>: View {
     let title: String
     let meta: String
     let text: String
+    /// Optional format emblem shown alongside the title on the cinema home hero.
+    var coverFormat: Format? = nil
     /// Only the Mediathek supplies an image-derived page background.
     var backdrop: Color? = nil
     @ViewBuilder var actions: Actions
@@ -609,31 +676,44 @@ struct HeroBanner<Actions: View>: View {
                 }
             }
             .overlay(alignment: .bottomLeading) {
-                VStack(alignment: .leading, spacing: Space.s) {
-                    if let eyebrow {
-                        Text(eyebrow.uppercased())
-                            .font(AppFont.captionMedium)
-                            .tracking(1.2)
-                            .foregroundStyle(Palette.accent)
+                HStack(alignment: .bottom, spacing: Space.l) {
+                    if let coverFormat {
+                        FormatCover(format: coverFormat)
+                            .frame(width: 84, height: 84)
+                            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                    .strokeBorder(.white.opacity(0.24), lineWidth: 1)
+                            }
+                            .shadow(color: .black.opacity(0.42), radius: 16, y: 6)
                     }
-                    Text(title)
-                        .font(AppFont.hero)
-                        .foregroundStyle(.white)
-                        .lineLimit(2)
-                    if !meta.isEmpty {
-                        Text(meta)
-                            .font(AppFont.bodySmall)
-                            .foregroundStyle(.white.opacity(0.8))
-                    }
-                    if !text.isEmpty {
-                        Text(text)
-                            .font(AppFont.body)
-                            .foregroundStyle(.white.opacity(0.85))
+
+                    VStack(alignment: .leading, spacing: Space.s) {
+                        if let eyebrow {
+                            Text(eyebrow.uppercased())
+                                .font(AppFont.captionMedium)
+                                .tracking(1.2)
+                                .foregroundStyle(Palette.accent)
+                        }
+                        Text(title)
+                            .font(AppFont.hero)
+                            .foregroundStyle(.white)
                             .lineLimit(2)
-                            .frame(maxWidth: 560, alignment: .leading)
+                        if !meta.isEmpty {
+                            Text(meta)
+                                .font(AppFont.bodySmall)
+                                .foregroundStyle(.white.opacity(0.8))
+                        }
+                        if !text.isEmpty {
+                            Text(text)
+                                .font(AppFont.body)
+                                .foregroundStyle(.white.opacity(0.85))
+                                .lineLimit(2)
+                                .frame(maxWidth: 560, alignment: .leading)
+                        }
+                        HStack(spacing: Space.m) { actions }
+                            .padding(.top, Space.xs)
                     }
-                    HStack(spacing: Space.m) { actions }
-                        .padding(.top, Space.xs)
                 }
                 .padding(.horizontal, Space.page)
                 .padding(.vertical, Space.xl)
@@ -658,6 +738,7 @@ struct FormatTile: View {
     let format: Format
     let count: String
     var inLibrary = false
+    var onQuickPlay: (() -> Void)? = nil
 
     @State private var hovering = false
 
@@ -686,6 +767,23 @@ struct FormatTile: View {
                             }
                         }
                         .padding(Space.s)
+                    }
+                }
+                .overlay(alignment: .bottomTrailing) {
+                    if let onQuickPlay, hovering {
+                        Button(action: onQuickPlay) {
+                            Image(systemName: "play.fill")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundStyle(.white)
+                                .offset(x: 1)
+                                .frame(width: 32, height: 32)
+                                .background(Palette.accent, in: Circle())
+                                .shadow(color: .black.opacity(0.35), radius: 8, y: 3)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(Space.s)
+                        .help("Neueste Folge direkt ansehen")
+                        .transition(.scale(scale: 0.85).combined(with: .opacity))
                     }
                 }
                 .overlay {

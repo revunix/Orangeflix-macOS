@@ -511,19 +511,33 @@ struct LiveComposer: View {
         .animation(.easeOut(duration: 0.15), value: focused)
     }
 
-    /// Where the message goes, and its length once there is text.
+    /// Where the message goes, quick emoji pills, and its length once there is text.
     private var footer: some View {
-        HStack(spacing: Space.s) {
+        HStack(spacing: Space.xs) {
             RecipientPill(toStudio: $model.sendToStudio)
                 .disabled(model.replyTarget != nil)
                 .opacity(model.replyTarget != nil ? 0.5 : 1)
-            if model.sendToStudio {
-                Text("Nur das Team liest mit")
-                    .font(AppFont.caption)
-                    .foregroundStyle(Palette.textTertiary)
-                    .lineLimit(1)
+
+            if !showsQuickEmojis {
+                HStack(spacing: 2) {
+                    ForEach(Array(LiveChatLogic.quickEmojis.prefix(4)), id: \.self) { emoji in
+                        Button {
+                            model.composerText += emoji
+                            focused = true
+                        } label: {
+                            Text(emoji)
+                                .font(.system(size: 12))
+                                .frame(width: 24, height: 22)
+                                .background(Palette.textPrimary.opacity(0.05), in: Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .help("„\(emoji)“ einfügen")
+                    }
+                }
             }
+
             Spacer(minLength: 0)
+
             if count > 0 {
                 Text("\(count)/\(LiveChatLogic.messageLimit)")
                     .font(AppFont.digits)

@@ -20,8 +20,12 @@ struct EpisodeDetailScreen: View {
 
     @State private var page: EpisodeDetailModel
     @State private var didAutoplay = false
+    /// Representative color of the episode artwork for the ambient cinema glow.
+    @State private var stageColor: ThemeRGB?
     /// The sheet of the page; only one stands open at a time.
     @State private var sheet: Sheet?
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// The sheets of the episode page.
     private enum Sheet: Identifiable {
@@ -65,6 +69,17 @@ struct EpisodeDetailScreen: View {
         ScrollView {
             VStack(alignment: .leading, spacing: Space.xl) {
                 stage
+                    .background {
+                        if let stageColor {
+                            Ellipse()
+                                .fill(Color(.sRGB, red: stageColor.red, green: stageColor.green, blue: stageColor.blue,
+                                            opacity: colorScheme == .dark ? 0.34 : 0.16))
+                                .blur(radius: 56)
+                                .padding(.horizontal, -24)
+                                .padding(.vertical, -14)
+                                .allowsHitTesting(false)
+                        }
+                    }
                     .padding(.horizontal, Space.page)
                     .padding(.top, Space.s)
 
@@ -92,9 +107,21 @@ struct EpisodeDetailScreen: View {
             .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { bodyWidth = $0 }
         }
         .hiddenScrollEdge()
-        .background(Palette.background)
+        .background(ambientPageBackground.ignoresSafeArea())
         .navigationTitle("")
         .preference(key: InlineStageVisibleKey.self, value: hostsInlineStage)
+        .task(id: shown.thumb) {
+            let color: ThemeRGB?
+            if let url = URL(string: shown.thumb), !shown.thumb.isEmpty {
+                color = await ImageCache.shared.representativeColor(for: url)
+            } else {
+                color = nil
+            }
+            guard !Task.isCancelled else { return }
+            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.7)) {
+                stageColor = color
+            }
+        }
         .task {
             await page.load(app: app)
             if autoplay, !didAutoplay, !Task.isCancelled {
@@ -142,6 +169,21 @@ struct EpisodeDetailScreen: View {
     /// Whether this episode is currently floating in native Picture-in-Picture.
     private var playsInPiP: Bool {
         playback.isInPiP && playback.current?.identifier == episode.identifier
+    }
+
+    /// Whether this episode is the currently active playback (inline, PiP or player window).
+    private var isActivePlayback: Bool {
+        playback.isPlaying && playback.current?.identifier == episode.identifier
+    }
+
+    private var ambientPageBackground: Color {
+        guard let stageColor else { return Palette.background }
+        let dark = colorScheme == .dark
+        guard let base = ThemeRGB(hex: ThemeRuntime.shared.hex(.background, dark: dark)) else {
+            return Palette.background
+        }
+        let mixed = base.mixed(with: stageColor, dark ? 0.16 : 0.06)
+        return Color(.sRGB, red: mixed.red, green: mixed.green, blue: mixed.blue, opacity: 1)
     }
 
     /// Whether this episode plays in the player window.
@@ -564,7 +606,7 @@ struct EpisodeDetailScreen: View {
             VStack(alignment: .leading, spacing: Space.l) {
                 if let heatmap = page.insights?.heatmap, heatmap.count > 1, shown.durationSeconds > 0 {
                     EpisodeHeatmap(heatmap: heatmap, duration: shown.durationSeconds,
-                                   position: playsHere ? playback.position : nil, onJump: jump)
+                                   position: isActivePlayback ? playback.position : nil, onJump: jump)
                 }
                 if hasHeatmap && hasChapters {
                     Hairline()
@@ -648,16 +690,21 @@ struct EpisodeDetailScreen: View {
     }
 
     private func chapterList(_ sections: [EpisodeDetails.ChapterSection]) -> some View {
-        let running = playsHere ? PlaybackChapter.current(details?.chapters ?? [], at: playback.position) : nil
+        let running = isActivePlayback ? PlaybackChapter.current(details?.chapters ?? [], at: playback.position) : nil
         return VStack(alignment: .leading, spacing: Space.m) {
             ForEach(Array(sections.enumerated()), id: \.offset) { _, section in
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 3) {
                     if !section.title.isEmpty {
                         SectionLabel(text: section.title)
                             .padding(.bottom, Space.xs)
                     }
                     ForEach(section.chapters) { chapter in
-                        ChapterRow(chapter: chapter, isRunning: running?.id == chapter.id) {
+                        let active = running?.id == chapter.id
+                        let fraction: Double? = {
+                            guard active, chapter.end > chapter.start else { return nil }
+                            return min(max((playback.position - chapter.start) / (chapter.end - chapter.start), 0), 1)
+                        }()
+                        ChapterRow(chapter: chapter, isRunning: active, progress: fraction) {
                             jump(to: chapter.start)
                         }
                     }
@@ -821,33 +868,71 @@ struct EpisodeDetailScreen: View {
 
 // MARK: - Pieces
 
-/// The sharing link that was created; it may be copied and given to
-/// somebody.
+/// Studio-styled sharing sheet with instant copy feedback and browser preview button.
 private struct ShareLinkSheet: View {
     let link: SharingLink
 
     @Environment(\.dismiss) private var dismiss
+    @State private var copied = false
+
+    private var linkText: String {
+        link.url.isEmpty ? link.code : link.url
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Space.m) {
-            Text("Link zum Teilen")
-                .font(AppFont.displaySmall)
-                .foregroundStyle(Palette.textPrimary)
-            Text("Wer den Link öffnet, kann die Folge ohne Konto ansehen. Der Link ist auf \(link.accessLimit) Aufrufe begrenzt.")
-                .font(AppFont.bodySmall)
-                .foregroundStyle(Palette.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-            Text(link.url.isEmpty ? link.code : link.url)
-                .font(AppFont.body)
-                .foregroundStyle(Palette.textPrimary)
-                .textSelection(.enabled)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(Space.m)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Palette.surfaceMuted, in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
+        VStack(alignment: .leading, spacing: Space.l) {
+            HStack(spacing: Space.m) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(Palette.accentSoft)
+                    Image(systemName: "link.badge.plus")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(Palette.accentText)
+                }
+                .frame(width: 40, height: 40)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: Space.s) {
+                        Text("Link zum Teilen")
+                            .font(AppFont.displaySmall)
+                            .foregroundStyle(Palette.textPrimary)
+                        BrandPill(
+                            text: "\(link.accessLimit) Aufrufe",
+                            color: Palette.accentText,
+                            background: Palette.accentSoft
+                        )
+                    }
+                    Text("Empfänger können diese Folge direkt im Browser ohne eigenes Konto ansehen.")
+                        .font(AppFont.caption)
+                        .foregroundStyle(Palette.textSecondary)
+                }
+            }
+
+            HStack(spacing: Space.s) {
+                Text(linkText)
+                    .font(AppFont.bodySmall.monospaced())
+                    .foregroundStyle(Palette.textPrimary)
+                    .textSelection(.enabled)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Spacer(minLength: Space.xs)
+                Button {
+                    AppFormat.copy(linkText)
+                    withAnimation(.snappy(duration: 0.16)) { copied = true }
+                } label: {
+                    Label(copied ? "Kopiert" : "Kopieren", systemImage: copied ? "checkmark" : "doc.on.doc")
+                        .font(AppFont.captionMedium)
+                }
+                .controlSize(.small)
+            }
+            .padding(Space.m)
+            .contentCard()
+
             HStack {
-                Button("Link kopieren") {
-                    AppFormat.copy(link.url.isEmpty ? link.code : link.url)
+                if let url = URL(string: link.url), !link.url.isEmpty {
+                    Button("Im Browser testen", systemImage: "arrow.up.right") {
+                        NSWorkspace.shared.open(url)
+                    }
                 }
                 Spacer()
                 Button("Fertig") { dismiss() }
@@ -855,25 +940,20 @@ private struct ShareLinkSheet: View {
             }
         }
         .padding(Space.xl)
-        .frame(minWidth: 420)
+        .frame(width: 460)
         .background(Palette.surfaceRaised)
     }
 }
 
-/// The editor of the chapters of an episode: the name, the beginning, the
-/// end and the category of every chapter.
+/// Studio-styled chapter suggestion editor.
 private struct ChapterSuggestionSheet: View {
-    /// The categories a chapter may carry.
     let categories: [ChapterCategory]
-    /// The chapters the editor starts from.
     let initial: [SuggestedChapter]
-    /// Hands the chapters to the caller and closes the sheet.
     let send: ([SuggestedChapterBody]) -> Void
 
     @Environment(\.dismiss) private var dismiss
     @State private var chapters: [Draft] = []
 
-    /// One chapter while it is being edited.
     private struct Draft: Identifiable {
         var id = UUID()
         var title = ""
@@ -883,27 +963,43 @@ private struct ChapterSuggestionSheet: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Space.m) {
-            Text("Kapitel vorschlagen")
-                .font(AppFont.displaySmall)
-                .foregroundStyle(Palette.textPrimary)
-            Text("Der Server nimmt deine Kapitel an, wenn sie passen. Ein Vorschlag ersetzt einen früheren.")
-                .font(AppFont.bodySmall)
-                .foregroundStyle(Palette.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
+        VStack(alignment: .leading, spacing: Space.l) {
+            HStack(spacing: Space.m) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(Palette.accentSoft)
+                    Image(systemName: "list.bullet.rectangle")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(Palette.accentText)
+                }
+                .frame(width: 40, height: 40)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Kapitel vorschlagen")
+                        .font(AppFont.displaySmall)
+                        .foregroundStyle(Palette.textPrimary)
+                    Text("Nach redaktioneller Prüfung werden deine Zeitmarken für alle freigeschaltet.")
+                        .font(AppFont.caption)
+                        .foregroundStyle(Palette.textSecondary)
+                }
+                Spacer()
+                BrandPill(text: "\(chapters.count) Kapitel", color: Palette.textSecondary, background: Palette.surfaceMuted)
+            }
+
             list
+
             HStack {
-                Button("Kapitel hinzufügen") { addChapter() }
+                Button("Kapitel hinzufügen", systemImage: "plus") { addChapter() }
                 Spacer()
                 Button("Abbrechen") { dismiss() }
                     .keyboardShortcut(.cancelAction)
-                Button("Senden", action: sendChapters)
+                Button("Vorschlag absenden", action: sendChapters)
                     .keyboardShortcut(.defaultAction)
                     .disabled(!isComplete)
             }
         }
         .padding(Space.xl)
-        .frame(minWidth: 520, minHeight: 420)
+        .frame(minWidth: 580, minHeight: 430)
         .background(Palette.surfaceRaised)
         .onAppear(perform: fill)
     }
@@ -911,43 +1007,58 @@ private struct ChapterSuggestionSheet: View {
     private var list: some View {
         ScrollView {
             VStack(spacing: Space.s) {
-                ForEach($chapters) { $chapter in
+                ForEach(Array($chapters.enumerated()), id: \.element.id) { index, $chapter in
                     HStack(spacing: Space.s) {
-                        TextField("Titel", text: $chapter.title, prompt: Text("Titel"))
+                        Text("\(index + 1)")
+                            .font(AppFont.digitsMedium)
+                            .foregroundStyle(Palette.accentText)
+                            .frame(width: 24, height: 24)
+                            .background(Palette.accentSoft, in: Circle())
+
+                        TextField("Titel", text: $chapter.title, prompt: Text("Kapiteltitel …"))
                             .textFieldStyle(.roundedBorder)
+
                         TextField("Start", text: $chapter.start, prompt: Text("0:00"))
                             .textFieldStyle(.roundedBorder)
-                            .frame(width: 80)
-                        TextField("Ende", text: $chapter.end, prompt: Text("0:00"))
+                            .font(AppFont.digits)
+                            .frame(width: 76)
+
+                        Text("–")
+                            .foregroundStyle(Palette.textTertiary)
+
+                        TextField("Ende", text: $chapter.end, prompt: Text("1:00"))
                             .textFieldStyle(.roundedBorder)
-                            .frame(width: 80)
-                        if categories.isEmpty {
-                            EmptyView()
-                        } else {
+                            .font(AppFont.digits)
+                            .frame(width: 76)
+
+                        if !categories.isEmpty {
                             Picker("", selection: $chapter.category) {
-                                Text("Ohne").tag("")
+                                Text("Kategorie …").tag("")
                                 ForEach(categories) { category in
                                     Text(category.label).tag(category.key)
                                 }
                             }
                             .labelsHidden()
-                            .frame(width: 140)
+                            .frame(width: 132)
                         }
-                        Button {
+
+                        Button(role: .destructive) {
                             chapters.removeAll { $0.id == chapter.id }
                         } label: {
                             Image(systemName: "trash")
+                                .foregroundStyle(Palette.danger)
                         }
                         .buttonStyle(.plain)
-                        .help("Das Kapitel entfernen")
+                        .help("Kapitel entfernen")
                     }
+                    .padding(Space.s)
+                    .contentCard(radius: Radius.l)
                 }
             }
-            .padding(.vertical, Space.xs)
+            .padding(.vertical, 2)
         }
     }
 
-    /// Whether every chapter has a name, a beginning and an end.
     private var isComplete: Bool {
         !chapters.isEmpty && chapters.allSatisfy { chapter in
             !chapter.title.trimmingCharacters(in: .whitespaces).isEmpty
@@ -957,25 +1068,26 @@ private struct ChapterSuggestionSheet: View {
         }
     }
 
-    /// Fills the editor with the chapters the episode has.
     private func fill() {
         guard chapters.isEmpty else { return }
-        chapters = initial.map { chapter in
-            Draft(title: chapter.title,
-                  start: AppFormat.position(chapter.start),
-                  end: AppFormat.position(chapter.end),
-                  category: chapter.category)
+        if initial.isEmpty {
+            addChapter()
+        } else {
+            chapters = initial.map { chapter in
+                Draft(title: chapter.title,
+                      start: AppFormat.position(chapter.start),
+                      end: AppFormat.position(chapter.end),
+                      category: chapter.category)
+            }
         }
     }
 
-    /// Adds an empty chapter at the end.
     private func addChapter() {
         let last = chapters.last.map { Self.seconds($0.end) } ?? 0
         chapters.append(Draft(title: "", start: AppFormat.position(last),
                               end: AppFormat.position(last + 60), category: ""))
     }
 
-    /// Hands the chapters to the caller.
     private func sendChapters() {
         let bodies = chapters.map { chapter in
             SuggestedChapterBody(title: chapter.title.trimmingCharacters(in: .whitespaces),
@@ -987,7 +1099,6 @@ private struct ChapterSuggestionSheet: View {
         dismiss()
     }
 
-    /// The seconds of a "m:ss" or "h:mm:ss" text.
     private static func seconds(_ text: String) -> Double {
         let parts = text.split(separator: ":").compactMap { Double($0) }
         switch parts.count {
@@ -999,41 +1110,61 @@ private struct ChapterSuggestionSheet: View {
     }
 }
 
-/// One chapter: the start, the title and the length. The running one is
-/// marked; a click jumps there.
+/// One chapter: start timestamp, title, duration and live progress bar while active.
 private struct ChapterRow: View {
     let chapter: PlaybackChapter
     let isRunning: Bool
+    var progress: Double? = nil
     let action: () -> Void
 
     @State private var hovering = false
 
     var body: some View {
+        let shape = RoundedRectangle(cornerRadius: Radius.m, style: .continuous)
         Button(action: action) {
-            HStack(spacing: Space.m) {
-                Image(systemName: isRunning ? "speaker.wave.2.fill" : (hovering ? "play.fill" : "circle.fill"))
-                    .font(.system(size: isRunning || hovering ? 10 : 5, weight: .semibold))
-                    .foregroundStyle(Palette.accent)
-                    .frame(width: 14)
-                Text(AppFormat.position(chapter.start))
-                    .font(AppFont.digitsMedium)
-                    .foregroundStyle(Palette.accentText)
-                    .frame(minWidth: 52, alignment: .leading)
-                Text(chapter.title)
-                    .font(isRunning ? AppFont.subheading : AppFont.body)
-                    .foregroundStyle(Palette.textPrimary)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.leading)
-                Spacer(minLength: Space.s)
-                Text(EpisodeDetailLogic.length(chapter))
-                    .font(AppFont.digits)
-                    .foregroundStyle(Palette.textTertiary)
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(spacing: Space.m) {
+                    Image(systemName: isRunning ? "speaker.wave.2.fill" : (hovering ? "play.fill" : "circle.fill"))
+                        .font(.system(size: isRunning || hovering ? 10 : 5, weight: .semibold))
+                        .foregroundStyle(Palette.accent)
+                        .frame(width: 14)
+                    Text(AppFormat.position(chapter.start))
+                        .font(AppFont.digitsMedium)
+                        .foregroundStyle(Palette.accentText)
+                        .frame(minWidth: 52, alignment: .leading)
+                    Text(chapter.title)
+                        .font(isRunning ? AppFont.subheading : AppFont.body)
+                        .foregroundStyle(Palette.textPrimary)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                    Spacer(minLength: Space.s)
+                    Text(EpisodeDetailLogic.length(chapter))
+                        .font(AppFont.digits)
+                        .foregroundStyle(Palette.textTertiary)
+                }
+
+                if let progress, isRunning {
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            Capsule().fill(Palette.accent.opacity(0.22))
+                            Capsule()
+                                .fill(Palette.accent)
+                                .frame(width: max(6, geo.size.width * progress))
+                        }
+                    }
+                    .frame(height: 3)
+                    .padding(.leading, 26)
+                }
             }
             .padding(.horizontal, Space.s)
-            .padding(.vertical, 7)
+            .padding(.vertical, 8)
             .background {
-                RoundedRectangle(cornerRadius: Radius.m, style: .continuous)
-                    .fill(isRunning ? Palette.accentSoft : (hovering ? Palette.textPrimary.opacity(0.05) : .clear))
+                shape.fill(isRunning ? Palette.accentSoft : (hovering ? Palette.textPrimary.opacity(0.05) : .clear))
+            }
+            .overlay {
+                if isRunning {
+                    shape.strokeBorder(Palette.accent.opacity(0.38), lineWidth: 1)
+                }
             }
             .contentShape(Rectangle())
         }

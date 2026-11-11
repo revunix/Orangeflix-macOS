@@ -1,6 +1,21 @@
 # Changelog
-## 1.2.6 – 2026-11-11
+## 1.3.0 – 2026-11-11
 
+### Einstellungen
+- Das Einstellungsfenster wurde neu gestaltet und in acht klar gruppierte Bereiche gegliedert. Konto und Profil haben eine eigene Übersicht mit Status und Unterbereichen.
+- Wiedergabe, Discord Rich Presence und Live-Chat sind in einer gemeinsamen Seite gebündelt; interaktive Vorschauen zeigen Änderungen an Discord-Status und Chat direkt.
+- Die Suche springt gezielter zu Einstellungen, öffnet passende Unterbereiche und klappt erweiterte Download-Optionen bei Bedarf auf.
+
+### Navigation und Hintergrundbetrieb
+- Der Schnellwechsel mit `⌘K` findet Formate, App-Bereiche und Aktionen; kurze Suchbegriffe können direkt als Volltextsuche gestartet werden.
+- Das Live-Protokoll lässt sich als Fensterleiste mit `⌘L` ein- und ausblenden.
+- Das Menüleistensymbol bietet bei aktiviertem Hintergrundbetrieb ein kompaktes Dashboard für Live-Sendungen und Downloads.
+
+### Mediathek und Live
+- Suche, Formate, Folgen, Clips, Kalender und Live-Ansicht wurden überarbeitet.
+- Chat und Player passen sich in der Live-Ansicht flexibler an; die Ansicht bleibt auch bei Fenster- und Wiedergabewechseln konsistent.
+
+## 1.2.6 – 2026-11-11
 ### Wiedergabe
 - Der Player erhält eine überarbeitete Oberfläche und zusätzliche Wiedergabesteuerung.
 - Bild-in-Bild lässt sich nativ starten und beenden.

@@ -44,6 +44,10 @@ struct MainWindowView: View {
     @State private var livePage: LivePageGeometry?
     /// Outlives the screen views, including their AppKit bridges.
     @State private var windowMemory = MainWindowFrameMemory()
+    /// Shared with `ShellCommands` (⌘L) so the Protokoll drawer opens live.
+    @AppStorage("showLogPanel") private var showLogPanel = false
+    /// Spotlight-style ⌘K quick switcher.
+    @State private var showCommandPalette = false
 
     var body: some View {
         content
@@ -82,6 +86,27 @@ struct MainWindowView: View {
             // Marking many episodes holds the window until the server has
             // processed all of them.
             .overlay { WatchedBatchOverlay() }
+            // ⌘K quick switcher for formats, sections and actions.
+            .overlay {
+                if showsApp && showCommandPalette {
+                    CommandPaletteView(
+                        isPresented: $showCommandPalette,
+                        onToggleLogPanel: {
+                            withAnimation(.snappy(duration: 0.2)) { showLogPanel.toggle() }
+                        }
+                    )
+                    .transition(.opacity)
+                }
+            }
+            // Live Protokoll drawer (⌘L).
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                if showsApp && showLogPanel {
+                    LogPanel {
+                        withAnimation(.snappy(duration: 0.2)) { showLogPanel = false }
+                    }
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
             // What the app just did or could not do, below the toolbar.
             .overlay(alignment: .top) { StatusBannerView() }
             .tint(Palette.accent)
@@ -141,9 +166,17 @@ struct MainWindowView: View {
                     .accessibilityLabel("Einstellungen")
 
                     Menu {
+                        Button("Schnellwechsel …") {
+                            withAnimation(.snappy(duration: 0.16)) { showCommandPalette = true }
+                        }
+                        Divider()
                         Button("Weiterschauen") { app.selection = .recents }
                         Button("Kalender") { app.selection = .calendar }
                         Button("Ankündigungen") { app.selection = .announcements }
+                        Divider()
+                        Button(showLogPanel ? "Protokoll ausblenden" : "Protokoll einblenden") {
+                            withAnimation(.snappy(duration: 0.2)) { showLogPanel.toggle() }
+                        }
                         Divider()
                         Button("Abmelden …") { account.confirmSignOut() }
                             .disabled(account.isSigningOut)
@@ -166,6 +199,10 @@ struct MainWindowView: View {
             .onPreferenceChange(InlineStageVisibleKey.self) { visible in
                 inlineStageVisible = visible
                 playback.updateInlineStageVisibility(visible)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .toggleCommandPalette)) { _ in
+                guard showsApp else { return }
+                withAnimation(.snappy(duration: 0.16)) { showCommandPalette.toggle() }
             }
 
             .task {

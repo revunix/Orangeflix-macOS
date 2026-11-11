@@ -4,7 +4,9 @@ import SwiftUI
 /// The downloads of the session (Go queue screen): one card per job with its
 /// thumbnail, state, progress, speed, target file and direct inline actions.
 struct DownloadsScreen: View {
+    @Environment(AppModel.self) private var app
     @Environment(DownloadCenter.self) private var center
+    @Environment(PlaybackCenter.self) private var playback
 
     /// The job the toolbar acts on.
     @State private var selection: String?
@@ -25,10 +27,12 @@ struct DownloadsScreen: View {
                 }
                 MoreMenu {
                     if let job = focusedJob {
-                        Button("Im Finder zeigen") { center.reveal(job) }
-                            .disabled(job.file == nil)
+                        Button("In Orangeflix abspielen") { playback.playLocal(job: job) }
+                            .disabled(job.file == nil || job.state.isActive)
                         Button("In Standard-App öffnen") { openFile(of: job) }
                             .disabled(job.file == nil || job.state.isActive)
+                        Button("Im Finder zeigen") { center.reveal(job) }
+                            .disabled(job.file == nil)
                         Button("Pfad kopieren") { center.copyPath(job) }
                             .disabled(job.file == nil)
                         Button("Abbrechen") { center.cancel(job.id) }
@@ -38,12 +42,15 @@ struct DownloadsScreen: View {
                             .disabled(job.file == nil)
                         Divider()
                     }
+                    Button("Zielordner im Finder öffnen") { AppFormat.reveal(app.downloadFolder) }
+                    Divider()
                     Button("Alle abbrechen") { center.cancelAll() }
                         .disabled(!center.isRunning)
                     Button("Liste leeren") { center.clearFinished() }
                         .disabled(!hasFinishedJobs)
                 }
             }
+            storageStatusStrip
             content
         }
         .navigationTitle("")
@@ -79,6 +86,65 @@ struct DownloadsScreen: View {
         }
         if let summary = center.summary { return summary.countsLine }
         return "\(center.jobs.count) Downloads"
+    }
+
+    // MARK: Storage & status strip
+
+    private var freeDiskSpaceText: String? {
+        let probeURL = FileManager.default.fileExists(atPath: app.downloadFolder.path)
+            ? app.downloadFolder
+            : app.downloadFolder.deletingLastPathComponent()
+        guard let values = try? probeURL.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]),
+              let available = values.volumeAvailableCapacityForImportantUsage,
+              available > 0 else { return nil }
+        return "\(DownloadFormat.bytes(available)) frei"
+    }
+
+    private var storageStatusStrip: some View {
+        HStack(spacing: Space.m) {
+            HStack(spacing: Space.xs) {
+                Image(systemName: "folder.fill")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Palette.accentText)
+                Text(AppFormat.displayPath(app.downloadFolder))
+                    .font(AppFont.captionMedium)
+                    .foregroundStyle(Palette.textPrimary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+
+            if let free = freeDiskSpaceText {
+                BrandPill(text: free, color: Palette.textSecondary, background: Palette.surfaceMuted)
+            }
+
+            if let overall = center.overallProgress, center.isRunning {
+                HStack(spacing: 6) {
+                    ProgressView(value: overall)
+                        .tint(Palette.accent)
+                        .frame(width: 96)
+                    Text("\(Int((overall * 100).rounded())) %")
+                        .font(AppFont.digits)
+                        .foregroundStyle(Palette.accentText)
+                }
+            }
+
+            Spacer(minLength: 0)
+
+            Button {
+                AppFormat.reveal(app.downloadFolder)
+            } label: {
+                Label("Zielordner öffnen", systemImage: "arrow.up.forward.app")
+                    .font(AppFont.captionMedium)
+                    .foregroundStyle(Palette.textSecondary)
+            }
+            .buttonStyle(.plain)
+            .help("Download-Ordner im Finder öffnen")
+        }
+        .padding(.horizontal, Space.m)
+        .padding(.vertical, 9)
+        .contentCard(radius: Radius.l)
+        .padding(.horizontal, Space.page)
+        .padding(.bottom, Space.s)
     }
 
     // MARK: Content
@@ -128,6 +194,7 @@ struct DownloadsScreen: View {
                         isSelected: job.id == selection,
                         onCancel: { center.cancel(job.id) },
                         onReveal: { center.reveal(job) },
+                        onPlayInApp: { playback.playLocal(job: job) },
                         onOpen: { openFile(of: job) }
                     )
                     .onTapGesture { selection = job.id }
@@ -145,6 +212,8 @@ struct DownloadsScreen: View {
     // MARK: Menu
 
     @ViewBuilder private func menu(for job: DownloadJob) -> some View {
+        Button("In Orangeflix abspielen") { playback.playLocal(job: job) }
+            .disabled(job.file == nil || job.state.isActive)
         Button("In Standard-App öffnen") { openFile(of: job) }
             .disabled(job.file == nil || job.state.isActive)
         Button("Im Finder zeigen") { center.reveal(job) }
@@ -172,6 +241,7 @@ private struct DownloadJobRow: View {
     var isSelected = false
     let onCancel: () -> Void
     let onReveal: () -> Void
+    let onPlayInApp: () -> Void
     let onOpen: () -> Void
 
     var body: some View {
@@ -268,7 +338,8 @@ private struct DownloadJobRow: View {
             if job.state.isActive {
                 IconAction(icon: "xmark", help: "Download abbrechen", action: onCancel)
             } else if job.file != nil {
-                IconAction(icon: "play.fill", help: "Datei öffnen", action: onOpen)
+                IconAction(icon: "play.fill", help: "In Orangeflix abspielen", action: onPlayInApp)
+                IconAction(icon: "arrow.up.right.square", help: "In Standard-App öffnen", action: onOpen)
                 IconAction(icon: "folder", help: "Im Finder zeigen", action: onReveal)
             }
         }

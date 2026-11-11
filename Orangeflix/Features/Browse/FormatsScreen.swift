@@ -16,15 +16,39 @@ struct FormatsScreen: View {
     @State private var scrolledUnderTitlebar = false
     /// The banner that shows; the carousel moves it on.
     @State private var heroIndex = 0
+    @State private var heroHovering = false
+    @State private var heroSlideProgress: CGFloat = 0
     @State private var heroColor: ThemeRGB?
     /// The episode whose quality picker is open from Weiterschauen.
     @State private var qualityEpisode: Episode?
     /// The downloaded episode waiting for the delete confirmation.
     @State private var deletedFile: Episode?
+    /// Filter and card style of the catalog below the shelves.
+    @State private var catalogFilter: CatalogFilter = .all
+    @State private var catalogQuery = ""
+    @AppStorage("catalogCardStylePosters") private var usePosters = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
 
-    private let columns = [GridItem(.adaptive(minimum: 264, maximum: 360), spacing: Space.l, alignment: .top)]
+    private enum CatalogFilter: String, CaseIterable, Identifiable {
+        case all, library, fresh
+        var id: String { rawValue }
+        var title: String {
+            switch self {
+            case .all: "Alle Formate"
+            case .library: "Bibliothek"
+            case .fresh: "Neue Folgen"
+            }
+        }
+    }
+
+    private var columns: [GridItem] {
+        if usePosters {
+            [GridItem(.adaptive(minimum: 168, maximum: 220), spacing: Space.l, alignment: .top)]
+        } else {
+            [GridItem(.adaptive(minimum: 264, maximum: 360), spacing: Space.l, alignment: .top)]
+        }
+    }
 
     var body: some View {
         @Bindable var model = model
@@ -179,20 +203,38 @@ struct FormatsScreen: View {
                 if items.count > 1 {
                     heroDots(items)
                         .padding(.trailing, Space.page)
-                        .padding(.bottom, Space.xl + 28)
+                        .padding(.bottom, Space.xl + 4)
                         .zIndex(2)
                 }
             }
             .frame(height: Chrome.heroHeight)
-            .animation(.easeInOut(duration: 0.9), value: heroIndex)
+            .onHover { heroHovering = $0 }
+            .animation(.easeInOut(duration: 0.75), value: heroIndex)
             .task(id: items.map(\.pid)) {
-                // The banner moves on every few seconds; the pointer holds it.
                 guard !reduceMotion else { return }
+                let tickSeconds = 0.08
+                let totalSeconds = 8.0
+                var elapsed = 0.0
+                var observedIndex = heroIndex
                 while !Task.isCancelled {
-                    try? await Task.sleep(for: .seconds(8))
+                    try? await Task.sleep(for: .milliseconds(80))
                     guard !Task.isCancelled, items.count > 1 else { continue }
-                    withAnimation(.easeInOut(duration: 0.9)) {
-                        heroIndex = (heroIndex + 1) % items.count
+                    if observedIndex != heroIndex {
+                        observedIndex = heroIndex
+                        elapsed = 0
+                        heroSlideProgress = 0
+                        continue
+                    }
+                    guard !heroHovering else { continue }
+                    elapsed += tickSeconds
+                    heroSlideProgress = min(CGFloat(elapsed / totalSeconds), 1)
+                    if elapsed >= totalSeconds {
+                        elapsed = 0
+                        heroSlideProgress = 0
+                        withAnimation(.easeInOut(duration: 0.75)) {
+                            heroIndex = (heroIndex + 1) % items.count
+                        }
+                        observedIndex = heroIndex
                     }
                 }
             }
@@ -205,7 +247,7 @@ struct FormatsScreen: View {
         }
     }
 
-    /// One banner of the carousel with its own words and buttons.
+    /// One banner of the carousel with its own words, cover emblem and buttons.
     private func heroItem(_ format: Format) -> some View {
         HeroBanner(
             imageURL: format.banner,
@@ -214,6 +256,7 @@ struct FormatsScreen: View {
             title: format.title,
             meta: heroMeta(format),
             text: format.description,
+            coverFormat: format,
             backdrop: homeBackground
         ) {
             PillButton(title: "Neueste Folge ansehen", symbol: "play.fill", style: .accent) {
@@ -225,26 +268,69 @@ struct FormatsScreen: View {
         }
     }
 
-    /// The dots that name the place in the carousel; a click jumps there.
+    /// Dark-glass carousel capsule with previous/next arrows and animated progress pill.
     private func heroDots(_ items: [Format]) -> some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 7) {
+            Button {
+                heroSlideProgress = 0
+                withAnimation(.easeInOut(duration: 0.6)) {
+                    heroIndex = (heroIndex - 1 + items.count) % items.count
+                }
+            } label: {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.75))
+                    .frame(width: 18, height: 18)
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .help("Voriges Banner")
+
             ForEach(Array(items.enumerated()), id: \.element.pid) { index, _ in
+                let active = index == heroIndex
                 Button {
-                    withAnimation(.easeInOut(duration: 0.9)) { heroIndex = index }
+                    heroSlideProgress = 0
+                    withAnimation(.easeInOut(duration: 0.6)) { heroIndex = index }
                 } label: {
-                    Capsule()
-                        .fill(.white.opacity(index == heroIndex ? 0.9 : 0.35))
-                        .frame(width: index == heroIndex ? 18 : 6, height: 6)
-                        .frame(height: 12)
-                        .contentShape(Rectangle())
+                    ZStack(alignment: .leading) {
+                        Capsule()
+                            .fill(.white.opacity(active ? 0.26 : 0.35))
+                        if active {
+                            Capsule()
+                                .fill(Palette.accent)
+                                .frame(width: max(6, 26 * (reduceMotion ? 1 : heroSlideProgress)))
+                        }
+                    }
+                    .frame(width: active ? 26 : 6, height: 6)
+                    .frame(height: 14)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .help("Banner \(index + 1)")
                 .accessibilityLabel("Banner \(index + 1)")
-                .accessibilityValue(index == heroIndex ? "sichtbar" : "")
+                .accessibilityValue(active ? "sichtbar" : "")
             }
+
+            Button {
+                heroSlideProgress = 0
+                withAnimation(.easeInOut(duration: 0.6)) {
+                    heroIndex = (heroIndex + 1) % items.count
+                }
+            } label: {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.75))
+                    .frame(width: 18, height: 18)
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .help("Nächstes Banner")
         }
-        .animation(.easeInOut(duration: 0.25), value: heroIndex)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(.black.opacity(0.42), in: Capsule())
+        .overlay { Capsule().strokeBorder(.white.opacity(0.14), lineWidth: 1) }
+        .animation(.snappy(duration: 0.22), value: heroIndex)
     }
 
     private func heroMeta(_ format: Format) -> String {
@@ -281,8 +367,12 @@ struct FormatsScreen: View {
                   onShowAll: { model.formatsPath.append(.newFormats) }) {
                 ForEach(fresh, id: \.pid) { format in
                     Button { open(format) } label: {
-                        FormatTile(format: format, count: model.episodeCountText(format),
-                                   inLibrary: model.libraryEntry(format.pid) != nil)
+                        FormatTile(
+                            format: format,
+                            count: model.episodeCountText(format),
+                            inLibrary: model.libraryEntry(format.pid) != nil,
+                            onQuickPlay: { Task { await model.latest(of: format, watch: true) } }
+                        )
                     }
                     .buttonStyle(.plain)
                     .frame(width: 260)
@@ -375,19 +465,146 @@ struct FormatsScreen: View {
 
     // MARK: Catalog
 
+    private func matchesCatalogFilter(_ format: Format, filter: CatalogFilter) -> Bool {
+        switch filter {
+        case .all: true
+        case .library: model.libraryEntry(format.pid) != nil
+        case .fresh: format.newEpisode
+        }
+    }
+
+    private func matchesCatalogQuery(_ format: Format) -> Bool {
+        let q = catalogQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !q.isEmpty else { return true }
+        return format.title.localizedStandardContains(q)
+            || format.description.localizedStandardContains(q)
+            || format.slug.localizedStandardContains(q)
+    }
+
+    private var filteredGroups: [BrowseFormatGroup] {
+        model.formatGroups.compactMap { group -> BrowseFormatGroup? in
+            let formats = group.formats.filter {
+                matchesCatalogFilter($0, filter: catalogFilter) && matchesCatalogQuery($0)
+            }
+            guard !formats.isEmpty else { return nil }
+            return BrowseFormatGroup(status: group.status, formats: formats)
+        }
+    }
+
+    private var catalogFilterBar: some View {
+        HStack(spacing: Space.m) {
+            HStack(spacing: 2) {
+                ForEach(CatalogFilter.allCases) { item in
+                    let chosen = catalogFilter == item
+                    let count = model.visibleFormats.reduce(into: 0) {
+                        if matchesCatalogFilter($1, filter: item) && matchesCatalogQuery($1) { $0 += 1 }
+                    }
+                    Button {
+                        withAnimation(.snappy(duration: 0.18)) { catalogFilter = item }
+                    } label: {
+                        HStack(spacing: Space.xs) {
+                            Text(item.title)
+                            Text("\(count)")
+                                .font(AppFont.digits)
+                                .foregroundStyle(chosen ? Palette.accentText : Palette.textTertiary)
+                        }
+                        .font(AppFont.captionMedium)
+                        .foregroundStyle(chosen ? Palette.accentText : Palette.textPrimary)
+                        .padding(.horizontal, Space.m)
+                        .frame(height: 28)
+                        .background {
+                            if chosen { Capsule().fill(Palette.accentSoft) }
+                        }
+                        .contentShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(chosen ? .isSelected : [])
+                }
+            }
+            .padding(3)
+            .glassPlate(in: Capsule(), interactive: true)
+
+            Spacer(minLength: 0)
+
+            HStack(spacing: 6) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(Palette.textTertiary)
+                TextField("Format filtern", text: $catalogQuery, prompt: Text("Format filtern …"))
+                    .textFieldStyle(.plain)
+                    .font(AppFont.bodySmall)
+                    .frame(width: 148)
+                if !catalogQuery.isEmpty {
+                    Button {
+                        catalogQuery = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 11))
+                            .foregroundStyle(Palette.textTertiary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, Space.m)
+            .frame(height: 34)
+            .glassPlate(in: Capsule(), quietAppear: true)
+
+            Button {
+                withAnimation(.snappy(duration: 0.2)) { usePosters.toggle() }
+            } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: usePosters ? "square.grid.3x3" : "rectangle.grid.2x2")
+                    Text(usePosters ? "Poster" : "16:9 Kacheln")
+                }
+                .font(AppFont.captionMedium)
+                .foregroundStyle(Palette.textPrimary)
+                .padding(.horizontal, Space.m)
+                .frame(height: 34)
+                .glassPlate(in: Capsule(), interactive: true)
+                .contentShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .help("Zwischen breiten 16:9-Kacheln und quadratischen Postern wechseln")
+        }
+    }
+
     private var catalog: some View {
-        VStack(alignment: .leading, spacing: Space.xl) {
-            ForEach(model.formatGroups) { group in
-                VStack(alignment: .leading, spacing: Space.m) {
-                    SectionHeader(title: groupTitle(group), detail: "\(group.formats.count)")
-                    LazyVGrid(columns: columns, alignment: .leading, spacing: Space.l) {
-                        ForEach(group.formats, id: \.pid) { format in
-                            Button { open(format) } label: {
-                                FormatTile(format: format, count: model.episodeCountText(format),
-                                           inLibrary: model.libraryEntry(format.pid) != nil)
+        let groups = filteredGroups
+        return VStack(alignment: .leading, spacing: Space.xl) {
+            catalogFilterBar
+
+            if groups.isEmpty {
+                EmptyState(
+                    symbol: "tv",
+                    title: "Kein Format passt zu diesem Filter.",
+                    message: "Setze den Katalog-Filter oder den Suchbegriff zurück."
+                )
+            } else {
+                ForEach(groups) { group in
+                    VStack(alignment: .leading, spacing: Space.m) {
+                        SectionHeader(title: groupTitle(group), detail: "\(group.formats.count)")
+                        LazyVGrid(columns: columns, alignment: .leading, spacing: Space.l) {
+                            ForEach(group.formats, id: \.pid) { format in
+                                Button { open(format) } label: {
+                                    if usePosters {
+                                        PosterCard(
+                                            format: format,
+                                            count: model.episodeCountText(format),
+                                            inLibrary: model.libraryEntry(format.pid) != nil,
+                                            onQuickPlay: { Task { await model.latest(of: format, watch: true) } }
+                                        )
+                                    } else {
+                                        FormatTile(
+                                            format: format,
+                                            count: model.episodeCountText(format),
+                                            inLibrary: model.libraryEntry(format.pid) != nil,
+                                            onQuickPlay: { Task { await model.latest(of: format, watch: true) } }
+                                        )
+                                    }
+                                }
+                                .buttonStyle(.plain)
+                                .contextMenu { actions(for: format) }
                             }
-                            .buttonStyle(.plain)
-                            .contextMenu { actions(for: format) }
                         }
                     }
                 }

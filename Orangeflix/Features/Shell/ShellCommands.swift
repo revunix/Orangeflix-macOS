@@ -28,6 +28,11 @@ struct ShellCommands: Commands {
             Button("Nach Updates suchen …") { updaterController.checkForUpdates(nil) }
         }
         CommandMenu("Gehe zu") {
+            Button("Schnellwechsel …") {
+                NotificationCenter.default.post(name: .toggleCommandPalette, object: nil)
+            }
+            .keyboardShortcut("k", modifiers: .command)
+            Divider()
             ForEach(Array(SidebarItem.allCases.enumerated()), id: \.element) { index, item in
                 Button(item.title) { app.selection = item }
                     .keyboardShortcut(KeyEquivalent(Character("\(index + 1)")), modifiers: .command)

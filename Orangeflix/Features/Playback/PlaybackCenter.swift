@@ -140,6 +140,43 @@ import os
         }
     }
 
+    /// Plays a downloaded local video file directly in Orangeflix's player window,
+    /// working offline while keeping watch state and Discord Rich Presence active.
+    func playLocal(job: DownloadJob) {
+        guard let file = job.file, !isClosed else { return }
+        let previewRestore = preview.stop()
+        generation += 1
+        let token = generation
+        Task {
+            await previewRestore?.value
+            guard token == generation else { return }
+            stop()
+            isInline = false
+            var ep = Episode()
+            ep.identifier = job.id
+            ep.pid = job.pid
+            ep.title = job.displayTitle
+            ep.formatName = job.formatName
+            ep.number = job.number
+            ep.thumb = job.thumbnailURL
+            let entry = PlaybackEntry(
+                identifier: job.id,
+                title: job.displayTitle,
+                detail: job.displaySubtitle,
+                url: file,
+                resume: 0,
+                durationSeconds: 0,
+                kind: .episode,
+                thumbURL: job.thumbnailURL,
+                episode: ep
+            )
+            queue = [entry]
+            current = entry
+            app.record("Starte lokale Datei: \(file.lastPathComponent)")
+            startCurrent()
+        }
+    }
+
     // MARK: Live
 
     /// Plays the running stream or its replay (Go `App.PlayLive`). Inline,

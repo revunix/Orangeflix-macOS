@@ -40,7 +40,16 @@ struct AccountFacts {
     // MARK: Abo
 
     var hasAccess: String { subscription.hasAccess ? "ja" : "nein" }
-    var accessType: String? { Self.text(subscription.accessType) }
+    var accessType: String? {
+        guard let raw = Self.text(subscription.accessType) else { return nil }
+        switch raw.lowercased() {
+        case "subscription": return "Abonnement"
+        case "lifetime": return "Dauerzugang"
+        case "voucher", "gift", "code": return "Gutschein"
+        case "trial": return "Testzugang"
+        default: return raw
+        }
+    }
     var plan: String? {
         Self.text(subscription.activeSubDesc) ?? (subscription.activeSub > 0 ? "Nr. \(subscription.activeSub)" : nil)
     }

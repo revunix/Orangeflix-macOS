@@ -749,7 +749,10 @@ struct LiveScreen: View {
             chatHeader
                 .snappedToPixels()
             divider
-            if model.lines.isEmpty {
+            if model.lines.isEmpty, chatLoads {
+                chatLoading
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if model.lines.isEmpty {
                 emptyChat
                     .frame(maxHeight: .infinity)
             } else {
@@ -1083,29 +1086,45 @@ struct LiveScreen: View {
             .padding(.vertical, Space.xs)
     }
 
-    /// The title of the chat, the state of the connection and the people in it.
+    /// Studio-styled header of the live chat panel with live status pill & viewer count.
     private var chatHeader: some View {
         HStack(spacing: Space.s) {
-            Text("Chat")
-                .font(AppFont.heading)
-                .foregroundStyle(Palette.textPrimary)
-            Circle()
-                .fill(model.isChatConnected ? Palette.success : Palette.textTertiary)
-                .frame(width: 7, height: 7)
-                .help(model.isChatConnected ? "Verbunden" : "Nicht verbunden")
-            if !model.chatStatus.isEmpty, model.chatStatus != model.chatPeople, model.chatStatus != "Chat verbunden" {
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(model.isChatConnected ? Palette.success : Palette.textTertiary)
+                    .frame(width: 7, height: 7)
+                Text("Studio-Chat")
+                    .font(AppFont.heading)
+                    .foregroundStyle(Palette.textPrimary)
+            }
+
+            if replayPlays && model.info?.isLive != true {
+                BrandPill(text: "Mitschnitt", color: Palette.info, background: Palette.infoSoft)
+            } else if model.info?.isLive != true && model.isChatConnected {
+                BrandPill(text: "Lobby", color: Palette.accentText, background: Palette.accentSoft)
+            } else if !model.chatStatus.isEmpty, model.chatStatus != model.chatPeople, model.chatStatus != "Chat verbunden" {
                 Text(model.chatStatus)
                     .font(AppFont.caption)
                     .foregroundStyle(Palette.textSecondary)
                     .lineLimit(1)
             }
+
             Spacer(minLength: 0)
+
             if !model.chatPeople.isEmpty {
-                Label(model.chatPeople.replacingOccurrences(of: " im Chat", with: ""), systemImage: "person.2.fill")
-                    .font(AppFont.digitsMedium)
-                    .foregroundStyle(Palette.textSecondary)
-                    .help(model.chatPeople)
+                HStack(spacing: 4) {
+                    Image(systemName: "person.2.fill")
+                        .font(.system(size: 10, weight: .semibold))
+                    Text(model.chatPeople.replacingOccurrences(of: " im Chat", with: ""))
+                        .font(AppFont.digitsMedium)
+                }
+                .foregroundStyle(Palette.textSecondary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(Palette.surfaceMuted, in: Capsule())
+                .help(model.chatPeople)
             }
+
             Button {
                 chatHidden = true
             } label: {
@@ -1126,6 +1145,29 @@ struct LiveScreen: View {
     /// The state of the chat when no message arrived yet (Go `liveChatHint`).
     private var emptyChat: some View {
         EmptyState(symbol: "bubble.left.and.bubble.right", title: emptyChatText)
+    }
+
+    /// Whether the empty chat is still on its way: no replay, a chat that is
+    /// switched on, and no connection yet.
+    private var chatLoads: Bool {
+        if replayPlays, model.info?.isLive != true { return false }
+        if model.info?.isLive == true, model.info?.show?.chat == false { return false }
+        return !model.isChatConnected
+    }
+
+    /// The chat while it connects: a spinner and a short line, in the middle
+    /// of the panel.
+    private var chatLoading: some View {
+        VStack(spacing: Space.m) {
+            ProgressView()
+                .controlSize(.regular)
+            Text("Chat wird geladen …")
+                .font(AppFont.bodySmall)
+                .foregroundStyle(Palette.textSecondary)
+        }
+        .padding(Space.xl)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Chat wird geladen")
     }
 
     /// The line under the empty chat.

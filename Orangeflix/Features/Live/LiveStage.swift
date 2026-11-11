@@ -11,6 +11,9 @@ struct LiveStage: View {
     let playback: PlaybackCenter
     let banner: String
 
+    @Environment(AppModel.self) private var app
+    @Environment(NewEpisodeWatcher.self) private var watcher
+
     private var isLiveOrReplay: Bool {
         playback.current?.kind == .live || playback.current?.kind == .replay
     }
@@ -76,18 +79,7 @@ struct LiveStage: View {
                     stagePrompt(symbol: "lock.fill", title: "Diese Sendung ist nicht in deinem Abo enthalten.")
                 }
             } else if let next = info.scheduled, next.begin > 0 {
-                VStack(spacing: Space.s) {
-                    Text("NÄCHSTE SENDUNG")
-                        .font(AppFont.captionMedium)
-                        .tracking(1.4)
-                        .foregroundStyle(Palette.accent)
-                    TimelineView(.periodic(from: .now, by: 1)) { context in
-                        Text(LiveCountdown.text(until: Date(timeIntervalSince1970: TimeInterval(next.begin)),
-                                                now: context.date))
-                            .font(.system(size: 34, weight: .semibold).monospacedDigit())
-                            .foregroundStyle(.white)
-                    }
-                }
+                premiereCountdownCard(next: next, replay: info.replay)
             } else if let replay = info.replay, replay.possible, replay.canAccess {
                 LiveBigPlayButton(title: "Replay ansehen") { model.watchReplay() }
             } else {
@@ -101,6 +93,112 @@ struct LiveStage: View {
                         button: "Erneut versuchen", buttonSymbol: "arrow.clockwise") {
                 Task { await model.load(force: true) }
             }
+        }
+    }
+
+    private func premiereCountdownCard(next: LivestreamScheduled, replay: LivestreamReplay?) -> some View {
+        let startDate = Date(timeIntervalSince1970: TimeInterval(next.begin))
+        let isToday = Calendar.current.isDateInToday(startDate)
+        let startLabel = isToday
+            ? "Heute um \(AppFormat.time(startDate)) Uhr"
+            : "\(AppFormat.dayMonth(startDate)) · \(AppFormat.time(startDate)) Uhr"
+        let notifyOn = app.settings.liveNotificationsOn
+        let cardShape = RoundedRectangle(cornerRadius: 22, style: .continuous)
+
+        return VStack(spacing: Space.m) {
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(Palette.accent)
+                    .frame(width: 6, height: 6)
+                Text("PREMIEREN-COUNTDOWN")
+                    .font(AppFont.micro)
+                    .tracking(1.2)
+                    .foregroundStyle(Palette.accent)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .background(.white.opacity(0.08), in: Capsule())
+
+            Text(startLabel)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.94))
+
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                let parts = LiveCountdown.components(until: startDate, now: context.date)
+                HStack(spacing: 10) {
+                    if parts.days > 0 {
+                        countdownDigitTile(value: parts.days, label: parts.days == 1 ? "Tag" : "Tage")
+                    }
+                    countdownDigitTile(value: parts.hours, label: "Std")
+                    countdownDigitTile(value: parts.minutes, label: "Min")
+                    countdownDigitTile(value: parts.seconds, label: "Sek")
+                }
+            }
+
+            HStack(spacing: Space.s) {
+                Button {
+                    let nextState = !notifyOn
+                    try? app.updateSettings { $0.liveNotificationsOn = nextState }
+                    if nextState {
+                        Task {
+                            await watcher.refreshPermission()
+                            await watcher.checkLive()
+                        }
+                    }
+                } label: {
+                    Label(
+                        notifyOn ? "Erinnerung aktiv" : "Beim Start melden",
+                        systemImage: notifyOn ? "bell.badge.fill" : "bell"
+                    )
+                    .font(AppFont.captionMedium)
+                    .foregroundStyle(notifyOn ? Palette.accent : .white)
+                    .padding(.horizontal, Space.m)
+                    .frame(height: 32)
+                    .background(.white.opacity(notifyOn ? 0.14 : 0.08), in: Capsule())
+                    .overlay {
+                        Capsule().strokeBorder(notifyOn ? Palette.accent.opacity(0.55) : .white.opacity(0.16), lineWidth: 1)
+                    }
+                }
+                .buttonStyle(.plain)
+
+                if let replay, replay.possible, replay.canAccess {
+                    PillButton(title: "Letztes Replay", symbol: "play.fill", style: .accent) {
+                        model.watchReplay()
+                    }
+                }
+            }
+            .padding(.top, 2)
+        }
+        .padding(.horizontal, 26)
+        .padding(.vertical, 22)
+        .background {
+            cardShape
+                .fill(.black.opacity(0.52))
+                .background(.ultraThinMaterial, in: cardShape)
+        }
+        .overlay {
+            cardShape.strokeBorder(.white.opacity(0.16), lineWidth: 1)
+        }
+        .shadow(color: .black.opacity(0.42), radius: 24, y: 10)
+    }
+
+    private func countdownDigitTile(value: Int, label: String) -> some View {
+        VStack(spacing: 2) {
+            Text(String(format: "%02d", value))
+                .font(.system(size: 26, weight: .bold).monospacedDigit())
+                .foregroundStyle(.white)
+                .contentTransition(.numericText())
+            Text(label.uppercased())
+                .font(.system(size: 9.5, weight: .semibold))
+                .tracking(0.8)
+                .foregroundStyle(.white.opacity(0.62))
+        }
+        .frame(width: 68)
+        .padding(.vertical, 9)
+        .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(.white.opacity(0.12), lineWidth: 1)
         }
     }
 
@@ -159,6 +257,8 @@ struct LiveStageControls: View {
 
     @State private var hovering = false
     @State private var scrub: Double?
+    @State private var showsRemaining = true
+    @State private var width: CGFloat = 800
 
     private var engine: MPVPlayer { playback.engine }
     private var isLive: Bool { playback.current?.kind == .live }
@@ -180,87 +280,123 @@ struct LiveStageControls: View {
                     .transition(.opacity)
             }
         }
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         .onHover { hovering = $0 }
         .animation(.easeOut(duration: 0.2), value: visible)
     }
 
     private var bar: some View {
-        VStack(spacing: Space.xs) {
+        let deckShape = RoundedRectangle(cornerRadius: 18, style: .continuous)
+        return VStack(spacing: 8) {
             if isLive {
                 if playback.duration > 1 {
-                    HStack(spacing: Space.m) {
+                    HStack(spacing: 10) {
                         PlayerTimeline(position: playback.position, duration: playback.duration,
                                        bufferedAhead: engine.bufferedAhead, scrub: $scrub) { seconds, exact in
                             playback.seek(to: seconds, exact: exact)
                         }
                         PlayerGoLiveButton(playback: playback)
                     }
-                    .font(AppFont.digitsMedium)
-                    .monospacedDigit()
-                    .foregroundStyle(.white.opacity(0.85))
                 }
             } else {
-                HStack(spacing: Space.m) {
-                    Text(AppFormat.position(scrub ?? playback.position))
+                let shown = scrub ?? playback.position
+                HStack(spacing: 10) {
+                    Text(AppFormat.position(shown))
+                        .font(.system(size: 12, weight: .medium).monospacedDigit())
+                        .foregroundStyle(.white.opacity(0.84))
+                        .frame(minWidth: 42, alignment: .leading)
                     PlayerTimeline(position: playback.position, duration: playback.duration,
                                    bufferedAhead: engine.bufferedAhead, scrub: $scrub) { seconds, exact in
                         playback.seek(to: seconds, exact: exact)
                     }
-                    Text("−" + AppFormat.position(max(playback.duration - (scrub ?? playback.position), 0)))
+                    Button {
+                        showsRemaining.toggle()
+                    } label: {
+                        Text(showsRemaining
+                             ? "−" + AppFormat.position(max(playback.duration - shown, 0))
+                             : AppFormat.position(playback.duration))
+                            .font(.system(size: 12, weight: .medium).monospacedDigit())
+                            .foregroundStyle(.white.opacity(0.84))
+                            .frame(minWidth: 48, alignment: .trailing)
+                    }
+                    .buttonStyle(.plain)
                 }
-                .font(AppFont.digitsMedium)
-                .monospacedDigit()
-                .foregroundStyle(.white.opacity(0.85))
             }
-            HStack(spacing: Space.xs) {
-                PlayerPlayButton(isPaused: engine.isPaused) { playback.togglePlayPause() }
-                if isLive {
-                    PlayerIconButton(symbol: "gobackward.30", help: "30 Sekunden zurückspulen") {
-                        playback.skip(by: -30)
-                    }
-                    PlayerIconButton(symbol: "gobackward.10", help: "10 Sekunden zurückspulen") {
-                        playback.skip(by: -10)
-                    }
-                    if playback.duration <= 1 {
+
+            // 3-Zone Control Row synchronized with PlayerScene
+            ZStack {
+                HStack(spacing: 6) {
+                    PlayerVolumeControl(engine: engine, showsSlider: width >= 520)
+                    if isLive && playback.duration <= 1 {
                         PlayerGoLiveButton(playback: playback)
                     }
-                } else {
-                    PlayerIconButton(symbol: "gobackward.10", help: "10 Sekunden zurück") { playback.skip(by: -10) }
-                    PlayerIconButton(symbol: "goforward.10", help: "10 Sekunden vor") { playback.skip(by: 10) }
+                    Spacer(minLength: 0)
                 }
-                Spacer(minLength: Space.m)
-                PlayerVolumeControl(engine: engine)
-                if engine.audioTracks.count > 1 {
-                    PlayerAudioMenu(engine: engine)
+
+                HStack(spacing: 8) {
+                    HStack(spacing: 4) {
+                        if isLive {
+                            PlayerIconButton(symbol: "gobackward.30", help: "30 Sekunden zurückspulen") {
+                                playback.skip(by: -30)
+                            }
+                        }
+                        PlayerIconButton(symbol: "gobackward.10", help: "10 Sekunden zurück", prominent: true) {
+                            playback.skip(by: -10)
+                        }
+                    }
+                    .frame(width: 72, alignment: .trailing)
+
+                    PlayerPlayButton(isPaused: engine.isPaused) {
+                        playback.togglePlayPause()
+                    }
+
+                    HStack(spacing: 4) {
+                        if !isLive {
+                            PlayerIconButton(symbol: "goforward.10", help: "10 Sekunden vor", prominent: true) {
+                                playback.skip(by: 10)
+                            }
+                        }
+                    }
+                    .frame(width: 72, alignment: .leading)
                 }
-                if !engine.subtitleTracks.isEmpty {
-                    PlayerSubtitleButton(engine: engine, playback: playback)
-                }
-                if playback.canUsePiP {
-                    PlayerIconButton(
-                        symbol: playback.isInPiP ? "pip.exit" : "pip.enter",
-                        help: playback.isInPiP ? "Bild-in-Bild beenden" : "Bild-in-Bild",
-                        isActive: playback.isInPiP
-                    ) {
-                        playback.togglePiP()
+
+                HStack(spacing: 4) {
+                    Spacer(minLength: 0)
+                    if engine.audioTracks.count > 1 {
+                        PlayerAudioMenu(engine: engine)
+                    }
+                    if !engine.subtitleTracks.isEmpty {
+                        PlayerSubtitleButton(engine: engine, playback: playback)
+                    }
+                    if playback.canUsePiP {
+                        PlayerIconButton(
+                            symbol: playback.isInPiP ? "pip.exit" : "pip.enter",
+                            help: playback.isInPiP ? "Bild-in-Bild beenden" : "Bild-in-Bild",
+                            isActive: playback.isInPiP
+                        ) {
+                            playback.togglePiP()
+                        }
+                    }
+                    PlayerIconButton(symbol: "macwindow.on.rectangle", help: "Im Player-Fenster öffnen") {
+                        playback.popOut()
+                    }
+                    PlayerIconButton(symbol: "stop.fill", help: "Wiedergabe beenden") {
+                        playback.stop()
                     }
                 }
-                PlayerIconButton(symbol: "macwindow.on.rectangle", help: "Im Player-Fenster öffnen") {
-                    playback.popOut()
-                }
-                PlayerIconButton(symbol: "stop.fill", help: "Beenden") { playback.stop() }
             }
+            .frame(height: 44)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 11)
+        .frame(maxWidth: 940)
         .background {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            deckShape
                 .fill(.black.opacity(0.46))
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .background(.ultraThinMaterial, in: deckShape)
         }
         .overlay {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .strokeBorder(.white.opacity(0.14), lineWidth: 1)
+            deckShape.strokeBorder(.white.opacity(0.14), lineWidth: 1)
         }
         .shadow(color: .black.opacity(0.38), radius: 18, y: 6)
         .padding(Space.m)

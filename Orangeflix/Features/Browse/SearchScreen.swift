@@ -321,15 +321,52 @@ struct SearchScreen: View {
         }
     }
 
-    /// The page before the first letter: the last searches and what the
-    /// search covers.
+    /// Visual discovery start page before typing: recent searches, clickable
+    /// hosts/guests, format scope tiles, and 3 capability cards.
     private var startPage: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: Space.xl) {
+        let persons = Array(searchablePersons.prefix(8))
+        let topFormats = Array(searchableFormats.prefix(6))
+        return ScrollView {
+            VStack(alignment: .leading, spacing: Space.xxl) {
+                if model.searchFormatPID != nil || model.searchPersonID != nil {
+                    HStack(spacing: Space.s) {
+                        Text("Aktiver Filter:")
+                            .font(AppFont.captionMedium)
+                            .foregroundStyle(Palette.textSecondary)
+                        if model.searchFormatPID != nil {
+                            Button {
+                                model.searchFormatPID = nil
+                            } label: {
+                                Label("\(formatTitle) ×", systemImage: "rectangle.stack")
+                                    .font(AppFont.captionMedium)
+                                    .foregroundStyle(Palette.accentText)
+                                    .padding(.horizontal, Space.m)
+                                    .padding(.vertical, 5)
+                                    .background(Palette.accentSoft, in: Capsule())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        if model.searchPersonID != nil {
+                            Button {
+                                model.searchPersonID = nil
+                            } label: {
+                                Label("\(personTitle) ×", systemImage: "person.crop.circle")
+                                    .font(AppFont.captionMedium)
+                                    .foregroundStyle(Palette.accentText)
+                                    .padding(.horizontal, Space.m)
+                                    .padding(.vertical, 5)
+                                    .background(Palette.accentSoft, in: Capsule())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                }
+
                 if !model.recentSearches.isEmpty {
                     VStack(alignment: .leading, spacing: Space.s) {
                         HStack {
-                            SectionLabel(text: "Zuletzt gesucht")
+                            SectionLabel(text: "Zuletzt gesucht", symbol: "clock.arrow.circlepath")
                             Spacer()
                             Button("Verlauf löschen") { model.clearSearchHistory() }
                                 .buttonStyle(.link)
@@ -343,15 +380,116 @@ struct SearchScreen: View {
                         }
                     }
                 }
+
+                if !persons.isEmpty {
+                    VStack(alignment: .leading, spacing: Space.m) {
+                        HStack {
+                            SectionLabel(text: "Mitwirkende & Gäste", symbol: "person.2")
+                            Spacer()
+                            Button("Alle anzeigen") { model.searchPath.append(.guests) }
+                                .buttonStyle(.link)
+                                .font(AppFont.caption)
+                        }
+                        LazyVGrid(
+                            columns: [GridItem(.adaptive(minimum: 196, maximum: 260), spacing: Space.m)],
+                            spacing: Space.m
+                        ) {
+                            ForEach(persons, id: \.id) { person in
+                                Button {
+                                    model.searchPath.append(.host(person))
+                                } label: {
+                                    HStack(spacing: Space.m) {
+                                        GuestPortrait(image: person.image, size: 38)
+                                        VStack(alignment: .leading, spacing: 1.5) {
+                                            Text(person.name)
+                                                .font(AppFont.subheading)
+                                                .foregroundStyle(Palette.textPrimary)
+                                                .lineLimit(1)
+                                            Text("Folgen öffnen")
+                                                .font(AppFont.caption)
+                                                .foregroundStyle(Palette.textSecondary)
+                                        }
+                                        Spacer(minLength: 0)
+                                        Image(systemName: "chevron.right")
+                                            .font(.system(size: 11, weight: .semibold))
+                                            .foregroundStyle(Palette.textTertiary)
+                                    }
+                                    .padding(Space.m)
+                                    .contentCard(radius: Radius.l)
+                                    .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                                .contextMenu {
+                                    Button("Alle Folgen mit \(person.name)") {
+                                        model.searchPath.append(.host(person))
+                                    }
+                                    Button("Suche auf \(person.name) eingrenzen") {
+                                        model.searchPersonID = person.id
+                                        fieldFocused = true
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if !topFormats.isEmpty {
+                    VStack(alignment: .leading, spacing: Space.m) {
+                        SectionLabel(text: "Gezielt in einem Format suchen", symbol: "rectangle.stack")
+                        LazyVGrid(
+                            columns: [GridItem(.adaptive(minimum: 220, maximum: 300), spacing: Space.m)],
+                            spacing: Space.m
+                        ) {
+                            ForEach(topFormats, id: \.pid) { format in
+                                let chosen = model.searchFormatPID == format.pid
+                                Button {
+                                    model.searchFormatPID = chosen ? nil : format.pid
+                                    fieldFocused = true
+                                } label: {
+                                    HStack(spacing: Space.m) {
+                                        FormatCover(format: format)
+                                            .frame(width: 40, height: 40)
+                                            .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(format.title)
+                                                .font(AppFont.subheading)
+                                                .foregroundStyle(Palette.textPrimary)
+                                                .lineLimit(1)
+                                            Text(format.clipCount > 0 ? "\(format.clipCount) Folgen durchsuchen" : "Transkripte & Kapitel")
+                                                .font(AppFont.caption)
+                                                .foregroundStyle(chosen ? Palette.accentText : Palette.textSecondary)
+                                                .lineLimit(1)
+                                        }
+                                        Spacer(minLength: 0)
+                                        if chosen {
+                                            Image(systemName: "checkmark.circle.fill")
+                                                .foregroundStyle(Palette.accent)
+                                        }
+                                    }
+                                    .padding(Space.m)
+                                    .contentCard(radius: Radius.l, selected: chosen)
+                                    .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                }
+
                 VStack(alignment: .leading, spacing: Space.m) {
-                    SectionLabel(text: "Was die Suche findet")
-                    tip("textformat", "Titel und Beschreibungen", "Folgen, deren Name oder Text den Begriff enthält.")
-                    tip("list.bullet.rectangle", "Kapitel", "Eine Sekunde über einem Kapitel zeigt eine kurze Vorschau genau dort.")
-                    tip("waveform", "Gesprochenes",
-                        "Jede Stelle, an der der Begriff fällt, mit Zeitmarke für die Vorschau.")
+                    SectionLabel(text: "Was die Volltextsuche abdeckt", symbol: "sparkles")
+                    LazyVGrid(
+                        columns: [GridItem(.adaptive(minimum: 240), spacing: Space.m)],
+                        alignment: .leading,
+                        spacing: Space.m
+                    ) {
+                        tip("textformat", "Titel & Beschreibungen", "Findet Folgen anhand von Titel, Thema oder Beschreibungstext.")
+                        tip("list.bullet.rectangle", "Kapitel-Vorschau", "Verweile eine Sekunde auf einer Zeitmarke für eine sofortige Video-Vorschau.")
+                        tip("waveform", "Gesprochenes Wort", "Durchsucht Transkripte sekundengenau nach jedem gesprochenen Begriff.")
+                    }
                 }
             }
-            .frame(maxWidth: 560, alignment: .leading)
+            .frame(maxWidth: 980, alignment: .leading)
             .padding(.horizontal, Space.page)
             .padding(.vertical, Space.l)
             .frame(maxWidth: .infinity)
@@ -359,16 +497,21 @@ struct SearchScreen: View {
     }
 
     private func tip(_ symbol: String, _ title: String, _ text: String) -> some View {
-        HStack(alignment: .top, spacing: Space.m) {
+        VStack(alignment: .leading, spacing: 6) {
             Image(systemName: symbol)
-                .font(.system(size: 15))
+                .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(Palette.accent)
-                .frame(width: 22)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(AppFont.subheading).foregroundStyle(Palette.textPrimary)
-                Text(text).font(AppFont.bodySmall).foregroundStyle(Palette.textSecondary)
-            }
+            Text(title)
+                .font(AppFont.subheading)
+                .foregroundStyle(Palette.textPrimary)
+            Text(text)
+                .font(AppFont.caption)
+                .foregroundStyle(Palette.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
+        .padding(Space.m)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .contentCard(radius: Radius.l)
     }
 
     private func hint(_ text: String, symbol: String) -> some View {

@@ -1,12 +1,8 @@
 import SwiftUI
 
-/// The catalog: what the Mediathek lists and what may send a message.
-/// One list with a search and a filter; every row switches both.
-/// The search text lives here, so a keystroke does not rebuild the sidebar.
+/// The catalog: what the Mediathek lists and what may send a notification.
 struct SettingsFormatsPage: View {
     @Binding var settingsError: String?
-    /// Bumped when the sidebar search opens one format, which clears the
-    /// list's own search. A fresh page already starts empty.
     var formatListGeneration: Int
 
     @Environment(AppModel.self) private var app
@@ -18,39 +14,45 @@ struct SettingsFormatsPage: View {
 
     var body: some View {
         let snapshot = formatSnapshot
-        return Group {
-            Section {
+        return VStack(alignment: .leading, spacing: Space.l) {
+            SettingsSection(
+                "Formate im Katalog",
+                footer: "„Mediathek“ blendet ein Format im Hauptkatalog ein oder aus. „Melden“ benachrichtigt dich bei neuen Folgen. Ausgeblendete Formate pausieren ihre Mitteilungen automatisch."
+            ) {
+                if !formatSummary.isEmpty {
+                    BrandPill(text: formatSummary, color: Palette.textSecondary, background: Palette.surfaceMuted)
+                }
+            } content: {
                 SettingsFormatSearch(query: $formatQuery, filter: $formatFilter, counts: snapshot.counts)
+
+                formatBulkActions(snapshot.filtered)
+
+                Hairline()
+
                 if browse.formats.isEmpty {
                     Text("Der Katalog wird geladen …")
-                        .foregroundStyle(.secondary)
+                        .font(AppFont.bodySmall)
+                        .foregroundStyle(Palette.textSecondary)
+                        .padding(.vertical, Space.s)
                 } else if snapshot.filtered.isEmpty {
                     Text(formatQuery.isEmpty ? "Kein Format in dieser Auswahl." : "Kein Format passt zu „\(formatQuery)“.")
-                        .foregroundStyle(.secondary)
+                        .font(AppFont.bodySmall)
+                        .foregroundStyle(Palette.textSecondary)
                         .frame(maxWidth: .infinity, alignment: .center)
-                        .padding(.vertical, Space.s)
+                        .padding(.vertical, Space.m)
                 } else {
-                    ForEach(snapshot.filtered, id: \.pid) { format in
-                        SettingsFormatRow(
-                            format: format,
-                            visible: visibleBinding(format.pid),
-                            notify: notifyBinding(format.pid),
-                            notificationsOn: app.settings.notificationsOn)
+                    LazyVStack(spacing: Space.s) {
+                        ForEach(Array(snapshot.filtered.enumerated()), id: \.element.pid) { index, format in
+                            if index > 0 { Hairline() }
+                            SettingsFormatRow(
+                                format: format,
+                                visible: visibleBinding(format.pid),
+                                notify: notifyBinding(format.pid),
+                                notificationsOn: app.settings.notificationsOn
+                            )
+                        }
                     }
                 }
-            } header: {
-                HStack(alignment: .firstTextBaseline) {
-                    Text("Formate")
-                    Spacer()
-                    Text(formatSummary)
-                        .font(.caption)
-                        .lineLimit(1)
-                        .monospacedDigit()
-                        .foregroundStyle(.secondary)
-                        .textCase(nil)
-                }
-            } footer: {
-                formatBulkActions(snapshot.filtered)
             }
         }
         .onChange(of: formatListGeneration) { _, _ in
@@ -59,7 +61,6 @@ struct SettingsFormatsPage: View {
         }
     }
 
-    /// "38 von 40 in der Mediathek · 5 gemeldet" — the counts, in short.
     private var formatSummary: String {
         let all = browse.formats
         guard !all.isEmpty else { return "" }
@@ -74,13 +75,10 @@ struct SettingsFormatsPage: View {
         return "\(visible)/\(all.count) sichtbar · \(notified) gemeldet"
     }
 
-    /// The chosen formats the Mediathek shows; only those are announced.
     private var announcedFormats: Set<Int> {
         NewEpisodeLogic.announced(notified: app.settings.notifiedMagazines, hidden: app.settings.hiddenMagazines)
     }
 
-    /// The rows of the format list and the counts of the filter, from one
-    /// sort. The page asks for it once per redraw.
     private struct FormatSnapshot {
         var filtered: [Format]
         var counts: [SettingsFormatFilter: Int]
@@ -110,56 +108,52 @@ struct SettingsFormatsPage: View {
         return FormatSnapshot(filtered: searched.filter { included($0, formatFilter) }, counts: counts)
     }
 
-    /// Acts on the rows that show now: everything, or only the hits.
     private func formatBulkActions(_ rows: [Format]) -> some View {
         let shown = rows.map(\.pid)
         let narrowed = !formatQuery.isEmpty || formatFilter != .all
         let scope = narrowed ? "Treffer" : "Alle"
         let hidden = Set(app.settings.hiddenMagazines)
         let notified = Set(app.settings.notifiedMagazines)
-        // The rows "melden" can act on: a hidden format is not announced.
         let open = shown.filter { !hidden.contains($0) }
-        return VStack(alignment: .leading, spacing: Space.s) {
-            FlowLayout(spacing: Space.s) {
-                Button("\(scope) anzeigen") {
-                    apply { $0.hiddenMagazines.removeAll { shown.contains($0) } }
-                }
-                .disabled(shown.allSatisfy { !hidden.contains($0) })
-                .searchAnchor("formats.showAll")
-                Button("\(scope) ausblenden") {
-                    // The choice of "Melden" stays; a hidden format is just
-                    // not announced, and showing it again brings it back.
-                    apply { settings in
-                        for pid in shown where !settings.hiddenMagazines.contains(pid) { settings.hiddenMagazines.append(pid) }
-                    }
-                }
-                .disabled(shown.allSatisfy { hidden.contains($0) })
-                .searchAnchor("formats.hideAll")
-                Button("\(scope) melden") {
-                    apply { settings in
-                        for pid in shown where !settings.notifiedMagazines.contains(pid) && !settings.hiddenMagazines.contains(pid) {
-                            settings.notifiedMagazines.append(pid)
-                        }
-                        settings.notificationsOn = true
-                    }
-                    Task { await watcher.refreshPermission() }
-                }
-                // With the main switch off nothing is announced, so the
-                // button still has something to do: it turns it on.
-                .disabled(open.isEmpty || (app.settings.notificationsOn && open.allSatisfy { notified.contains($0) }))
-                .searchAnchor("formats.notifyAll")
-                Button(narrowed ? "Treffer nicht melden" : "Keine melden") {
-                    apply { $0.notifiedMagazines.removeAll { shown.contains($0) } }
-                }
-                .disabled(shown.allSatisfy { !notified.contains($0) })
-                .searchAnchor("formats.notifyNone")
+
+        return FlowLayout(spacing: Space.xs) {
+            Button("\(scope) anzeigen") {
+                apply { $0.hiddenMagazines.removeAll { shown.contains($0) } }
             }
-            .controlSize(.small)
-            Text("„Mediathek“ zeigt ein Format in der Mediathek; die Bibliothek bleibt. „Melden“ schickt eine Mitteilung, sobald eine neue Folge erscheint. Ausgeblendete Formate werden nicht gemeldet; ihre Auswahl gilt wieder, sobald sie angezeigt werden.")
+            .disabled(shown.allSatisfy { !hidden.contains($0) })
+            .searchAnchor("formats.showAll")
+
+            Button("\(scope) ausblenden") {
+                apply { settings in
+                    for pid in shown where !settings.hiddenMagazines.contains(pid) {
+                        settings.hiddenMagazines.append(pid)
+                    }
+                }
+            }
+            .disabled(shown.allSatisfy { hidden.contains($0) })
+            .searchAnchor("formats.hideAll")
+
+            Button("\(scope) melden") {
+                apply { settings in
+                    for pid in shown where !settings.notifiedMagazines.contains(pid) && !settings.hiddenMagazines.contains(pid) {
+                        settings.notifiedMagazines.append(pid)
+                    }
+                    settings.notificationsOn = true
+                }
+                Task { await watcher.refreshPermission() }
+            }
+            .disabled(open.isEmpty || (app.settings.notificationsOn && open.allSatisfy { notified.contains($0) }))
+            .searchAnchor("formats.notifyAll")
+
+            Button(narrowed ? "Treffer nicht melden" : "Keine melden") {
+                apply { $0.notifiedMagazines.removeAll { shown.contains($0) } }
+            }
+            .disabled(shown.allSatisfy { !notified.contains($0) })
+            .searchAnchor("formats.notifyNone")
         }
+        .controlSize(.small)
     }
 
-    /// On means the catalog shows the format.
     private func visibleBinding(_ pid: Int) -> Binding<Bool> {
         Binding(
             get: { !app.settings.hiddenMagazines.contains(pid) },
@@ -173,7 +167,8 @@ struct SettingsFormatsPage: View {
                     }
                     settings.hiddenMagazines = hidden
                 }
-            })
+            }
+        )
     }
 
     private func notifyBinding(_ pid: Int) -> Binding<Bool> {
@@ -189,7 +184,8 @@ struct SettingsFormatsPage: View {
                     }
                 }
                 if on { Task { await watcher.refreshPermission() } }
-            })
+            }
+        )
     }
 
     private func apply(_ change: (inout AppSettings) -> Void) {

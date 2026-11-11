@@ -161,45 +161,224 @@ import SwiftUI
     }
 }
 
-/// The menu of the symbol in the menu bar while the app runs in the
-/// background.
+/// Compact macOS menu bar mini-dashboard shown while running in the background.
 struct BackgroundMenu: View {
     let container: AppContainer
     let updaterController: SPUStandardUpdaterController
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         let watcher = container.watcher
-        if let live = watcher.liveTitle {
-            Button("Jetzt live: \(live)") {
-                container.app.selection = .live
-                container.background.showMainWindow(using: openWindow)
+        let playback = container.playback
+        let downloads = container.downloads
+
+        VStack(alignment: .leading, spacing: Space.m) {
+            // Header
+            HStack(spacing: Space.s) {
+                IrisColorMark()
+                    .frame(width: 24, height: 24)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Orangeflix")
+                        .font(AppFont.heading)
+                        .foregroundStyle(Palette.textPrimary)
+                    Text(watcher.liveTitle != nil ? "Gerade live auf Sendung" : "Läuft im Hintergrund")
+                        .font(AppFont.caption)
+                        .foregroundStyle(watcher.liveTitle != nil ? Palette.live : Palette.textSecondary)
+                }
+                Spacer(minLength: Space.s)
+                Button {
+                    container.background.showMainWindow(using: openWindow)
+                    dismiss()
+                } label: {
+                    Label("Öffnen", systemImage: "macwindow")
+                        .font(AppFont.captionMedium)
+                }
+                .controlSize(.small)
+                .keyboardShortcut("o")
             }
-            Divider()
-        }
-        Button("Orangeflix öffnen") {
-            container.background.showMainWindow(using: openWindow)
-        }
-        .keyboardShortcut("o")
-        Button("Jetzt nach Neuem suchen") {
-            Task {
-                await watcher.check()
-                await watcher.checkLive()
+
+            // Live show card
+            if let liveTitle = watcher.liveTitle {
+                HStack(spacing: Space.s) {
+                    Circle()
+                        .fill(Palette.live)
+                        .frame(width: 8, height: 8)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("JETZT LIVE")
+                            .font(AppFont.micro)
+                            .tracking(0.6)
+                            .foregroundStyle(Palette.live)
+                        Text(liveTitle)
+                            .font(AppFont.subheading)
+                            .foregroundStyle(Palette.textPrimary)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: Space.xs)
+                    Button("Ansehen") {
+                        container.app.selection = .live
+                        container.background.showMainWindow(using: openWindow)
+                        dismiss()
+                    }
+                    .controlSize(.small)
+                }
+                .padding(Space.m)
+                .background(Palette.dangerSoft, in: RoundedRectangle(cornerRadius: Radius.l, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: Radius.l, style: .continuous)
+                        .strokeBorder(Palette.live.opacity(0.35), lineWidth: 1)
+                }
+            }
+
+            // Active playback card
+            if playback.isPlaying, let current = playback.current {
+                HStack(spacing: Space.s) {
+                    Image(systemName: playback.isPaused ? "pause.circle.fill" : "play.circle.fill")
+                        .font(.system(size: 20))
+                        .foregroundStyle(Palette.accent)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(current.title)
+                            .font(AppFont.subheading)
+                            .foregroundStyle(Palette.textPrimary)
+                            .lineLimit(1)
+                        if !current.detail.isEmpty {
+                            Text(current.detail)
+                                .font(AppFont.caption)
+                                .foregroundStyle(Palette.textSecondary)
+                                .lineLimit(1)
+                        }
+                    }
+                    Spacer(minLength: Space.xs)
+                    Button {
+                        playback.togglePlayPause()
+                    } label: {
+                        Image(systemName: playback.isPaused ? "play.fill" : "pause.fill")
+                            .frame(width: 24, height: 24)
+                    }
+                    .controlSize(.small)
+                }
+                .padding(Space.s)
+                .background(Palette.surface, in: RoundedRectangle(cornerRadius: Radius.l, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: Radius.l, style: .continuous)
+                        .strokeBorder(Palette.divider, lineWidth: 1)
+                }
+            }
+
+            // Active downloads bar
+            if let progress = downloads.overallProgress, downloads.activeCount > 0 {
+                Button {
+                    container.app.selection = .downloads
+                    container.background.showMainWindow(using: openWindow)
+                    dismiss()
+                } label: {
+                    VStack(alignment: .leading, spacing: 5) {
+                        HStack {
+                            Label(
+                                downloads.activeCount == 1 ? "1 Download aktiv" : "\(downloads.activeCount) Downloads aktiv",
+                                systemImage: "arrow.down.circle.fill"
+                            )
+                            .font(AppFont.captionMedium)
+                            .foregroundStyle(Palette.textPrimary)
+                            Spacer()
+                            Text(AppFormat.percent(Int((progress * 100).rounded())))
+                                .font(AppFont.digits)
+                                .foregroundStyle(Palette.accentText)
+                        }
+                        ProgressView(value: progress)
+                            .tint(Palette.accent)
+                    }
+                    .padding(Space.s)
+                    .background(Palette.surface, in: RoundedRectangle(cornerRadius: Radius.l, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: Radius.l, style: .continuous)
+                            .strokeBorder(Palette.divider, lineWidth: 1)
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+
+            Hairline()
+
+            // Quick notification toggles
+            VStack(spacing: Space.s) {
+                HStack {
+                    Label("Neue Folgen melden", systemImage: "bell")
+                        .font(AppFont.bodySmall)
+                        .foregroundStyle(Palette.textPrimary)
+                    Spacer()
+                    Toggle("Neue Folgen melden", isOn: Binding(
+                        get: { container.app.settings.notificationsOn },
+                        set: { value in try? container.app.updateSettings { $0.notificationsOn = value } }
+                    ))
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                }
+
+                HStack {
+                    Label("Livestreams melden", systemImage: "dot.radiowaves.left.and.right")
+                        .font(AppFont.bodySmall)
+                        .foregroundStyle(Palette.textPrimary)
+                    Spacer()
+                    Toggle("Livestreams melden", isOn: Binding(
+                        get: { container.app.settings.liveNotificationsOn },
+                        set: { value in try? container.app.updateSettings { $0.liveNotificationsOn = value } }
+                    ))
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                }
+            }
+
+            Hairline()
+
+            // Footer actions
+            HStack(spacing: Space.xs) {
+                Button {
+                    Task {
+                        await watcher.check()
+                        await watcher.checkLive()
+                    }
+                } label: {
+                    Label("Prüfen", systemImage: "arrow.clockwise")
+                        .font(AppFont.captionMedium)
+                }
+                .controlSize(.small)
+                .help("Jetzt auf neue Folgen und Livestreams prüfen")
+
+                Button {
+                    updaterController.checkForUpdates(nil)
+                    dismiss()
+                } label: {
+                    Label("Updates", systemImage: "arrow.down.app")
+                        .font(AppFont.captionMedium)
+                }
+                .controlSize(.small)
+
+                Spacer(minLength: 0)
+
+                SettingsLink {
+                    Image(systemName: "gearshape")
+                }
+                .controlSize(.small)
+                .keyboardShortcut(",")
+                .help("Einstellungen öffnen")
+
+                Button {
+                    NSApp.terminate(nil)
+                } label: {
+                    Image(systemName: "power")
+                        .foregroundStyle(Palette.danger)
+                }
+                .controlSize(.small)
+                .keyboardShortcut("q")
+                .help("Orangeflix beenden")
             }
         }
-        Divider()
-        Button("Nach Updates suchen …") { updaterController.checkForUpdates(nil) }
-        Divider()
-        Toggle("Neue Folgen melden", isOn: Binding(
-            get: { container.app.settings.notificationsOn },
-            set: { value in try? container.app.updateSettings { $0.notificationsOn = value } }))
-        Toggle("Livestreams melden", isOn: Binding(
-            get: { container.app.settings.liveNotificationsOn },
-            set: { value in try? container.app.updateSettings { $0.liveNotificationsOn = value } }))
-        Divider()
-        SettingsLink { Text("Einstellungen …") }
-            .keyboardShortcut(",")
-        Button("Orangeflix beenden") { NSApp.terminate(nil) }
-            .keyboardShortcut("q")
+        .padding(Space.l)
+        .frame(width: 310)
+        .tint(Palette.accent)
+        .background(Palette.background)
     }
 }

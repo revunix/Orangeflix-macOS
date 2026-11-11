@@ -1,8 +1,6 @@
 import SwiftUI
 
-/// Import and export: the backup of the app, the settings file of the
-/// command line tool and the library. Replacing the library or the settings
-/// waits for a confirmation the window itself asks for.
+/// Backup, CLI config & local SQLite library import/export.
 struct SettingsTransferPage: View {
     @Binding var transferMessage: String?
     @Binding var transferFailed: Bool
@@ -13,66 +11,75 @@ struct SettingsTransferPage: View {
 
     @Environment(AppModel.self) private var app
     @Environment(AccountModel.self) private var account
-    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        Group {
+        VStack(alignment: .leading, spacing: Space.xl) {
             if let transferMessage {
-                Section {
-                    Label {
-                        Text(transferMessage)
-                            .fixedSize(horizontal: false, vertical: true)
-                    } icon: {
-                        Image(systemName: transferFailed ? "xmark.octagon.fill" : "checkmark.circle.fill")
-                            .foregroundStyle(transferFailed ? Palette.danger : Palette.success)
-                    }
-                    .textSelection(.enabled)
-                }
+                ProfileNotice(
+                    symbol: transferFailed ? "xmark.octagon.fill" : "checkmark.circle.fill",
+                    text: transferMessage,
+                    tint: transferFailed ? Palette.danger : Palette.success,
+                    background: transferFailed ? Palette.dangerSoft : Palette.successSoft
+                )
             }
 
-            Section {
+            SettingsSection(
+                "App-Sicherung",
+                footer: "Ideal für den Umzug auf einen zweiten Mac. Anmeldedaten und der lokale Download-Ordner werden aus Sicherheitsgründen nicht mitgesichert."
+            ) {
+                EmptyView()
+            } content: {
                 transferRow(
-                    "Sicherung", detail: "Alle Einstellungen, Themes und die Auswahl der Formate",
-                    symbol: "gearshape.2",
+                    "Einstellungen & Themes",
+                    detail: "Alle App-Optionen, importierten Themes und die Format-Auswahl als JSON-Datei",
+                    symbol: "gearshape.2.fill",
                     export: ("transfer.backupExport", exportBackup),
-                    import: ("transfer.backupImport", { chooseFile(prompt: "Importieren", then: importBackup) }))
-            } header: {
-                Text("Orangeflix")
-            } footer: {
-                Text("Für einen zweiten Mac oder als Sicherung. Anmeldung und Speicherort bleiben auf diesem Mac.")
+                    import: ("transfer.backupImport", { chooseFile(prompt: "Importieren", then: importBackup) })
+                )
             }
 
-            Section {
+            SettingsSection(
+                "Kommandozeilen-Werkzeug",
+                footer: "Kompatibel mit ~/.config/orangeflix-dl/config. Ungültige Werte werden beim Import übersprungen."
+            ) {
+                EmptyView()
+            } content: {
                 transferRow(
-                    "config", detail: "Qualität, Ablage, Feed-Variante, Tempo und Begleitdateien",
-                    symbol: "terminal",
+                    "CLI-Konfiguration (config)",
+                    detail: "Download-Qualität, Ordnerstruktur, Feed-Variante, Tempo und Begleitdateien",
+                    symbol: "terminal.fill",
                     export: ("transfer.configExport", exportConfig),
-                    import: ("transfer.configImport", { chooseFile(prompt: "Importieren", then: importConfig) }))
-            } header: {
-                Text("Kommandozeilen-Werkzeug")
-            } footer: {
-                Text("Das Werkzeug liest die Datei unter ~/.config/orangeflix-dl/config. Beim Import bleiben ungültige Werte außen vor.")
+                    import: ("transfer.configImport", { chooseFile(prompt: "Importieren", then: importConfig) })
+                )
             }
 
-            Section {
+            SettingsSection(
+                "Lokale Bibliothek",
+                footer: "Speichert abonnierte Formate sowie bekannte und geladene Folgen. Beim Import wird die bisherige Datenbank automatisch als Sicherung behalten."
+            ) {
+                EmptyView()
+            } content: {
                 transferRow(
-                    "library.db", detail: libraryDetail,
-                    symbol: "books.vertical",
+                    "Datenbank (library.db)",
+                    detail: libraryDetail,
+                    symbol: "books.vertical.fill",
                     export: ("transfer.libraryExport", exportLibrary),
-                    import: ("transfer.libraryImport", { chooseFile(prompt: "Importieren", then: stageLibrary) }))
+                    import: ("transfer.libraryImport", { chooseFile(prompt: "Importieren", then: stageLibrary) })
+                )
+
                 if let date = previousLibrary {
-                    LabeledContent {
-                        Button("Wiederherstellen …", systemImage: "clock.arrow.circlepath") { restorePreviousLibrary() }
-                            .searchAnchor("transfer.libraryRestore")
-                    } label: {
-                        Text("Vorherige Bibliothek")
-                        Text("Gesichert am \(date.formatted(date: .numeric, time: .shortened))")
+                    Hairline()
+                    SettingsRow(
+                        "Vorherige Bibliothek verfügbar",
+                        subtitle: "Gesichert am \(date.formatted(date: .numeric, time: .shortened))"
+                    ) {
+                        Button("Wiederherstellen …", systemImage: "clock.arrow.circlepath") {
+                            restorePreviousLibrary()
+                        }
+                        .controlSize(.small)
+                        .searchAnchor("transfer.libraryRestore")
                     }
                 }
-            } header: {
-                Text("Bibliothek")
-            } footer: {
-                Text("Die Bibliothek merkt sich Formate, bekannte und geladene Folgen; das Werkzeug benutzt dieselbe Datei. Ein Import ersetzt sie, die bisherige bleibt als Sicherung. Danach die App neu starten.")
             }
         }
         .task { await account.refreshLibrary(minimumInterval: 5) }
@@ -80,29 +87,46 @@ struct SettingsTransferPage: View {
 
     private var libraryDetail: String {
         let count = account.library.count
-        return count == 1 ? "1 Format in der Bibliothek" : "\(count) Formate in der Bibliothek"
+        return count == 1 ? "1 Format in der lokalen Bibliothek" : "\(count) Formate in der lokalen Bibliothek"
     }
 
-    /// A file the page exports and imports: what it is, then the two buttons.
-    private func transferRow(_ title: String, detail: String, symbol: String,
-                             export: (anchor: String, action: () -> Void),
-                             import importing: (anchor: String, action: () -> Void)) -> some View {
+    private func transferRow(
+        _ title: String,
+        detail: String,
+        symbol: String,
+        export: (anchor: String, action: () -> Void),
+        import importing: (anchor: String, action: () -> Void)
+    ) -> some View {
         HStack(spacing: Space.m) {
-            Image(systemName: symbol)
-                .font(.system(size: 17))
-                .foregroundStyle(themeColor(.accent))
-                .frame(width: 26)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(AppFont.subheading)
-                Text(detail).font(AppFont.caption).foregroundStyle(.secondary)
+            ZStack {
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .fill(Palette.accentSoft)
+                Image(systemName: symbol)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Palette.accentText)
             }
+            .frame(width: 36, height: 36)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(AppFont.subheading)
+                    .foregroundStyle(Palette.textPrimary)
+                Text(detail)
+                    .font(AppFont.caption)
+                    .foregroundStyle(Palette.textSecondary)
+            }
+
             Spacer(minLength: Space.m)
-            Button("Exportieren …", systemImage: "square.and.arrow.up", action: export.action)
-                .searchAnchor(export.anchor)
-            Button("Importieren …", systemImage: "square.and.arrow.down", action: importing.action)
-                .searchAnchor(importing.anchor)
+
+            HStack(spacing: Space.xs) {
+                Button("Exportieren …", systemImage: "square.and.arrow.up", action: export.action)
+                    .controlSize(.small)
+                    .searchAnchor(export.anchor)
+                Button("Importieren …", systemImage: "square.and.arrow.down", action: importing.action)
+                    .controlSize(.small)
+                    .searchAnchor(importing.anchor)
+            }
         }
-        .padding(.vertical, Space.xxs)
     }
 
     private func report(_ message: String, failed: Bool = false) {
@@ -127,10 +151,10 @@ struct SettingsTransferPage: View {
                 return "Die Sicherung wurde als „\(url.lastPathComponent)“ gespeichert."
             },
             report: { message in report(message) },
-            fail: { error in report(error) })
+            fail: { error in report(error) }
+        )
     }
 
-    /// Reads the backup; the settings change when the user confirms.
     private func importBackup(_ url: URL) {
         do {
             pendingBackup = try SettingsTransfer.readBackup(from: url)
@@ -147,7 +171,8 @@ struct SettingsTransferPage: View {
                 return "Die config wurde als „\(url.lastPathComponent)“ gespeichert."
             },
             report: { message in report(message) },
-            fail: { error in report(error) })
+            fail: { error in report(error) }
+        )
     }
 
     private func importConfig(_ url: URL) {
@@ -169,7 +194,8 @@ struct SettingsTransferPage: View {
                 return "Die Bibliothek wurde als „\(url.lastPathComponent)“ gespeichert."
             },
             report: { message in report(message) },
-            fail: { error in report(error) })
+            fail: { error in report(error) }
+        )
     }
 
     private func stageLibrary(_ url: URL) {
@@ -180,17 +206,11 @@ struct SettingsTransferPage: View {
         }
     }
 
-    /// Puts the library back that the last import replaced; the current one
-    /// becomes the backup in turn.
     private func restorePreviousLibrary() {
         do {
             pendingLibrary = try SettingsTransfer.stageLibrary(from: SettingsTransfer.backupURL())
         } catch {
             report(error)
         }
-    }
-
-    private func themeColor(_ token: ThemeToken) -> Color {
-        Color(hex: ThemeRuntime.shared.hex(token, dark: colorScheme == .dark))
     }
 }

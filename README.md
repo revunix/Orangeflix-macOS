@@ -29,10 +29,11 @@ Die App wird privat von [Alexander (@revunix)](https://github.com/revunix) entwi
 
 - Folgen herunterladen, die Download-Warteschlange verwalten und fertige Dateien im Finder anzeigen.
 - Speicherort, Qualität und weitere Optionen für Downloads und Streaming einstellen.
+- Das Einstellungsfenster bündelt Konto, Darstellung, Mitteilungen, Wiedergabe und Live-Chat in klar gruppierten Bereichen mit gezielter Suche.
+- Discord Rich Presence und Live-Chat lassen sich mit interaktiven Vorschauen konfigurieren.
+- Mit `⌘K` Formate, Bereiche und Aktionen schnell öffnen; mit `⌘L` das Live-Protokoll ein- oder ausblenden.
 - Darstellung mit hellem oder dunklem Farbschema, Themes, Oberflächenstil und drei App-Symbolvarianten anpassen.
-- Konto, Profil, Mitteilungen, Live-Ansicht und Formate in den Einstellungen verwalten.
-- Pro Format neue-Folgen-Mitteilungen aktivieren und über den Start eines Livestreams informiert werden. Ein Klick auf eine Mitteilung öffnet das passende Format oder die Live-Seite.
-- Orangeflix auf Wunsch im Hintergrund weiterlaufen und bei der Anmeldung starten lassen. Bei geschlossenem Fenster verschwindet die App aus dem Dock; das monochrome Orangeflix-Symbol bleibt in der Menüleiste. Mit `⌘Q` beendest du die App vollständig.
+- Orangeflix auf Wunsch im Hintergrund weiterlaufen und bei der Anmeldung starten lassen. Bei geschlossenem Fenster verschwindet die App aus dem Dock; das Menüleistensymbol bietet Zugriff auf Live-Sendungen und Downloads. Mit `⌘Q` beendest du die App vollständig.
 - Einstellungen sichern und wiederherstellen sowie Bibliothek und Einstellungen mit kompatiblen Dateien importieren oder exportieren.
 
 ## Screenshots
@@ -51,7 +52,7 @@ Die App wird privat von [Alexander (@revunix)](https://github.com/revunix) entwi
 
 Für die Nutzung benötigst du **macOS 15 oder neuer**, eine Internetverbindung und ein Orangeflix-Konto. Die bereitgestellten Release-Builds sind für Macs mit **Apple Silicon** vorgesehen.
 
-1. Lade die aktuelle Version **1.2.6** (`Orangeflix-for-Mac.zip`) von den [GitHub Releases](https://github.com/revunix/Orangeflix-macOS/releases/latest) herunter. Die Änderungen stehen im [Changelog](CHANGELOG.md).
+1. Lade die aktuelle Version **1.3.0** (`Orangeflix-for-Mac.zip`) von den [GitHub Releases](https://github.com/revunix/Orangeflix-macOS/releases/latest) herunter. Die Änderungen stehen im [Changelog](CHANGELOG.md).
 2. Entpacke das Archiv und verschiebe `Orangeflix.app` in den Ordner **Programme**.
 3. Starte die App und melde dich mit der E-Mail-Adresse und dem Passwort deines Orangeflix-Kontos an. Wenn für dein Konto die Zwei-Faktor-Anmeldung aktiviert ist, gib zusätzlich den Code aus deiner Authenticator-App ein.
 
@@ -96,6 +97,7 @@ Weitere Aktionen findest du per Rechtsklick auf eine Folge oder im Menü **Aktio
 | `⌘1` bis `⌘8` | Navigationsbereiche öffnen |
 | `⌘F` | Suche öffnen |
 | `⌘L` | Protokoll ein- oder ausblenden |
+| `⌘K` | Schnellwechsel für Formate, Bereiche und Aktionen öffnen |
 | `F` im Player | Vollbild umschalten |
 | `C` im Player | Untertitel ein- oder ausblenden |
 

@@ -281,6 +281,14 @@ import Observation
         } catch {
             guard token == chatGeneration else { return }
             isChatConnected = false
+            // A connect cut off with its task (a screen rebuilt or left) is
+            // no failure: no line in the chat, no step in the backoff; the
+            // chat simply opens again.
+            if Self.isCancellation(error) {
+                chatStatus = ""
+                scheduleReconnect(counts: false)
+                return
+            }
             chatStatus = error.localizedDescription
             // Only the first failure in a row is worth a line in the chat.
             if retryCount == 0 {
@@ -292,10 +300,12 @@ import Observation
 
     /// Connects the chat again after a wait that grows with every failure
     /// (2, 4, 8 … up to 30 seconds), while the screen wants it.
-    private func scheduleReconnect() {
+    /// - Parameter counts: false for a cancelled connect, which retries
+    ///   at once and does not grow the wait.
+    private func scheduleReconnect(counts: Bool = true) {
         guard chatWanted, retryTask == nil else { return }
-        let delay = min(pow(2, Double(retryCount + 1)), 30)
-        retryCount += 1
+        let delay = counts ? min(pow(2, Double(retryCount + 1)), 30) : 0.5
+        if counts { retryCount += 1 }
         retryTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(delay))
             guard let self, !Task.isCancelled else { return }
@@ -303,6 +313,15 @@ import Observation
             guard self.chatWanted, !self.isChatConnected else { return }
             await self.startChat()
         }
+    }
+
+    /// Whether an error only says the connect was cancelled.
+    private static func isCancellation(_ error: Error) -> Bool {
+        if error is CancellationError { return true }
+        if let error = error as? URLError, error.code == .cancelled { return true }
+        let nsError = error as NSError
+        return nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled
+            || nsError.domain.contains("CancellationError")
     }
 
     /// A chat that says it is cut off gets some seconds for its own

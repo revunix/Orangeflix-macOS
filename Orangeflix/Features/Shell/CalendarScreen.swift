@@ -1,12 +1,35 @@
 import SwiftUI
 
-/// The calendar: a month grid with unified header controls and rich detail
-/// popovers when clicking an entry or an overflow day.
+/// Display modes of the Calendar screen.
+private enum CalendarViewMode: String, CaseIterable, Identifiable {
+    case month
+    case agenda
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .month: "Monat"
+        case .agenda: "Agenda"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .month: "calendar"
+        case .agenda: "list.bullet.below.rectangle"
+        }
+    }
+}
+
+/// The calendar: a month grid and a chronological Agenda view with unified
+/// header controls and rich detail popovers.
 struct CalendarScreen: View {
     @Environment(AppModel.self) private var app
     @Environment(CalendarModel.self) private var model
     @Environment(BrowseModel.self) private var browse
 
+    @AppStorage("calendarViewMode") private var viewMode: CalendarViewMode = .month
     /// The entry whose popover is currently open.
     @State private var activeEntryID: String?
     /// The day whose full list popover is open when clicking "+N".
@@ -25,15 +48,41 @@ struct CalendarScreen: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            PageChrome(title: monthTitle, subtitle: subtitle) {
+            PageChrome(title: viewMode == .agenda ? "Kommende Termine" : monthTitle, subtitle: subtitle) {
                 legend
-                    .padding(.trailing, Space.s)
-                PillButton(title: "Heute", style: .glass) {
-                    showToday()
+                    .padding(.trailing, Space.xs)
+
+                HStack(spacing: 2) {
+                    ForEach(CalendarViewMode.allCases) { mode in
+                        let chosen = viewMode == mode
+                        Button {
+                            withAnimation(.snappy(duration: 0.18)) { viewMode = mode }
+                        } label: {
+                            Label(mode.title, systemImage: mode.symbol)
+                                .font(AppFont.captionMedium)
+                                .foregroundStyle(chosen ? Palette.accentText : Palette.textSecondary)
+                                .padding(.horizontal, Space.m)
+                                .frame(height: 28)
+                                .background {
+                                    if chosen { Capsule().fill(Palette.accentSoft) }
+                                }
+                                .contentShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
-                .help("Zurück zum aktuellen Monat")
-                IconAction(icon: "chevron.left", help: "Voriger Monat") { step(by: -1) }
-                IconAction(icon: "chevron.right", help: "Nächster Monat") { step(by: 1) }
+                .padding(3)
+                .glassPlate(in: Capsule(), interactive: true)
+
+                if viewMode == .month {
+                    PillButton(title: "Heute", style: .glass) {
+                        showToday()
+                    }
+                    .help("Zurück zum aktuellen Monat")
+                    IconAction(icon: "chevron.left", help: "Voriger Monat") { step(by: -1) }
+                    IconAction(icon: "chevron.right", help: "Nächster Monat") { step(by: 1) }
+                }
+
                 IconAction(icon: "arrow.clockwise", help: "Aktualisieren",
                            isDisabled: model.isLoading) {
                     Task { await model.load(force: true) }
@@ -98,6 +147,8 @@ struct CalendarScreen: View {
                            message: "Neue Livestreams, Events und Veröffentlichungen erscheinen hier.")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
+        } else if viewMode == .agenda {
+            agendaView
         } else {
             VStack(spacing: 0) {
                 weekdayBar
@@ -105,6 +156,57 @@ struct CalendarScreen: View {
             }
             .padding(.horizontal, Space.page)
             .padding(.bottom, Space.l)
+        }
+    }
+
+    // MARK: - Agenda View
+
+    private var upcomingEntries: [CalendarEntry] {
+        let startOfToday = calendar.startOfDay(for: Date()).timeIntervalSince1970
+        let future = model.entries
+            .filter { TimeInterval($0.timestamp) >= startOfToday }
+            .sorted { $0.timestamp < $1.timestamp }
+        if !future.isEmpty { return future }
+        return model.entries.sorted { $0.timestamp > $1.timestamp }
+    }
+
+    private var agendaView: some View {
+        let items = upcomingEntries
+        return ScrollView {
+            LazyVStack(alignment: .leading, spacing: Space.m) {
+                ForEach(items, id: \.shellID) { entry in
+                    CalendarAgendaRow(
+                        entry: entry,
+                        format: entry.pid > 0 ? browse.format(pid: entry.pid) : nil,
+                        onOpenLive: { model.openLive(entry) },
+                        onOpenLink: { model.openLink(entry) },
+                        onOpenFormat: { format in
+                            browse.formatsPath = [.episodes(pid: format.pid)]
+                            app.selection = .formats
+                        }
+                    )
+                    .contextMenu {
+                        if entry.type == "live" {
+                            Button("Live-Ansicht öffnen") { model.openLive(entry) }
+                        }
+                        if entry.pid > 0, let format = browse.format(pid: entry.pid) {
+                            Button("Format „\(format.title)“ öffnen") {
+                                browse.formatsPath = [.episodes(pid: format.pid)]
+                                app.selection = .formats
+                            }
+                        }
+                        if !entry.url.isEmpty {
+                            Button("Link im Browser öffnen") { model.openLink(entry) }
+                        }
+                        Button("Titel kopieren") { model.copyTitle(entry) }
+                    }
+                }
+            }
+            .frame(maxWidth: 840, alignment: .leading)
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, Space.page)
+            .padding(.top, Space.xs)
+            .padding(.bottom, Space.xxl)
         }
     }
 
@@ -499,5 +601,127 @@ private struct CalendarEntryPopover: View {
         }
         .padding(Space.l)
         .frame(width: 360)
+    }
+}
+
+/// Editorial agenda row showing a date tile, category badge, optional format cover,
+/// description preview, and direct navigation actions.
+private struct CalendarAgendaRow: View {
+    let entry: CalendarEntry
+    let format: Format?
+    let onOpenLive: () -> Void
+    let onOpenLink: () -> Void
+    let onOpenFormat: (Format) -> Void
+
+    private var date: Date {
+        Date(timeIntervalSince1970: TimeInterval(entry.timestamp))
+    }
+
+    private var isToday: Bool {
+        Calendar.current.isDateInToday(date)
+    }
+
+    private var weekdayLabel: String {
+        if isToday { return "HEUTE" }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "de_DE")
+        formatter.dateFormat = "EE"
+        return formatter.string(from: date).replacingOccurrences(of: ".", with: "").uppercased()
+    }
+
+    private var dayMonthNumber: String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "de_DE")
+        formatter.dateFormat = "dd.MM"
+        return formatter.string(from: date)
+    }
+
+    private var tint: Color {
+        switch entry.type {
+        case "live": Palette.live
+        case "event": Palette.info
+        default: Palette.accent
+        }
+    }
+
+    private var summaryText: String {
+        if !entry.description.isEmpty { return entry.description }
+        if let liveText = entry.live?.description, !liveText.isEmpty { return liveText }
+        if let eventText = entry.event?.description, !eventText.isEmpty { return eventText }
+        return ""
+    }
+
+    var body: some View {
+        HStack(alignment: .center, spacing: Space.l) {
+            VStack(spacing: 2) {
+                Text(weekdayLabel)
+                    .font(AppFont.micro)
+                    .tracking(0.6)
+                    .foregroundStyle(isToday ? tint : Palette.textTertiary)
+                Text(dayMonthNumber)
+                    .font(.system(size: 15, weight: .bold).monospacedDigit())
+                    .foregroundStyle(Palette.textPrimary)
+            }
+            .frame(width: 58, height: 54)
+            .background(isToday ? tint.opacity(0.12) : Palette.surfaceMuted,
+                        in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 11, style: .continuous)
+                    .strokeBorder(isToday ? tint.opacity(0.45) : Palette.divider, lineWidth: 1)
+            }
+
+            if let format {
+                FormatCover(format: format)
+                    .frame(width: 44, height: 44)
+                    .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: Space.xs) {
+                    BrandPill(
+                        text: entry.time.isEmpty ? entry.shellBadge : "\(entry.shellBadge) · \(entry.time)",
+                        color: tint,
+                        background: tint.opacity(0.15)
+                    )
+                    if let format {
+                        Text(format.title)
+                            .font(AppFont.captionMedium)
+                            .foregroundStyle(Palette.textSecondary)
+                            .lineLimit(1)
+                    }
+                    if entry.premium {
+                        BrandPill(text: "PREMIUM")
+                    }
+                }
+
+                Text(entry.title)
+                    .font(AppFont.heading)
+                    .foregroundStyle(Palette.textPrimary)
+                    .lineLimit(2)
+
+                if !summaryText.isEmpty {
+                    Text(summaryText)
+                        .font(AppFont.caption)
+                        .foregroundStyle(Palette.textSecondary)
+                        .lineLimit(2)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            HStack(spacing: Space.xs) {
+                if entry.type == "live" {
+                    PillButton(title: "Live", symbol: "dot.radiowaves.left.and.right", style: .glass, action: onOpenLive)
+                } else if let format {
+                    PillButton(title: "Format", symbol: "tv", style: .glass) {
+                        onOpenFormat(format)
+                    }
+                }
+                if !entry.url.isEmpty {
+                    IconAction(icon: "arrow.up.right", help: "Im Browser öffnen", action: onOpenLink)
+                }
+            }
+        }
+        .padding(Space.m)
+        .contentCard(selected: isToday)
     }
 }

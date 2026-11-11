@@ -32,6 +32,16 @@ enum LiveCountdown {
         return "in " + plural(days, "Tag", "Tagen") + " " + plural(hours, "Std.", "Std.")
     }
 
+    /// Structured components (days, hours, minutes, seconds) for digital countdown tiles.
+    static func components(until: Date, now: Date) -> (days: Int, hours: Int, minutes: Int, seconds: Int) {
+        let total = max(0, Int(until.timeIntervalSince(now)))
+        let days = total / 86_400
+        let hours = (total % 86_400) / 3_600
+        let minutes = (total % 3_600) / 60
+        let seconds = total % 60
+        return (days, hours, minutes, seconds)
+    }
+
     /// Go `plural`: "1 Tag", "2 Tagen".
     static func plural(_ count: Int, _ singular: String, _ pluralForm: String) -> String {
         count == 1 ? "1 " + singular : "\(count) " + pluralForm

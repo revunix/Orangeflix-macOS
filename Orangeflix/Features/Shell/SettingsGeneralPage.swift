@@ -2,7 +2,7 @@ import AppKit
 import Sparkle
 import SwiftUI
 
-/// Allgemein: software update, the download folder and running in the background.
+/// Allgemein: software updates and background / login-item behavior.
 struct SettingsGeneralPage: View {
     let updaterController: SPUStandardUpdaterController
     @Binding var automaticUpdateChecks: Bool
@@ -11,85 +11,117 @@ struct SettingsGeneralPage: View {
 
     @Environment(AppModel.self) private var app
     @Environment(BackgroundMode.self) private var background
-    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        Group {
-            Section {
-                HStack {
-                    VStack(alignment: .leading, spacing: 3) {
+        VStack(alignment: .leading, spacing: Space.xl) {
+            SettingsSection(
+                "Softwareupdate",
+                footer: "Vor jeder Installation prüft Sparkle kryptografisch die Signatur des Updates und zeigt die Versionshinweise an."
+            ) {
+                BrandPill(text: "Version \(AccountModel.appVersion)", color: Palette.textSecondary, background: Palette.surfaceMuted)
+            } content: {
+                HStack(spacing: Space.m) {
+                    Image(nsImage: NSApp.applicationIconImage)
+                        .resizable()
+                        .frame(width: 40, height: 40)
+                        .accessibilityHidden(true)
+
+                    VStack(alignment: .leading, spacing: 2) {
                         Text("Updates für Orangeflix for Mac")
-                        Text("Neue Versionen mit Änderungen und Fehlerbehebungen abrufen.")
-                            .font(AppFont.bodySmall)
-                            .foregroundStyle(themeColor(.textSecondary))
+                            .font(AppFont.subheading)
+                            .foregroundStyle(Palette.textPrimary)
+                        Text("Neue Versionen mit Verbesserungen und Fehlerbehebungen abrufen.")
+                            .font(AppFont.caption)
+                            .foregroundStyle(Palette.textSecondary)
                     }
+
                     Spacer(minLength: Space.m)
+
                     Button("Nach Updates suchen …") {
                         updaterController.checkForUpdates(nil)
                     }
+                    .controlSize(.small)
                 }
                 .searchAnchor("about.updates")
 
-                Toggle("Automatisch nach Updates suchen", isOn: automaticUpdateChecksBinding)
-                    .searchAnchor("about.automaticUpdates")
-                Picker("Suchintervall", selection: updateCheckIntervalBinding) {
-                    Text("Täglich").tag(TimeInterval(86_400))
-                    Text("Wöchentlich").tag(TimeInterval(604_800))
-                    Text("Monatlich").tag(TimeInterval(2_592_000))
+                Hairline()
+
+                SettingsToggleRow(
+                    title: "Automatisch nach Updates suchen",
+                    subtitle: "Prüft regelmäßig im Hintergrund, solange Orangeflix geöffnet ist",
+                    isOn: automaticUpdateChecksBinding
+                )
+                .searchAnchor("about.automaticUpdates")
+
+                Hairline()
+
+                SettingsRow("Suchintervall", subtitle: "Wie häufig automatisch nach neuen Versionen gesucht wird") {
+                    Picker("Suchintervall", selection: updateCheckIntervalBinding) {
+                        Text("Täglich").tag(TimeInterval(86_400))
+                        Text("Wöchentlich").tag(TimeInterval(604_800))
+                        Text("Monatlich").tag(TimeInterval(2_592_000))
+                    }
+                    .labelsHidden()
+                    .fixedSize()
+                    .disabled(!automaticUpdateChecks)
                 }
-                .disabled(!automaticUpdateChecks)
+                .opacity(automaticUpdateChecks ? 1 : 0.48)
                 .searchAnchor("about.updateInterval")
-            } header: {
-                Text("Softwareupdate")
-            } footer: {
-                Text("Automatische Suchen erfolgen im gewählten Intervall, solange Orangeflix läuft. Vor der Installation prüft der Updater die Signatur des Downloads; die Versionshinweise erscheinen im Update-Fenster.")
             }
 
-            Section {
-                LabeledContent("Ordner") {
-                    Text(AppFormat.displayPath(app.downloadFolder))
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
-                .searchAnchor("storage.folder")
-                Button("Ordner ändern …") { chooseFolder() }
-                    .searchAnchor("storage.change")
-                Button("Im Finder zeigen") { AppFormat.reveal(app.downloadFolder) }
-                    .searchAnchor("storage.reveal")
-                Button("Auf ~/Downloads/Orangeflix zurücksetzen") { resetFolder() }
-                    .searchAnchor("storage.reset")
-            } header: { Text("Speicherort") } footer: { Text("Wohin die Downloads geschrieben werden.") }
+            SettingsSection(
+                "Hintergrund & Systemstart",
+                footer: backgroundFooter
+            ) {
+                EmptyView()
+            } content: {
+                SettingsToggleRow(
+                    title: "Im Hintergrund weiterlaufen",
+                    subtitle: "Beim Schließen des Fensters wechselt Orangeflix aus dem Dock in die Menüleiste",
+                    isOn: runsInBackgroundBinding
+                )
+                .searchAnchor("formats.background")
 
-            backgroundSection
+                Hairline()
+
+                SettingsToggleRow(
+                    title: "Bei der Anmeldung starten",
+                    subtitle: "Startet Orangeflix automatisch nach dem Anmelden am Mac",
+                    isOn: Binding(
+                        get: { background.launchesAtLogin || background.needsApproval },
+                        set: { background.setLaunchAtLogin($0) }
+                    )
+                )
+                .searchAnchor("formats.login")
+
+                if background.needsApproval {
+                    Hairline()
+                    HStack(spacing: Space.s) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(Palette.warning)
+                        Text("macOS wartet auf deine Bestätigung in den Anmeldeobjekten.")
+                            .font(AppFont.caption)
+                            .foregroundStyle(Palette.textSecondary)
+                        Spacer(minLength: Space.s)
+                        Button("Anmeldeobjekte öffnen") {
+                            background.openLoginItemSettings()
+                        }
+                        .controlSize(.small)
+                    }
+                }
+            }
+            .onAppear { background.refreshLoginItem() }
         }
     }
 
-    /// Keeps the checks running after the window closes, and after a login.
-    private var backgroundSection: some View {
-        Section {
-            Toggle("Im Hintergrund weiterlaufen", isOn: runsInBackgroundBinding)
-                .searchAnchor("formats.background")
-            Toggle("Bei der Anmeldung starten", isOn: Binding(
-                get: { background.launchesAtLogin || background.needsApproval },
-                set: { background.setLaunchAtLogin($0) }))
-                .searchAnchor("formats.login")
-            if background.needsApproval {
-                Button("In den Anmeldeobjekten erlauben") { background.openLoginItemSettings() }
-            }
-        } header: {
-            Text("Im Hintergrund")
-        } footer: {
-            if let error = background.loginError {
-                Text(error)
-            } else if background.needsApproval {
-                Text("macOS wartet auf deine Erlaubnis unter Systemeinstellungen › Allgemein › Anmeldeobjekte.")
-            } else if app.settings.runsInBackground {
-                Text("Schließt du das Fenster, verschwindet Orangeflix aus dem Dock und bleibt als Symbol in der Menüleiste, damit Mitteilungen weiter ankommen. Beim Start nach der Anmeldung öffnet sich kein Fenster. Mit ⌘Q beendet, meldet die App nichts mehr.")
-            } else {
-                Text("Eingeschaltet verschwindet Orangeflix beim Schließen des Fensters aus dem Dock und bleibt als Symbol in der Menüleiste. Ausgeschaltet bleibt die App im Dock und meldet von dort weiter. Mit ⌘Q beendet, meldet sie nichts mehr.")
-            }
+    private var backgroundFooter: String {
+        if let error = background.loginError {
+            return error
         }
-        .onAppear { background.refreshLoginItem() }
+        if app.settings.runsInBackground {
+            return "Über das Menüleisten-Symbol siehst du jederzeit laufende Livestreams, Downloads und Mitteilungsschalter. Mit ⌘Q wird die App vollständig beendet."
+        }
+        return "Ist der Hintergrundmodus ausgeschaltet, bleibt Orangeflix im Dock sichtbar. Mit ⌘Q beendest du die App vollständig."
     }
 
     private var automaticUpdateChecksBinding: Binding<Bool> {
@@ -98,7 +130,8 @@ struct SettingsGeneralPage: View {
             set: { value in
                 automaticUpdateChecks = value
                 updaterController.updater.automaticallyChecksForUpdates = value
-            })
+            }
+        )
     }
 
     private var updateCheckIntervalBinding: Binding<TimeInterval> {
@@ -107,44 +140,17 @@ struct SettingsGeneralPage: View {
             set: { value in
                 updateCheckInterval = value
                 updaterController.updater.updateCheckInterval = value
-            })
+            }
+        )
     }
 
     private var runsInBackgroundBinding: Binding<Bool> {
         Binding(
             get: { app.settings.runsInBackground },
             set: { value in
-                apply { $0.runsInBackground = value }
+                SettingsWrite.apply(app, $settingsError) { $0.runsInBackground = value }
                 background.updateDock()
-            })
-    }
-
-    private func chooseFolder() {
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = false
-        panel.canChooseDirectories = true
-        panel.canCreateDirectories = true
-        panel.allowsMultipleSelection = false
-        panel.prompt = "Auswählen"
-        panel.directoryURL = app.downloadFolder
-        SettingsPanels.present(panel) { url in
-            do {
-                try app.chooseDownloadFolder(url)
-            } catch {
-                app.show(error)
             }
-        }
-    }
-
-    private func resetFolder() {
-        app.resetDownloadFolder()
-    }
-
-    private func apply(_ change: (inout AppSettings) -> Void) {
-        SettingsWrite.apply(app, $settingsError, change)
-    }
-
-    private func themeColor(_ token: ThemeToken) -> Color {
-        Color(hex: ThemeRuntime.shared.hex(token, dark: colorScheme == .dark))
+        )
     }
 }

@@ -161,5 +161,6 @@ struct BackgroundMenuScene: Scene {
             // The monochrome iris; a dot joins it while a livestream runs.
             Image(nsImage: container?.watcher.liveTitle == nil ? IrisMenuBarIcon.plain : IrisMenuBarIcon.live)
         }
+        .menuBarExtraStyle(.window)
     }
 }
