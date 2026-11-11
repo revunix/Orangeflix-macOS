@@ -1,4 +1,15 @@
 # Changelog
+## 1.3.1 – 2026-11-11
+
+### Darstellung
+- Zwei zusätzliche neutrale Themes – Grau und Schwarz – stehen für helles und dunkles Farbschema bereit.
+
+### Mediathek
+- Folgenbilder werden nur noch in der angezeigten Größe dekodiert. Lange Listen belegen dadurch weniger Speicher, und Bilder bleiben auch auf Retina-Displays scharf.
+
+### Einstellungen
+- Das Einstellungsfenster ist breiter; Beschriftungen und Werte brechen nicht mehr um.
+
 ## 1.3.0 – 2026-11-11
 
 ### Einstellungen
