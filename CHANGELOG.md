@@ -1,4 +1,9 @@
 # Changelog
+## Unveröffentlicht
+
+### Mediathek
+- Format-Logos und Cover werden in ihrer exakten Anzeigegröße dekodiert und sind dadurch nicht mehr verpixelt. Bisher wurden sie auf ein größeres Raster aufgerundet und beim Zeichnen grob verkleinert.
+
 ## 1.3.1 – 2026-11-11
 
 ### Darstellung

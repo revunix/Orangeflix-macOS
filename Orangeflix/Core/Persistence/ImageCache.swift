@@ -81,12 +81,17 @@ actor ImageCache {
         return image
     }
 
-    /// Rounds a pixel box up to coarse steps, so resizing a window by a few
-    /// points reuses the decoded bitmap instead of decoding again.
+    /// Rounds a pixel box up to whole pixels; large sides go up in steps of at
+    /// most 1/64 of their length, so resizing a window by a few points still
+    /// reuses the decoded bitmap. The bitmap must be drawn at (almost) 1:1:
+    /// SwiftUI minifies an oversized bitmap coarsely, which makes small logos
+    /// jagged again (a 40 pt cover decoded at 64 px was drawn at 0.6×).
     static func bucketed(_ size: CGSize) -> CGSize {
         func step(_ value: CGFloat) -> CGFloat {
-            let unit: CGFloat = value > 1024 ? 256 : 64
-            return (max(value, 1) / unit).rounded(.up) * unit
+            // The tolerance keeps 84.000001 (point × scale) at 84.
+            let pixels = max((value - 0.01).rounded(.up), 1)
+            let unit = max(1, exp2(log2(pixels).rounded(.down)) / 64)
+            return (pixels / unit).rounded(.up) * unit
         }
         return CGSize(width: step(size.width), height: step(size.height))
     }
