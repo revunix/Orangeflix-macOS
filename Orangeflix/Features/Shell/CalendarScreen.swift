@@ -49,43 +49,12 @@ struct CalendarScreen: View {
     var body: some View {
         VStack(spacing: 0) {
             PageChrome(title: viewMode == .agenda ? "Kommende Termine" : monthTitle, subtitle: subtitle) {
-                legend
-                    .padding(.trailing, Space.xs)
-
-                HStack(spacing: 2) {
-                    ForEach(CalendarViewMode.allCases) { mode in
-                        let chosen = viewMode == mode
-                        Button {
-                            withAnimation(.snappy(duration: 0.18)) { viewMode = mode }
-                        } label: {
-                            Label(mode.title, systemImage: mode.symbol)
-                                .font(AppFont.captionMedium)
-                                .foregroundStyle(chosen ? Palette.accentText : Palette.textSecondary)
-                                .padding(.horizontal, Space.m)
-                                .frame(height: 28)
-                                .background {
-                                    if chosen { Capsule().fill(Palette.accentSoft) }
-                                }
-                                .contentShape(Capsule())
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(3)
-                .glassPlate(in: Capsule(), interactive: true)
-
-                if viewMode == .month {
-                    PillButton(title: "Heute", style: .glass) {
-                        showToday()
-                    }
-                    .help("Zurück zum aktuellen Monat")
-                    IconAction(icon: "chevron.left", help: "Voriger Monat") { step(by: -1) }
-                    IconAction(icon: "chevron.right", help: "Nächster Monat") { step(by: 1) }
-                }
-
-                IconAction(icon: "arrow.clockwise", help: "Aktualisieren",
-                           isDisabled: model.isLoading) {
-                    Task { await model.load(force: true) }
+                // A narrow window drops the legend first, then the words of
+                // the view switch; nothing in the header ever wraps.
+                ViewThatFits(in: .horizontal) {
+                    headerActions(legend: true, modeTitles: true)
+                    headerActions(legend: false, modeTitles: true)
+                    headerActions(legend: false, modeTitles: false)
                 }
             }
             content
@@ -95,6 +64,62 @@ struct CalendarScreen: View {
         .task(id: app.accountGeneration) {
             await model.loadIfNeeded()
         }
+    }
+
+    private func headerActions(legend showsLegend: Bool, modeTitles: Bool) -> some View {
+        HStack(spacing: Space.xs) {
+            if showsLegend {
+                legend
+                    .padding(.trailing, Space.xs)
+            }
+
+            HStack(spacing: 2) {
+                ForEach(CalendarViewMode.allCases) { mode in
+                    let chosen = viewMode == mode
+                    Button {
+                        withAnimation(.snappy(duration: 0.18)) { viewMode = mode }
+                    } label: {
+                        Group {
+                            if modeTitles {
+                                Label(mode.title, systemImage: mode.symbol)
+                            } else {
+                                Label(mode.title, systemImage: mode.symbol)
+                                    .labelStyle(.iconOnly)
+                            }
+                        }
+                        .font(AppFont.captionMedium)
+                        .lineLimit(1)
+                        .fixedSize()
+                        .foregroundStyle(chosen ? Palette.accentText : Palette.textSecondary)
+                        .padding(.horizontal, Space.m)
+                        .frame(height: 28)
+                        .background {
+                            if chosen { Capsule().fill(Palette.accentSoft) }
+                        }
+                        .contentShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .help(mode.title)
+                }
+            }
+            .padding(3)
+            .glassPlate(in: Capsule(), interactive: true)
+
+            if viewMode == .month {
+                PillButton(title: "Heute", style: .glass) {
+                    showToday()
+                }
+                .help("Zurück zum aktuellen Monat")
+                IconAction(icon: "chevron.left", help: "Voriger Monat") { step(by: -1) }
+                IconAction(icon: "chevron.right", help: "Nächster Monat") { step(by: 1) }
+            }
+
+            IconAction(icon: "arrow.clockwise", help: "Aktualisieren",
+                       isDisabled: model.isLoading) {
+                Task { await model.load(force: true) }
+            }
+        }
+        .fixedSize()
     }
 
     private var subtitle: String? {
@@ -122,6 +147,8 @@ struct CalendarScreen: View {
             Text(title)
                 .font(AppFont.caption)
                 .foregroundStyle(Palette.textSecondary)
+                .lineLimit(1)
+                .fixedSize()
         }
     }
 

@@ -1,6 +1,11 @@
 # Changelog
 ## Unveröffentlicht
 
+### Fenster
+- Seiteninhalte und Bühne stehen mit 16 pt Randabstand näher an der Fensterkante und fluchten mit den Fensterknöpfen.
+- Im Live-Fenster haben Bild und Chat links, dazwischen, rechts und unten denselben Abstand. Platz, den das Bild nicht nutzt, geht an den Chat statt als ungleicher Rand neben das Bild.
+- Im Kalender brechen Legende und der Umschalter Monat/Agenda in schmalen Fenstern nicht mehr um. Wird es zu eng, entfällt zuerst die Legende, danach zeigt der Umschalter nur noch Symbole.
+
 ### Mediathek
 - Format-Logos und Cover werden in ihrer exakten Anzeigegröße dekodiert und sind dadurch nicht mehr verpixelt. Bisher wurden sie auf ein größeres Raster aufgerundet und beim Zeichnen grob verkleinert.
 

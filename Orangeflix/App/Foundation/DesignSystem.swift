@@ -150,8 +150,9 @@ enum Space {
     static let xl: CGFloat = 24
     static let xxl: CGFloat = 32
     /// The margin of a page at the left and right edge of the window. Every
-    /// screen uses it, so the content lines up from page to page.
-    static let page: CGFloat = 24
+    /// screen uses it, so the content lines up from page to page; it stays
+    /// close to the traffic lights, which macOS keeps 18 pt from the edge.
+    static let page: CGFloat = 16
     static let huge: CGFloat = 48
 }
 

@@ -44,9 +44,9 @@ struct LiveScreen: View {
     /// The room under the picture for the chat that stands there: the gap and
     /// the chat itself. The picture gives way before the chat does.
     private static let belowChatHeight: CGFloat = Space.l + 420
-    /// The page width beside the picture and the chat column: the margins
+    /// The page width beside the picture and the chat column: the gutters
     /// left, between and right.
-    private static let sideGutters: CGFloat = Space.page * 3
+    private static let sideGutters: CGFloat = margin * 3
     /// The width of the voting over the picture.
     private static let pollWidth: CGFloat = 300
 
@@ -184,9 +184,9 @@ struct LiveScreen: View {
 
     // MARK: Standard
 
-    /// The margin of the picture and of the chat column. Both use it, so the
-    /// upper edge of the chat stands on the same line as the picture.
-    private static let margin = Space.l
+    /// The gutter around and between the picture and the chat column, the
+    /// same on every side and the same as the margin of the other pages.
+    private static let margin = Space.page
 
     /// The stage at 16:9 for the given area. It fills the width but leaves
     /// room for the show below, so a short window shrinks the picture
@@ -195,7 +195,7 @@ struct LiveScreen: View {
     /// itself, so a live resize never draws with the size of the frame
     /// before.
     private func stageSize(in area: CGSize) -> CGSize {
-        let width = max(area.width - Space.page * 2, 320)
+        let width = max(area.width - Self.margin * 2, 320)
         // The show stands above the picture; under it the chat, or else a
         // glimpse of what follows.
         let header = model.info == nil ? 0 : headerHeight + Space.l
@@ -213,17 +213,20 @@ struct LiveScreen: View {
                 belowStage(size: size)
             } else if showsSideChat {
                 // Beside the chat the window holds exactly the show and the
-                // picture: nothing to scroll.
+                // picture: nothing to scroll. The picture starts at the outer
+                // gutter; the chat column keeps the same gutter to it.
+                let side = sideLayout
                 VStack(alignment: .leading, spacing: Space.l) {
                     if let info = model.info {
                         measuredHeader(info)
                     }
                     stage()
-                        .frame(width: size.width, height: size.height)
+                        .frame(width: side.stage.width, height: side.stage.height)
                 }
-                .frame(width: size.width, alignment: .leading)
+                .frame(width: side.stage.width, alignment: .leading)
                 .padding(.top, topInset)
-                .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
+                .padding(.leading, side.outer)
+                .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: Space.l) {
@@ -456,9 +459,9 @@ struct LiveScreen: View {
             return LivePageGeometry(extraWidth: Self.sideGutters + Self.chatWidth, extraHeight: fixed, minStage: 450)
         }
         if showsBelowChat {
-            return LivePageGeometry(extraWidth: Space.page * 2, extraHeight: fixed + Self.belowChatHeight, minStage: 550)
+            return LivePageGeometry(extraWidth: Self.margin * 2, extraHeight: fixed + Self.belowChatHeight, minStage: 550)
         }
-        return LivePageGeometry(extraWidth: Space.page * 2, extraHeight: fixed, minStage: 450)
+        return LivePageGeometry(extraWidth: Self.margin * 2, extraHeight: fixed, minStage: 450)
     }
 
     // MARK: Pieces of the show
@@ -787,7 +790,7 @@ struct LiveScreen: View {
             // above the picture.
             .padding(.top, topInset)
             .padding(.bottom, Self.margin)
-            .padding(.trailing, Space.page)
+            .padding(.trailing, sideLayout.outer)
             .frame(maxHeight: .infinity, alignment: .top)
     }
 
@@ -799,28 +802,43 @@ struct LiveScreen: View {
         return min(max(showAndStageHeight, 360), pageSize.height - Self.margin * 2)
     }
 
-    /// The width of the chat column beside the page. A wider window first
-    /// lets the picture grow until it fills the height; the width beyond
-    /// that goes to the chat, so no empty field opens above and below the
-    /// picture.
-    private var sideChatWidth: CGFloat {
-        guard pageSize.width > 0, pageSize.height > 0 else { return Self.chatWidth }
-        let header = model.info == nil ? 0 : headerHeight + Space.l
-        let fullHeight = max(pageSize.height - Self.margin * 2 - header, 220)
-        let stageWidth = fullHeight * 16 / 9
-        let rest = pageSize.width - Self.sideGutters - stageWidth
-        return min(max(rest.rounded(.down), Self.chatWidth), Self.maxChatWidth)
+    /// The picture and the chat side by side. The picture gets the height of
+    /// the window as long as the chat keeps its narrowest width; the width
+    /// the picture cannot use goes to the chat, up to its widest. Only what
+    /// is left after that splits onto the outer gutters, so the gutters left,
+    /// between and right stay equal and the page stands centered.
+    private struct SideLayout {
+        var stage: CGSize
+        var chat: CGFloat
+        /// The gutter at the left of the picture and the right of the chat.
+        var outer: CGFloat
     }
 
-    /// The room left of the chat column, where the show and the picture stand.
-    private var contentArea: CGSize {
-        CGSize(width: pageSize.width - (showsSideChat ? sideChatWidth : 0), height: pageSize.height)
+    private var sideLayout: SideLayout {
+        let gutter = Self.margin
+        guard pageSize.width > 0, pageSize.height > 0 else {
+            return SideLayout(stage: .zero, chat: Self.chatWidth, outer: gutter)
+        }
+        let header = model.info == nil ? 0 : headerHeight + Space.l
+        let room = pageSize.width - Self.sideGutters
+        let fullHeight = max(pageSize.height - gutter * 2 - header, 220)
+        let width = max(min(fullHeight * 16 / 9, room - Self.chatWidth), 320).rounded(.down)
+        let chat = min(max(room - width, Self.chatWidth), Self.maxChatWidth).rounded(.down)
+        let outer = gutter + max((room - width - chat) / 2, 0).rounded(.down)
+        return SideLayout(stage: CGSize(width: width, height: width * 9 / 16), chat: chat, outer: outer)
+    }
+
+    /// The width of the chat column with its outer gutter.
+    private var sideChatWidth: CGFloat {
+        let side = sideLayout
+        return side.chat + side.outer
     }
 
     /// The show above the picture and the picture itself.
     private var showAndStageHeight: CGFloat {
         let header = model.info == nil ? 0 : headerHeight + Space.l
-        return header + stageSize(in: contentArea).height
+        let stage = showsSideChat ? sideLayout.stage : stageSize(in: pageSize)
+        return header + stage.height
     }
 
     /// The upper margin of the page. When the window is taller than the

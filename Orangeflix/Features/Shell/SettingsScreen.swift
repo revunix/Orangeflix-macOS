@@ -495,7 +495,9 @@ struct SettingsScreen: View {
                     }
                     page
                 }
-                .padding(.horizontal, Space.page)
+                // Beside the sidebar, not at the window edge: the pane keeps
+                // more room than the page margin of the main window.
+                .padding(.horizontal, Space.xl)
                 .padding(.top, Space.l)
                 .padding(.bottom, Space.xxl)
                 .frame(maxWidth: 760, alignment: .leading)
