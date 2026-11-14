@@ -173,6 +173,19 @@ enum LiveChatLogic {
     /// (Go `chatGroupGap`).
     static let groupGap: TimeInterval = 180
 
+    /// The user list of the chat as it shows: trimmed, each name once, in
+    /// the order of the alphabet.
+    static func userList(_ names: [String]) -> [String] {
+        var seen = Set<String>()
+        var list: [String] = []
+        for name in names {
+            let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty, seen.insert(trimmed.lowercased()).inserted else { continue }
+            list.append(trimmed)
+        }
+        return list.sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+    }
+
     /// The number of lines the chat keeps (Go `chatHistory`).
     static let historyLimit = 300
 

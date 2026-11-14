@@ -6,17 +6,31 @@ import SwiftUI
 /// its own column, the name and the time on top, the messages under the
 /// name. The pointer brings up reply, reactions and copy above the row
 /// without moving anything; a quote jumps to the answered message.
-struct LiveChatBubble: View {
-    @Bindable var model: LiveModel
+///
+/// The row gets its picture and the quoted messages from the list, so a
+/// new message or a newly loaded picture elsewhere in the chat does not
+/// make every row draw again; `==` leaves the closure out for that reason.
+struct LiveChatBubble: View, Equatable {
+    let model: LiveModel
     /// The messages of the run, the first one carries the head.
     let lines: [LiveChatLine]
+    /// The picture of the sender; nil keeps the coloured initial.
+    var avatar: NSImage?
+    /// The answered messages of the run by their id, as far as the chat
+    /// still holds them.
+    var replies: [String: LiveChatLine] = [:]
     /// Scrolls the list to the message with this id.
     var onFocus: (String) -> Void = { _ in }
 
     @State private var hovering = false
     @Environment(\.liveChatStyle) private var style
     /// While the list scrolls, rows passing under the pointer stay calm.
-    @Environment(\.liveChatScrolling) private var scrolling
+    @Environment(\.liveChatScroll) private var scroll
+
+    nonisolated static func == (lhs: LiveChatBubble, rhs: LiveChatBubble) -> Bool {
+        lhs.model === rhs.model && lhs.lines == rhs.lines
+            && lhs.avatar === rhs.avatar && lhs.replies == rhs.replies
+    }
 
     /// The size of the picture of the sender.
     static let avatarSize: CGFloat = 28
@@ -26,7 +40,9 @@ struct LiveChatBubble: View {
         .system(size: size * style.scale, weight: weight)
     }
 
-    private var pointed: Bool { hovering && !scrolling }
+    /// Only a row under the pointer reads the scroll state, so the start and
+    /// the end of a scroll redraw that one row, not the whole list.
+    private var pointed: Bool { hovering && !(scroll?.isScrolling ?? false) }
     private var showsActions: Bool { pointed || lines.contains(where: isSelected) }
     private var isOwn: Bool { lines.first?.isSelf == true }
 
@@ -176,7 +192,7 @@ struct LiveChatBubble: View {
 
     /// The quote of the answered message. A click jumps to it.
     private func replyQuote(_ line: LiveChatLine) -> some View {
-        let target = model.lines.first { $0.id == line.replyTo }
+        let target = replies[line.replyTo]
         return Button {
             guard !line.replyTo.isEmpty else { return }
             onFocus(line.replyTo)
@@ -249,10 +265,10 @@ struct LiveChatBubble: View {
     /// The picture of the sender; without one its initial on its colour.
     @ViewBuilder
     private func avatar(_ line: LiveChatLine) -> some View {
-        let name = line.isSelf ? (model.selfName.isEmpty ? line.from : model.selfName) : line.from
+        let name = Self.avatarName(line, selfName: model.selfName)
         Group {
-            if let data = model.avatars[name], let image = NSImage(data: data) {
-                Image(nsImage: image)
+            if let avatar {
+                Image(nsImage: avatar)
                     .resizable()
                     .scaledToFill()
             } else {
@@ -269,6 +285,12 @@ struct LiveChatBubble: View {
         .overlay { Circle().strokeBorder(Palette.textPrimary.opacity(0.08), lineWidth: 1) }
         // The picture stands on the line of the name.
         .padding(.top, 1)
+    }
+
+    /// The name the picture of a line belongs to: one's own lines say "Du"
+    /// until the server named the account.
+    static func avatarName(_ line: LiveChatLine, selfName: String) -> String {
+        line.isSelf ? (selfName.isEmpty ? line.from : selfName) : line.from
     }
 
     /// The colour of the name of a sender (Go `chatNameStyle`).
@@ -394,6 +416,9 @@ struct ActionBarButton<Label: View>: View {
 struct LiveComposer: View {
     /// The model of the Live screen.
     @Bindable var model: LiveModel
+    /// Counts up when the field should take the focus (a name was picked
+    /// in the user list).
+    var focusRequest = 0
 
     @FocusState private var focused: Bool
     /// Whether the row of quick emoji stands above the field.
@@ -422,6 +447,7 @@ struct LiveComposer: View {
         }
         .animation(.easeOut(duration: 0.15), value: model.replyTarget?.id)
         .animation(.easeOut(duration: 0.15), value: showsQuickEmojis)
+        .onChange(of: focusRequest) { _, _ in focused = true }
     }
 
     /// The message that is answered, with the way back.
@@ -616,6 +642,150 @@ private struct QuickEmojiButton: View {
     }
 }
 
+/// The people in the chat, in a popover of the header: a search field
+/// when the list is long, a picture and the name per person. A click puts
+/// the name into the composer.
+struct LiveChatUserList: View {
+    let model: LiveModel
+    /// A name was picked.
+    let pick: (String) -> Void
+
+    @State private var query = ""
+    @FocusState private var searchFocused: Bool
+
+    /// From this many people on the list gets a search field.
+    private static let searchThreshold = 12
+
+    private var filtered: [String] {
+        let needle = query.trimmingCharacters(in: .whitespaces)
+        guard !needle.isEmpty else { return model.chatUsers }
+        return model.chatUsers.filter {
+            $0.range(of: needle, options: [.caseInsensitive, .diacriticInsensitive]) != nil
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("Im Chat")
+                    .font(AppFont.heading)
+                    .foregroundStyle(Palette.textPrimary)
+                Spacer(minLength: Space.s)
+                Text("\(model.chatUsers.count)")
+                    .font(AppFont.digitsMedium)
+                    .foregroundStyle(Palette.textSecondary)
+            }
+            .padding(.horizontal, Space.m)
+            .padding(.top, Space.m)
+            .padding(.bottom, Space.s)
+
+            if model.chatUsers.count >= Self.searchThreshold {
+                HStack(spacing: Space.xs) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(Palette.textTertiary)
+                    TextField("Name suchen", text: $query)
+                        .textFieldStyle(.plain)
+                        .font(AppFont.bodySmall)
+                        .focused($searchFocused)
+                        .onSubmit {
+                            if filtered.count == 1, let only = filtered.first { pick(only) }
+                        }
+                }
+                .padding(.horizontal, Space.s)
+                .frame(height: 26)
+                .background(Palette.textPrimary.opacity(0.06), in: Capsule())
+                .padding(.horizontal, Space.m)
+                .padding(.bottom, Space.s)
+            }
+
+            Divider()
+
+            if filtered.isEmpty {
+                Text(query.isEmpty ? "Niemand im Chat." : "Niemand mit diesem Namen.")
+                    .font(AppFont.bodySmall)
+                    .foregroundStyle(Palette.textSecondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(Space.l)
+            } else {
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        ForEach(filtered, id: \.self) { name in
+                            LiveChatUserRow(name: name, avatar: model.avatars[name],
+                                            isSelf: !model.selfName.isEmpty && name == model.selfName) {
+                                pick(name)
+                            }
+                            .onAppear { model.requestAvatar(named: name) }
+                        }
+                    }
+                    .padding(Space.xs)
+                }
+                .frame(maxHeight: 360)
+            }
+        }
+        .frame(width: 260)
+        .fixedSize(horizontal: false, vertical: true)
+        .onAppear { searchFocused = model.chatUsers.count >= Self.searchThreshold }
+    }
+}
+
+/// One person of the user list.
+private struct LiveChatUserRow: View {
+    let name: String
+    let avatar: NSImage?
+    let isSelf: Bool
+    let action: () -> Void
+
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: Space.s) {
+                Group {
+                    if let avatar {
+                        Image(nsImage: avatar)
+                            .resizable()
+                            .scaledToFill()
+                    } else {
+                        Circle()
+                            .fill(LiveAvatarStyle.color(LiveAvatarStyle.colorHex(for: name)))
+                            .overlay(
+                                Text(String(name.prefix(1)).uppercased())
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundStyle(.black.opacity(0.6)))
+                    }
+                }
+                .frame(width: 22, height: 22)
+                .clipShape(Circle())
+                Text(name)
+                    .font(AppFont.bodySmall)
+                    .foregroundStyle(isSelf ? Palette.accentText : Palette.textPrimary)
+                    .lineLimit(1)
+                if isSelf {
+                    Text("Du")
+                        .font(AppFont.caption)
+                        .foregroundStyle(Palette.textTertiary)
+                }
+                Spacer(minLength: 0)
+                if hovering && !isSelf {
+                    Image(systemName: "at")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Palette.textSecondary)
+                }
+            }
+            .padding(.horizontal, Space.s)
+            .frame(height: 30)
+            .background(hovering ? Palette.textPrimary.opacity(0.07) : .clear,
+                        in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(isSelf)
+        .onHover { hovering = $0 }
+        .help(isSelf ? "Das bist du" : "@\(name) in die Nachricht übernehmen")
+    }
+}
+
 /// Where a message goes: the chat or only the studio. A small pill like the
 /// navigation of the toolbar, its capsule slides to the choice.
 struct RecipientPill: View {
@@ -729,8 +899,15 @@ struct LiveChatStyle: Equatable {
 
 extension EnvironmentValues {
     @Entry var liveChatStyle = LiveChatStyle()
-    /// Whether the chat list is scrolling right now.
-    @Entry var liveChatScrolling = false
+    /// Whether the chat list is scrolling right now. An object, so the
+    /// environment itself never changes while the list scrolls.
+    @Entry var liveChatScroll: LiveChatScrollState?
+}
+
+/// The scroll phase of the chat list, read only by the row under the pointer.
+@MainActor @Observable
+final class LiveChatScrollState {
+    var isScrolling = false
 }
 
 

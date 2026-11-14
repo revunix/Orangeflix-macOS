@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import ImageIO
 import Observation
 
 /// The Live screen: the running show, its chat, the voting of the team and
@@ -25,6 +26,8 @@ import Observation
     private(set) var chatStatus = ""
     /// The number of people in the chat.
     private(set) var chatPeople = ""
+    /// The names of the people in the chat, sorted, each once.
+    private(set) var chatUsers: [String] = []
     /// The text of the composer.
     var composerText = ""
     /// Whether the message goes to the studio; only the team reads it.
@@ -33,8 +36,9 @@ import Observation
     private(set) var replyTarget: LiveChatLine?
     /// The chosen message of the chat.
     var selectedID: String?
-    /// The pictures of the senders.
-    private(set) var avatars: [String: Data] = [:]
+    /// The pictures of the senders, decoded once when they arrive; the
+    /// chat draws them on every pass.
+    private(set) var avatars: [String: NSImage] = [:]
     /// The emoji of the reactions the server named and the app does not
     /// know.
     private(set) var reactionEmojis: [String: String] = [:]
@@ -345,6 +349,7 @@ import Observation
         isChatConnected = false
         chatStatus = ""
         chatPeople = ""
+        chatUsers = []
         if let session {
             await session.close()
         }
@@ -368,6 +373,9 @@ import Observation
                 watchDisconnect()
             }
             if text == "Chat verbunden" { isChatConnected = true }
+        case .users(let names):
+            let sorted = LiveChatLogic.userList(names)
+            if sorted != chatUsers { chatUsers = sorted }
         case .error(let error):
             appendSystem(error.localizedDescription)
             // The socket gave up its own reconnects: open a new chat.
@@ -741,12 +749,38 @@ import Observation
         loadAvatar(named: line.isSelf ? selfName : line.from)
     }
 
+    /// Loads the picture of a name of the user list once it shows.
+    func requestAvatar(named name: String) {
+        loadAvatar(named: name)
+    }
+
+    /// Puts a name into the composer to address that person.
+    func mention(_ name: String) {
+        let trimmed = composerText.trimmingCharacters(in: .whitespaces)
+        let tag = "@\(name) "
+        composerText = trimmed.isEmpty ? tag : (composerText.hasSuffix(" ") ? composerText : composerText + " ") + tag
+    }
+
     /// Loads the picture of a chat name once.
     private func loadAvatar(named name: String) {
         guard !name.isEmpty, avatars[name] == nil else { return }
         Task {
-            guard let data = await avatarLoader.data(for: name) else { return }
-            avatars[name] = data
+            guard let data = await avatarLoader.data(for: name),
+                  let image = Self.decodedAvatar(data) else { return }
+            avatars[name] = image
         }
+    }
+
+    /// Decodes a picture into a bitmap now, so drawing it later costs no
+    /// decoding on the main thread.
+    private static func decodedAvatar(_ data: Data) -> NSImage? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+              let image = CGImageSourceCreateThumbnailAtIndex(source, 0, [
+                  kCGImageSourceCreateThumbnailFromImageAlways: true,
+                  kCGImageSourceShouldCacheImmediately: true,
+                  kCGImageSourceCreateThumbnailWithTransform: true,
+                  kCGImageSourceThumbnailMaxPixelSize: 96,
+              ] as CFDictionary) else { return nil }
+        return NSImage(cgImage: image, size: NSSize(width: image.width, height: image.height))
     }
 }

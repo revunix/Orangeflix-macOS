@@ -19,6 +19,9 @@
     "„it should work“ · Deutschland" : {
 
     },
+    "@%@ in die Nachricht übernehmen" : {
+
+    },
     "@revunix" : {
 
     },
@@ -82,6 +85,9 @@
           }
         }
       }
+    },
+    "%@, Liste zeigen" : {
+
     },
     "%lld" : {
 
@@ -495,6 +501,9 @@
     "Credits" : {
 
     },
+    "Das bist du" : {
+
+    },
     "Das Format ist nicht mehr im Katalog." : {
 
     },
@@ -607,6 +616,9 @@
 
     },
     "Download-Qualität wählen" : {
+
+    },
+    "Du" : {
 
     },
     "Durchsuchen" : {
@@ -823,6 +835,9 @@
 
     },
     "Im Browser testen" : {
+
+    },
+    "Im Chat" : {
 
     },
     "Im Finder zeigen" : {
@@ -1113,6 +1128,9 @@
     "Name im Abspann" : {
 
     },
+    "Name suchen" : {
+
+    },
     "Namen ändern …" : {
 
     },
@@ -1159,6 +1177,12 @@
 
     },
     "Nicht in deinem Abo enthalten" : {
+
+    },
+    "Niemand im Chat." : {
+
+    },
+    "Niemand mit diesem Namen." : {
 
     },
     "Noch keine Einträge im Protokoll." : {

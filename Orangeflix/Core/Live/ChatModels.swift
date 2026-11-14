@@ -89,6 +89,8 @@ enum ChatEvent: Sendable, Hashable {
     case history([ChatMessage])
     /// A connection state in German ("Chat verbunden", "12 im Chat", …).
     case status(String)
+    /// The names of the people in the chat; the whole list each time.
+    case users([String])
     /// A chat failure.
     case error(LiveError)
     /// The reactions of the history; `emojis` names reactions the client

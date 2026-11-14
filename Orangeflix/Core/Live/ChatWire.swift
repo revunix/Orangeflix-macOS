@@ -142,9 +142,15 @@ enum ChatWire {
         }
     }
 
+    /// The names of the people in the chat, as the server lists them; nil
+    /// when unreadable.
+    static func userNames(_ raw: LiveJSON) -> [String]? {
+        do { return try raw.goStrings() ?? [] } catch { return nil }
+    }
+
     /// The number of the people in the chat; nil when unreadable.
     static func userCount(_ raw: LiveJSON) -> Int? {
-        do { return try raw.goStrings()?.count ?? 0 } catch { return nil }
+        userNames(raw)?.count
     }
 
     // MARK: Polls

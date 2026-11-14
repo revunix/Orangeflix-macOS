@@ -235,7 +235,7 @@ struct PlayerScreen: View {
                 playback.togglePiP()
             case "m":
                 engine.toggleMute()
-                show(engine.isMuted ? "speaker.wave.2.fill" : "speaker.slash.fill")
+                show(engine.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
             case "c": toggleSubtitles()
             case "n":
                 guard playback.nextEntry != nil else { return .ignored }

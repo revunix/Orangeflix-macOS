@@ -85,6 +85,17 @@ final class MPVPlayer {
     @ObservationIgnored private var waitsForCache = false
     @ObservationIgnored private(set) var hasRenderContext = false
     @ObservationIgnored private let logger = Logger(subsystem: "com.revunix.orangeflix", category: "mpv")
+    /// Asynchronous changes of a property mpv has not answered yet.
+    @ObservationIgnored private var pendingSets: [Observed: Int] = [:]
+    /// The last value mpv reported while a change was pending.
+    @ObservationIgnored private var reported: [Observed: ReportedValue] = [:]
+    /// Reply ids of asynchronous sets are this plus the property's id.
+    private static let setReplyBase: UInt64 = 1000
+
+    private enum ReportedValue {
+        case double(Double)
+        case flag(Bool)
+    }
 
     private struct Load {
         var url: URL
@@ -171,6 +182,7 @@ final class MPVPlayer {
         // A local playlist (the HLS of a replay) loads its segments over
         // https; ffmpeg allows that only with an explicit list.
         setString("demuxer-lavf-o", load.url.isFileURL ? "protocol_whitelist=[file,http,https,tcp,tls,crypto,data]" : "")
+        isPaused = false
         setString("pause", "no")
         command("loadfile", load.url.absoluteString, "replace")
     }
@@ -186,7 +198,15 @@ final class MPVPlayer {
 
     // MARK: Control
 
-    func setPaused(_ paused: Bool) { setString("pause", paused ? "yes" : "no") }
+    // The controls below show their new state at once and hand the change
+    // to mpv without waiting for it: a synchronous call blocks the main
+    // thread until the core is free, and the core may wait for a frame
+    // that only the main thread draws.
+
+    func setPaused(_ paused: Bool) {
+        isPaused = paused
+        setAsync(.pause, paused ? "yes" : "no")
+    }
 
     func togglePause() { setPaused(!isPaused) }
 
@@ -194,30 +214,38 @@ final class MPVPlayer {
     /// up while the timeline is dragged.
     func seek(to seconds: Double, exact: Bool = true) {
         position = max(0, seconds)
-        command("seek", String(format: "%.3f", max(0, seconds)), exact ? "absolute+exact" : "absolute+keyframes")
+        commandAsync("seek", String(format: "%.3f", max(0, seconds)), exact ? "absolute+exact" : "absolute+keyframes")
     }
 
     func seek(by seconds: Double) {
-        command("seek", String(format: "%.3f", seconds), "relative+exact")
+        commandAsync("seek", String(format: "%.3f", seconds), "relative+exact")
     }
 
     /// Jumps to the newest moment of a live stream and plays. Percent seeks
     /// land on the end of what the server still offers.
     func goToLiveEdge() {
         setPaused(false)
-        command("seek", "100", "absolute-percent")
+        commandAsync("seek", "100", "absolute-percent")
     }
 
     func setVolume(_ value: Double) {
-        setString("volume", String(format: "%.0f", min(max(value, 0), 100)))
-        if isMuted && value > 0 { setString("mute", "no") }
+        let clamped = min(max(value, 0), 100).rounded()
+        volume = clamped
+        setAsync(.volume, String(format: "%.0f", clamped))
+        if isMuted && clamped > 0 { setMuted(false) }
     }
 
-    func toggleMute() { setString("mute", isMuted ? "no" : "yes") }
+    func toggleMute() { setMuted(!isMuted) }
 
-    func setMuted(_ muted: Bool) { setString("mute", muted ? "yes" : "no") }
+    func setMuted(_ muted: Bool) {
+        isMuted = muted
+        setAsync(.mute, muted ? "yes" : "no")
+    }
 
-    func setSpeed(_ value: Double) { setString("speed", String(format: "%.2f", value)) }
+    func setSpeed(_ value: Double) {
+        speed = value
+        setAsync(.speed, String(format: "%.2f", value))
+    }
 
     /// Shows a subtitle track; nil hides the subtitles.
     func selectSubtitle(_ id: Int?) { setString("sid", id.map(String.init) ?? "no") }
@@ -273,8 +301,27 @@ final class MPVPlayer {
             case MPV_EVENT_PROPERTY_CHANGE:
                 guard let data = event.data else { break }
                 let change = data.assumingMemoryBound(to: mpv_event_property.self).pointee
-                if let property = Observed(rawValue: event.reply_userdata) {
+                guard let property = Observed(rawValue: event.reply_userdata) else { break }
+                if pendingSets[property, default: 0] > 0 {
+                    // A change of the app is on its way; the interface
+                    // already shows it, an older value must not flash up.
+                    reported[property] = change.double.map(ReportedValue.double) ?? change.flag.map(ReportedValue.flag)
+                } else {
                     apply(property, change)
+                }
+            case MPV_EVENT_SET_PROPERTY_REPLY:
+                guard event.reply_userdata >= Self.setReplyBase,
+                      let property = Observed(rawValue: event.reply_userdata - Self.setReplyBase) else { break }
+                let left = max(pendingSets[property, default: 0] - 1, 0)
+                pendingSets[property] = left
+                if event.error < 0 {
+                    logger.error("set \(property.name, privacy: .public): \(String(cString: mpv_error_string(event.error)), privacy: .public)")
+                    // mpv kept its value; show that one again.
+                    if left == 0, let value = reported[property] { restore(property, value) }
+                }
+            case MPV_EVENT_COMMAND_REPLY:
+                if event.error < 0 {
+                    logger.error("command: \(String(cString: mpv_error_string(event.error)), privacy: .public)")
                 }
             case MPV_EVENT_FILE_LOADED:
                 isLoading = false
@@ -350,6 +397,17 @@ final class MPVPlayer {
         }
     }
 
+    /// Puts back the value mpv reported last after a change of the app failed.
+    private func restore(_ property: Observed, _ value: ReportedValue) {
+        switch (property, value) {
+        case (.pause, .flag(let flag)): isPaused = flag
+        case (.mute, .flag(let flag)): isMuted = flag
+        case (.volume, .double(let double)): volume = double
+        case (.speed, .double(let double)): speed = double
+        default: break
+        }
+    }
+
     private func updateBuffering() {
         isBuffering = isLoading || waitsForCache || isSeeking
     }
@@ -381,6 +439,35 @@ final class MPVPlayer {
         if status < 0 {
             logger.error("\(arguments.joined(separator: " "), privacy: .public): \(String(cString: mpv_error_string(status)), privacy: .public)")
         }
+    }
+
+    /// Sends a command without waiting for it; requests sent this way run in
+    /// the order they were sent.
+    private func commandAsync(_ arguments: String...) {
+        var strings = arguments.map { strdup($0) }
+        strings.append(nil)
+        defer { strings.forEach { free($0) } }
+        let status = strings.withUnsafeMutableBufferPointer { buffer in
+            buffer.baseAddress!.withMemoryRebound(to: UnsafePointer<CChar>?.self, capacity: buffer.count) {
+                mpv_command_async(handle, 0, $0)
+            }
+        }
+        if status < 0 {
+            logger.error("\(arguments.joined(separator: " "), privacy: .public): \(String(cString: mpv_error_string(status)), privacy: .public)")
+        }
+    }
+
+    /// Sets a watched property without waiting for mpv; until mpv answered,
+    /// its reports of that property are held back.
+    private func setAsync(_ property: Observed, _ value: String) {
+        var cValue = strdup(value)
+        defer { free(cValue) }
+        let status = mpv_set_property_async(handle, Self.setReplyBase + property.rawValue, property.name, MPV_FORMAT_STRING, &cValue)
+        if status < 0 {
+            logger.error("set \(property.name, privacy: .public)=\(value, privacy: .public): \(String(cString: mpv_error_string(status)), privacy: .public)")
+            return
+        }
+        pendingSets[property, default: 0] += 1
     }
 
     private func setString(_ name: String, _ value: String) {

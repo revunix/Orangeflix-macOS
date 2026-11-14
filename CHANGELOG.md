@@ -1,6 +1,18 @@
 # Changelog
 ## Unveröffentlicht
 
+## 1.3.2 – 2026-11-14
+
+### Wiedergabe
+- Stummschalten, Lautstärke, Geschwindigkeit, Pause und Springen reagieren sofort. Die Player-Steuerung wartet nicht mehr auf mpv, wenn der Player gerade beschäftigt ist.
+
+### Live und Chat
+- Die Kopfzeile zeigt eine anklickbare Liste der Personen im Chat. Namen lassen sich suchen und per Klick als Erwähnung in die Nachricht übernehmen.
+
+### Fenster und Mediathek
+- Seitenränder, Live-Layout und Kalenderkopf sind gleichmäßiger angeordnet.
+- Cover und Format-Logos werden in ihrer Anzeigegröße dekodiert und bleiben scharf.
+
 ### Fenster
 - Seiteninhalte und Bühne stehen mit 16 pt Randabstand näher an der Fensterkante und fluchten mit den Fensterknöpfen.
 - Im Live-Fenster haben Bild und Chat links, dazwischen, rechts und unten denselben Abstand. Platz, den das Bild nicht nutzt, geht an den Chat statt als ungleicher Rand neben das Bild.

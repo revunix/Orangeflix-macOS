@@ -19,7 +19,11 @@ struct LiveScreen: View {
     @State private var unreadCount = 0
     @State private var scrollToken = 0
     /// Whether the chat list is moving under the pointer right now.
-    @State private var chatScrolling = false
+    @State private var chatScroll = LiveChatScrollState()
+    /// Whether the list of the people in the chat is open.
+    @State private var showsUserList = false
+    /// Counts up when the composer should take the focus.
+    @State private var focusComposer = 0
     /// Whether the reader put the chat away. The page starts as the settings
     /// say; the messages come in the background either way.
     @State private var chatHidden = true
@@ -767,7 +771,7 @@ struct LiveScreen: View {
             }
             if model.isChatConnected {
                 divider
-                LiveComposer(model: model)
+                LiveComposer(model: model, focusRequest: focusComposer)
                     .padding(Space.m)
                     .fixedSize(horizontal: false, vertical: true)
                     .snappedToPixels()
@@ -930,17 +934,19 @@ struct LiveScreen: View {
                     // Each run is known by its first message, so a new line
                     // or a trimmed old one does not hand every row the
                     // content of its neighbour.
-                    ForEach(bubbles, id: \.key) { bubble in
-                        let bubble = bubble.lines
+                    ForEach(bubbles, id: \.key) { run in
+                        let bubble = run.lines
                         if bubble.count == 1, let line = bubble.first, line.isSystem {
                             systemNote(line)
                                 .snappedToPixels()
                         } else {
-                            LiveChatBubble(model: model, lines: bubble) { id in
+                            LiveChatBubble(model: model, lines: bubble, avatar: run.avatar,
+                                           replies: run.replies) { id in
                                 withAnimation(.easeOut(duration: 0.2)) {
                                     proxy.scrollTo(id, anchor: .center)
                                 }
                             }
+                            .equatable()
                             .snappedToPixels()
                         }
                     }
@@ -954,11 +960,11 @@ struct LiveScreen: View {
                 .padding(.bottom, Space.s)
             }
             .environment(\.liveChatStyle, chatStyle)
-            .environment(\.liveChatScrolling, chatScrolling)
+            .environment(\.liveChatScroll, chatScroll)
             .defaultScrollAnchor(.bottom)
             .onScrollPhaseChange { _, phase in
                 let moving = phase.isScrolling
-                if chatScrolling != moving { chatScrolling = moving }
+                if chatScroll.isScrolling != moving { chatScroll.isScrolling = moving }
             }
             .overlay(alignment: .bottom) {
                 if !followLatest {
@@ -1130,17 +1136,32 @@ struct LiveScreen: View {
             Spacer(minLength: 0)
 
             if !model.chatPeople.isEmpty {
-                HStack(spacing: 4) {
-                    Image(systemName: "person.2.fill")
-                        .font(.system(size: 10, weight: .semibold))
-                    Text(model.chatPeople.replacingOccurrences(of: " im Chat", with: ""))
-                        .font(AppFont.digitsMedium)
+                Button {
+                    showsUserList.toggle()
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "person.2.fill")
+                            .font(.system(size: 10, weight: .semibold))
+                        Text(model.chatPeople.replacingOccurrences(of: " im Chat", with: ""))
+                            .font(AppFont.digitsMedium)
+                    }
+                    .foregroundStyle(showsUserList ? Palette.accentText : Palette.textSecondary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(showsUserList ? Palette.accentSoft : Palette.surfaceMuted, in: Capsule())
+                    .contentShape(Capsule())
                 }
-                .foregroundStyle(Palette.textSecondary)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 3)
-                .background(Palette.surfaceMuted, in: Capsule())
-                .help(model.chatPeople)
+                .buttonStyle(.plain)
+                .disabled(model.chatUsers.isEmpty)
+                .help(model.chatUsers.isEmpty ? model.chatPeople : "\(model.chatPeople) – Liste zeigen")
+                .accessibilityLabel("\(model.chatPeople), Liste zeigen")
+                .popover(isPresented: $showsUserList, arrowEdge: .bottom) {
+                    LiveChatUserList(model: model) { name in
+                        showsUserList = false
+                        model.mention(name)
+                        focusComposer += 1
+                    }
+                }
             }
 
             Button {
@@ -1207,10 +1228,19 @@ struct LiveScreen: View {
 
     /// The messages of the chat, grouped as in a messenger: the messages of
     /// one sender that follow each other share a bubble.
+    /// Each run carries its picture and the messages it answers, so a row
+    /// only draws again when its own content changed.
     private var bubbles: [ChatRun] {
         var runs: [ChatRun] = []
         var index = 0
         let lines = model.lines
+        let showsAvatars = chatStyle.avatars
+        let avatars = showsAvatars ? model.avatars : [:]
+        let selfName = model.selfName
+        // Built only when some message answers another one.
+        lazy var byID: [String: LiveChatLine] = Dictionary(
+            lines.lazy.filter { !$0.id.isEmpty }.map { ($0.id, $0) },
+            uniquingKeysWith: { _, last in last })
         while index < lines.count {
             var run = [lines[index]]
             var next = index + 1
@@ -1218,7 +1248,13 @@ struct LiveScreen: View {
                 run.append(lines[next])
                 next += 1
             }
-            runs.append(ChatRun(key: LiveChatBubble.anchor(run[0], index: index), lines: run))
+            var replies: [String: LiveChatLine] = [:]
+            for line in run where !line.replyTo.isEmpty {
+                if let target = byID[line.replyTo] { replies[line.replyTo] = target }
+            }
+            let avatar = showsAvatars ? avatars[LiveChatBubble.avatarName(run[0], selfName: selfName)] : nil
+            runs.append(ChatRun(key: LiveChatBubble.anchor(run[0], index: index), lines: run,
+                                avatar: avatar, replies: replies))
             index = next
         }
         return runs
@@ -1229,4 +1265,6 @@ struct LiveScreen: View {
 private struct ChatRun {
     let key: String
     let lines: [LiveChatLine]
+    let avatar: NSImage?
+    let replies: [String: LiveChatLine]
 }

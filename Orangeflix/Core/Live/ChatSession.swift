@@ -248,8 +248,9 @@ actor ChatSession {
                                          isAdmin: true, isPinned: true)))
             }
         case "userlist":
-            if let count = ChatWire.userCount(data) {
-                push(.status("\(count) im Chat"))
+            if let names = ChatWire.userNames(data) {
+                push(.users(names))
+                push(.status("\(names.count) im Chat"))
             }
         default:
             break
